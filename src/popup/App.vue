@@ -1,0 +1,23 @@
+<template>
+  <div>
+    <hello-world />
+  </div>
+</template>
+
+<script>
+import HelloWorld from "@/components/HelloWorld.vue";
+
+export default {
+  name: "App",
+  components: { HelloWorld },
+};
+</script>
+
+<style lang="scss">
+html,
+body {
+  width: 350px;
+  height: 500px;
+  background-color: $color-gray-500;
+}
+</style>
