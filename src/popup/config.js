@@ -1,5 +1,7 @@
 import Vue from "vue";
 
+import "@p/router";
+
 import VeeValidate from "vee-validate";
 Vue.use(VeeValidate, { events: "input|blur" });
 

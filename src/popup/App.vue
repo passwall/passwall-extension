@@ -1,8 +1,11 @@
 <template>
   <div>
-  
-    <VIcon name="passwall-with-text" width="140px" height="32px" />
+    <!--  <VIcon name="passwall-with-text" width="140px" height="32px" /> -->
 
+    <!-- Content -->
+    <RouterView />
+
+    <!--  Hidden -->
     <TheIcons />
   </div>
 </template>
