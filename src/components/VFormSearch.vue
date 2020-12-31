@@ -13,12 +13,13 @@
     />
     <!-- Error -->
     <p class="error" v-if="getError" v-text="getError" />
+    <VIcon name="search" class="icon" color="#8B93A1" />
   </div>
 </template>
 
 <script>
 export default {
-  name: "VFormText",
+  name: "VFormSearch",
 
   props: {
     name: String,
@@ -56,8 +57,16 @@ export default {
 };
 </script>
 
-<style lang="scss">
+<style lang="scss" scoped>
 .form-text-wrapper {
+  position: relative;
+
+  .icon {
+    position: absolute;
+    top: 12px;
+    right: 10px;
+  }
+
   .error {
     font-size: 10px;
     color: $color-danger;
@@ -70,8 +79,8 @@ export default {
     border: 0;
 
     &::placeholder {
-      font-weight: normal;
-      font-size: $font-size-small;
+      font-weight: $font-weight-medium;
+      font-size: $font-size-h6;
       color: $color-gray-300;
     }
 
@@ -126,7 +135,7 @@ export default {
       border-radius: 8px;
       height: 48px;
       padding: 0 16px;
-      font-size: 12px;
+      font-size: $font-size-h6;
       line-height: 18px;
     }
   }

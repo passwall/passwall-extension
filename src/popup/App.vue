@@ -18,7 +18,7 @@ export default {
 html,
 body {
   width: 350px;
-  height: 490px;
+  min-height: 490px;
   background-color: $color-gray-500;
 }
 </style>
