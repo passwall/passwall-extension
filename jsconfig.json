@@ -3,6 +3,7 @@
     "experimentalDecorators": true,
     "baseUrl": "./",
     "paths": {
+      "@/*": ["src/*"],
       "@p/*": ["src/popup/*"]
     }
   }
