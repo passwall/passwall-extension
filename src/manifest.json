@@ -4,22 +4,22 @@
   "homepage_url": "http://localhost:8080/",
   "description": "Passwall official extension",
   "default_locale": "en",
-  "permissions": [
-    "activeTab",
-    "<all_urls>",
-    "*://*/*"
-  ],
+  "permissions": ["tabs", "activeTab", "<all_urls>", "*://*/*"],
   "icons": {
     "16": "icons/16.png",
     "48": "icons/48.png",
     "128": "icons/128.png"
   },
   "background": {
-    "scripts": [
-      "js/background.js"
-    ],
+    "scripts": ["js/background.js"],
     "persistent": false
   },
+  "content_scripts": [
+    {
+      "matches": ["*://*/**"],
+      "js": ["js/content-script.js"]
+    }
+  ],
   "browser_action": {
     "default_popup": "popup.html",
     "default_title": "__MSG_extName__",

@@ -30,6 +30,7 @@
     "sass": "^1.30.0",
     "sass-loader": "^10.1.0",
     "vue-cli-plugin-browser-extension": "latest",
-    "vue-template-compiler": "^2.6.11"
+    "vue-template-compiler": "^2.6.11",
+    "webextension-polyfill": "^0.7.0"
   }
 }

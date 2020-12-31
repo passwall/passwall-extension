@@ -1,6 +1,9 @@
 import Vue from "vue";
 import "@p/router";
 
+import browser from "webextension-polyfill";
+Vue.prototype.$browser = browser;
+
 import * as Waiters from "@/utils/waiters";
 Vue.prototype.$waiters = Waiters;
 

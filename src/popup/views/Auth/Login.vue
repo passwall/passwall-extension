@@ -3,7 +3,7 @@
     <div class="d-flex flex-justify-center flex-items-center header">
       <VIcon name="passwall-with-text" width="140px" height="32px" />
     </div>
-    <div class="p-4 pt-5 ">
+    <div class="p-4 pt-5">
       <form
         class="login-form d-flex flex-column"
         @submit.stop.prevent="onLogin"
@@ -41,9 +41,9 @@
         <VButton
           theme="text"
           class="mt-3"
-          type="submit"
           size="medium"
           style="letter-spacing: 2px"
+          @click="newTab"
         >
           {{ $t("SignUp") }}
         </VButton>
@@ -68,9 +68,14 @@ export default {
       if (!(await this.$validator.validateAll())) return;
       this.$wait.start(this.$waiters.Auth.Login);
       setTimeout(() => {
-        this.$wait.end(this.$waiters.Auth.Login)
-      }, 3000)
+        this.$wait.end(this.$waiters.Auth.Login);
+      }, 3000);
+    },
 
+    newTab() {
+      this.$browser.tabs.create({
+        url: "https://signup.passwall.io/",
+      });
     },
   },
 };
