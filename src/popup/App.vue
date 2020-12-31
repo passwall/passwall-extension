@@ -1,6 +1,9 @@
 <template>
   <div>
-    <h1>Hello passwall</h1>
+  
+    <VIcon name="passwall-with-text" width="140px" height="32px" />
+
+    <TheIcons />
   </div>
 </template>
 

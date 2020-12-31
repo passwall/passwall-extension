@@ -1,4 +1,5 @@
 import Vue from "vue";
+import './config'
 import App from "./App.vue";
 import "../styles/app.scss";
 
