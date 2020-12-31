@@ -3,8 +3,11 @@
     <div class="d-flex flex-justify-center flex-items-center header">
       <VIcon name="passwall-with-text" width="140px" height="32px" />
     </div>
-    <div class="p-3 pt-4">
-      <form class="login-form d-flex flex-column">
+    <div class="p-4 pt-5 ">
+      <form
+        class="login-form d-flex flex-column"
+        @submit.stop.prevent="onLogin"
+      >
         <label v-text="$t('Username')" class="mb-2" />
         <VFormText
           v-model="LoginForm.username"
@@ -30,6 +33,7 @@
           type="submit"
           size="medium"
           style="letter-spacing: 2px"
+          :loading="$wait.is($waiters.Auth.Login)"
         >
           {{ $t("Login") }}
         </VButton>
@@ -58,6 +62,16 @@ export default {
         master_password: "",
       },
     };
+  },
+  methods: {
+    async onLogin() {
+      if (!(await this.$validator.validateAll())) return;
+      this.$wait.start(this.$waiters.Auth.Login);
+      setTimeout(() => {
+        this.$wait.end(this.$waiters.Auth.Login)
+      }, 3000)
+
+    },
   },
 };
 </script>

@@ -10,6 +10,7 @@ import "../styles/app.scss";
 new Vue({
   router,
   i18n,
+  wait: window.wait,
   el: "#app",
   render: (h) => h(App),
 });
