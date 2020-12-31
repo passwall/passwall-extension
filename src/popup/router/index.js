@@ -13,6 +13,19 @@ const router = new Router({
         auth: true,
       },
     },
+    {
+      path: "/home",
+      name: "Home",
+      redirect: "/logins",
+      component: require("@p/views/Home").default,
+      children: [
+        {
+          path: "/logins",
+          name: "Logins",
+          component: require("@p/views/Logins").default,
+        },
+      ],
+    },
     { path: "*", redirect: "/login" },
   ],
 });

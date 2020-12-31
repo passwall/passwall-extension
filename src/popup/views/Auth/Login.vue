@@ -66,10 +66,7 @@ export default {
   methods: {
     async onLogin() {
       if (!(await this.$validator.validateAll())) return;
-      this.$wait.start(this.$waiters.Auth.Login);
-      setTimeout(() => {
-        this.$wait.end(this.$waiters.Auth.Login);
-      }, 3000);
+      this.$router.replace({ name: "Home" });
     },
 
     newTab() {
