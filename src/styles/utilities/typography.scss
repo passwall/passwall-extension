@@ -1,5 +1,5 @@
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: $font-size-normal;
   font-weight: $font-weight-medium;
   line-height: $line-height-normal;
@@ -25,12 +25,24 @@ body {
   font-size: $font-size-big;
 }
 
+.fs-x-big {
+  font-size: $font-size-x-big;
+}
+
 .fw-regular {
   font-weight: $font-weight-regular;
 }
 
 .fw-semibold {
   font-weight: $font-weight-semibold;
+}
+
+.ff-inter {
+  font-family: "Inter", sans-serif;
+}
+
+.ff-ibm {
+  font-family: "IBM Plex Sans";
 }
 
 .fw-medium,
@@ -45,7 +57,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: 'IBM Plex Sans';
+  font-family: "IBM Plex Sans";
 }
 
 h1,

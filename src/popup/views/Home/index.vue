@@ -1,14 +1,16 @@
 <template>
   <div>
-    <div class="d-flex flex-items-center header px-3">
-      <VAvatar name="Ömer Faruk" />
-    </div>
+    <Header />
     <RouterView />
   </div>
 </template>
 
 <script>
-export default {};
+import Header from "./header";
+
+export default {
+  components: { Header },
+};
 </script>
 
 <style lang="scss">

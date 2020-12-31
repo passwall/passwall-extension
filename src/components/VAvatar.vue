@@ -1,7 +1,7 @@
 <template>
   <div :class="[{ fancy: pro }, 'avatar']">
     <div
-      :class="[{ 'fancy-content': pro }, 'avatar-content']"
+      :class="[{ 'fancy-content': pro }, 'avatar-content', 'h6']"
       v-text="firstLettersOfName"
     />
   </div>
@@ -25,8 +25,8 @@ export default {
 
 <style lang="scss">
 .avatar {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   min-width: 40px;
   min-height: 40px;
   border-radius: 50%;
