@@ -3,7 +3,7 @@
     class="fab-btn d-flex flex-justify-center flex-items-center"
     v-bind="$attrs"
   >
-    <VIcon name="search" />
+    <VIcon name="plus" />
   </div>
 </template>
 
