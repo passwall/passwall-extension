@@ -3,7 +3,9 @@
     <div class="p-3 head">
       <span class="fw-bold h5">Logins</span>
     </div>
-    <EmptyState />
+
+    <EmptyState v-if="items.length <= 0" />
+    
   </div>
 </template>
 
