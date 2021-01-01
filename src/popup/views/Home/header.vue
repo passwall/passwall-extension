@@ -22,4 +22,9 @@
 export default {};
 </script>
 
-<style lang="scss"></style>
+<style lang="scss">
+.header {
+  height: 95px;
+  border-bottom: 2px solid $color-black;
+}
+</style>

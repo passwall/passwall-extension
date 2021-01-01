@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="content">
     <Header />
     <div class="mx-3">
       <VFormSearch
@@ -11,6 +11,7 @@
       />
     </div>
     <RouterView />
+    <FABButton class="fab" />
   </div>
 </template>
 
@@ -28,8 +29,12 @@ export default {
 </script>
 
 <style lang="scss">
-.header {
-  height: 95px;
-  border-bottom: 2px solid $color-black;
+.content {
+  .fab {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    cursor: pointer;
+  }
 }
 </style>
