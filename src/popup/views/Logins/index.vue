@@ -1,11 +1,15 @@
 <template>
-  <h1>logins</h1>
+  <div class="p-3 head">
+    <span class="fw-bold h5">Logins</span>
+  </div>
 </template>
 
 <script>
-export default {
-    
-};
+export default {};
 </script>
 
-<style lang="scss"></style>
+<style scoped lang="scss">
+.head {
+  border-bottom: 2px solid $color-black;
+}
+</style>
