@@ -5,7 +5,15 @@
 </template>
 
 <script>
-export default {};
+import { mapState } from "vuex";
+export default {
+  created() {
+    console.log(this.items);
+  },
+  computed: {
+    ...mapState("Logins", ["items"]),
+  },
+};
 </script>
 
 <style scoped lang="scss">
