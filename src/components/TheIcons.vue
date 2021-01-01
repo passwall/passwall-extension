@@ -224,6 +224,36 @@
           fill="currentColor"
         />
       </symbol>
+      <symbol
+        id="fancy-arrow"
+        width="120"
+        height="192"
+        viewBox="0 0 120 192"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <g clip-path="url(#clip0)">
+          <path
+            d="M3.5 0V50.75C3.5 72.151 20.849 89.5 42.25 89.5H66.7799C74.6335 89.5 81 95.8665 81 103.72V122.369C81 128.009 74.212 130.866 70.1788 126.925V126.925C66.0951 122.934 68.9207 116 74.6306 116H86.1776C93.4255 116 98.7198 122.847 96.896 129.862L92.0287 148.582C89.3035 159.063 93.3527 170.137 102.196 176.389L116.5 186.5M3.5 0H0M3.5 0H7.5"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-dasharray="4 4"
+          />
+          <path
+            d="M109 187.5H117V180"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </g>
+        <defs>
+          <clipPath id="clip0">
+            <rect width="120" height="192" fill="white" />
+          </clipPath>
+        </defs>
+      </symbol>
     </defs>
   </svg>
 </template>

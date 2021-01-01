@@ -1,6 +1,9 @@
 <template>
-  <div class="p-3 head">
-    <span class="fw-bold h5">Logins</span>
+  <div>
+    <div class="p-3 head">
+      <span class="fw-bold h5">Logins</span>
+    </div>
+    <EmptyState />
   </div>
 </template>
 
