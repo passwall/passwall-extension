@@ -10,11 +10,7 @@
         name="search"
         placeholder="Search"
       />
-      <VIcon name="lock" />
-      <VIcon name="credit-card" />
-      <VIcon name="credit-card" />
-      <VIcon name="credit-card" />
-      <VIcon name="credit-card" />
+      <Tabs class="mt-3" />
     </div>
     <RouterView />
     <FABButton class="fab" />
@@ -23,9 +19,10 @@
 
 <script>
 import Header from "./header";
+import Tabs from "./tabs";
 
 export default {
-  components: { Header },
+  components: { Header, Tabs },
   data() {
     return {
       searchText: "",
