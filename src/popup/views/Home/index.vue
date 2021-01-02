@@ -1,19 +1,21 @@
 <template>
   <div class="content">
     <Header />
-    <div class="mx-3">
-      <VFormSearch
-        class="mt-2"
-        v-model="searchText"
-        theme="black"
-        size="medium"
-        name="search"
-        placeholder="Search"
-      />
-      <Tabs class="mt-3" />
+    <div class="scroll">
+      <div class="mx-3">
+        <VFormSearch
+          class="mt-2"
+          v-model="searchText"
+          theme="black"
+          size="medium"
+          name="search"
+          placeholder="Search"
+        />
+        <Tabs class="mt-3" />
+      </div>
+      <RouterView />
+      <FABButton class="fab" />
     </div>
-    <RouterView />
-    <FABButton class="fab" />
   </div>
 </template>
 
@@ -38,6 +40,10 @@ export default {
     bottom: 16px;
     right: 16px;
     cursor: pointer;
+  }
+  .scroll {
+    overflow-y: auto;
+    scrollbar-width: none;  /* Firefox */
   }
 }
 </style>
