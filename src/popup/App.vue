@@ -19,7 +19,7 @@ html,
 body {
   width: 350px;
   min-height: 490px;
-  max-height: 550px;
+  max-height: 560px;
   background-color: $color-gray-500;
 }
 </style>

@@ -26,8 +26,8 @@ export default {
 
   .arrow {
     position: absolute;
-    bottom: 58px;
-    right: 58px;
+    bottom: 55px;
+    right: 45px;
   }
 }
 </style>
