@@ -13,7 +13,7 @@
           </div>
         </div>
       </div>
-      <VIcon name="settings" color="white" class="c-pointer" />
+      <VIcon name="settings" color="white" class="c-pointer" width="10px" />
     </slot>
   </div>
 </template>

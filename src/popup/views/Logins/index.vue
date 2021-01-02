@@ -12,6 +12,7 @@
           v-for="item in items"
           :key="item.id"
           :url="item.url"
+          :title="item.title"
           :username="item.username"
         />
       </ul>

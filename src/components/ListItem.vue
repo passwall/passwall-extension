@@ -5,7 +5,7 @@
   >
     <CompanyLogo :url="url" />
     <div class="flex-auto ml-3">
-      <p class="fs-medium fw-medium" v-text="url" />
+      <p class="fs-medium fw-medium" v-text="title" />
       <p class="fs-small fw-medium c-gray-300 mt-1" v-text="username" />
     </div>
     <VIcon name="arrow-right" />
@@ -22,6 +22,10 @@ export default {
       default: "",
     },
     username: {
+      type: String,
+      default: "",
+    },
+    title: {
       type: String,
       default: "",
     },
