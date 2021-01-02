@@ -13,6 +13,7 @@ Vue.use(VeeValidate, { events: "input|blur" });
 import VueWait from "vue-wait";
 Vue.use(VueWait);
 
+
 window.wait = new VueWait({
   registerComponent: false,
   registerDirective: false,
