@@ -33,6 +33,14 @@ html {
   color: $color-gray-300;
 }
 
+.container {
+  max-height: 360px;
+}
+
+.head {
+  border-bottom: 2px solid $color-black;
+}
+
 .radius {
   border-radius: $radius;
 }

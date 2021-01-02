@@ -24,26 +24,10 @@
 import { mapState } from "vuex";
 
 export default {
-  created() {
-    console.log(this.items);
-  },
   computed: {
     ...mapState("Logins", ["items"]),
   },
 };
 </script>
 
-<style scoped lang="scss">
-.head {
-  border-bottom: 2px solid $color-black;
-}
-
-.container {
-  max-height: 350px;
-}
-
-.items {
-  scrollbar-width: thin;
-  scrollbar-color: $color-primary;
-}
-</style>
+<style scoped lang="scss"></style>
