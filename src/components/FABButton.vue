@@ -19,5 +19,6 @@ export default {
   width: 48px;
   background-color: $color-primary;
   border-radius: 999px;
+  z-index: 99;
 }
 </style>
