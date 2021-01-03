@@ -1,6 +1,6 @@
 <template>
   <div class="form-row">
-    <label v-text="title" class="title"/>
+    <label v-text="title" class="title" />
     <VFormText
       v-if="editMode"
       :value="value"
@@ -37,5 +37,6 @@ export default {
 <style lang="scss" scoped>
 .title {
   letter-spacing: 2px;
+  color: $color-gray-300;
 }
 </style>
