@@ -51,6 +51,13 @@ const router = new Router({
         },
       ],
     },
+
+    {
+      path: "/create",
+      name: "LoginCreate",
+      component: require("@p/views/Logins/create").default,
+    },
+
     { path: "*", redirect: "/login" },
   ],
 });

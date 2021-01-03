@@ -23,6 +23,7 @@
               v-for="(item, index) in tabs"
               :key="index"
               class="d-flex flex-justify-between flex-items-center my-3"
+              @click="clickItem(item.createRouteName)"
             >
               <VIcon
                 class="mr-2"
@@ -54,6 +55,10 @@ export default {
     },
     closeMenu() {
       this.isOpen = false;
+    },
+
+    clickItem(routeName) {
+      this.$router.push({ name: routeName });
     },
   },
 

@@ -24,11 +24,9 @@
 </template>
 
 <script>
-import Header from "./header";
 import Tabs from "./tabs";
 
 export default {
-  components: { Header, Tabs },
   data() {
     return {
       searchText: "",
