@@ -13,7 +13,11 @@
         />
         <Tabs class="mt-3" />
       </div>
-      <RouterView />
+
+      <transition name="fade" mode="out-in">
+        <router-view />
+      </transition>
+
       <FABButton class="fab" />
     </div>
   </div>
@@ -34,6 +38,18 @@ export default {
 </script>
 
 <style lang="scss">
+.fade-enter-active,
+.fade-leave-active {
+  transition-duration: 0.3s;
+  transition-property: opacity;
+  transition-timing-function: ease;
+}
+
+.fade-enter,
+.fade-leave-active {
+  opacity: 0;
+}
+
 .content {
   .fab {
     position: absolute;
@@ -43,7 +59,7 @@ export default {
   }
   .scroll {
     overflow-y: auto;
-    scrollbar-width: none;  /* Firefox */
+    scrollbar-width: none; /* Firefox */
   }
 }
 </style>
