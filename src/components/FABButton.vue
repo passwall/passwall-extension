@@ -1,11 +1,19 @@
 <template>
-  <div class="d-flex flex-row-reverse flex-items-end fab">
+  <div
+    class="d-flex flex-row-reverse flex-items-end fab"
+    v-click-outside="closeMenu"
+  >
     <button
       class=" d-flex flex-justify-center flex-items-center fab-btn"
       v-bind="$attrs"
-      @click="openMenu"
+      @click="toggleMenu"
+      ref="fab_btn"
     >
-      <VIcon :class="[{ open: isOpen }, 'fab-icon']" name="plus" />
+      <VIcon
+        ref="fab_icon"
+        :class="[{ open: isOpen }, 'fab-icon']"
+        name="plus"
+      />
     </button>
     <slot>
       <div v-if="isOpen" class="fab-menu mr-3 px-3 py-1 bg-black">
@@ -39,8 +47,11 @@ export default {
     };
   },
   methods: {
-    openMenu() {
+    toggleMenu() {
       this.isOpen = !this.isOpen;
+    },
+    closeMenu() {
+      this.isOpen = false;
     },
   },
 
@@ -49,6 +60,7 @@ export default {
       return this.$c.TABS;
     },
   },
+  events: {},
 };
 </script>
 
