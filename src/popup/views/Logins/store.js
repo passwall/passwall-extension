@@ -54,6 +54,17 @@ export default {
           title: "Gmail",
         },
       ],
+      detail: null,
     };
+  },
+  mutations: {
+    setDetail(state, id) {
+      state.detail = state.items.find((l) => l.id === id);
+    },
+  },
+  actions: {
+    setDetail({ commit }, id) {
+      commit("setDetail", id);
+    },
   },
 };

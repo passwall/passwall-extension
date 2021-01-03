@@ -2,7 +2,7 @@
   <div class="container">
     <div class="mx-3">
       <div class="py-3 head">
-        <span class="fw-bold h5">Logins</span>
+        <span class="fw-bold h5">Loginss</span>
       </div>
 
       <EmptyState v-if="items.length <= 0" />
@@ -30,6 +30,7 @@ export default {
   },
   methods: {
     clickItem(id) {
+      this.$store.dispatch("Logins/setDetail", id);
       this.$router.push({ name: "LoginDetail", params: { id } });
     },
   },

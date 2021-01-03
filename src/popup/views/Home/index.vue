@@ -27,6 +27,7 @@
 import Tabs from "./tabs";
 
 export default {
+  components: {Tabs},
   data() {
     return {
       searchText: "",
