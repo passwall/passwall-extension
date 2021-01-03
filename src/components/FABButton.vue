@@ -16,24 +16,26 @@
       />
     </button>
     <slot>
-      <div v-if="isOpen" class="fab-menu mr-3 px-3 py-1 bg-black">
-        <ul>
-          <li
-            v-for="(item, index) in tabs"
-            :key="index"
-            class="d-flex flex-justify-between flex-items-center my-3"
-          >
-            <VIcon
-              class="mr-2"
-              :name="item.iconName"
-              width="20px"
-              height="20px"
-            />
-            <p class="fs-medium flex-auto ml-1">{{ item.name }}</p>
-            <VIcon name="star" width="16px" height="16px" />
-          </li>
-        </ul>
-      </div>
+      <transition name="slide-fade">
+        <div v-if="isOpen" class="fab-menu mr-3 px-3 py-1 bg-black">
+          <ul>
+            <li
+              v-for="(item, index) in tabs"
+              :key="index"
+              class="d-flex flex-justify-between flex-items-center my-3"
+            >
+              <VIcon
+                class="mr-2"
+                :name="item.iconName"
+                width="20px"
+                height="20px"
+              />
+              <p class="fs-medium flex-auto ml-1">{{ item.name }}</p>
+              <VIcon name="star" width="16px" height="16px" />
+            </li>
+          </ul>
+        </div>
+      </transition>
     </slot>
   </div>
 </template>
@@ -65,6 +67,18 @@ export default {
 </script>
 
 <style lang="scss">
+.slide-fade-enter-active {
+  transition: all 0.3s ease;
+}
+.slide-fade-leave-active {
+  transition: all 0.8s cubic-bezier(1, 0.5, 0.8, 1);
+}
+.slide-fade-enter, .slide-fade-leave-to
+/* .slide-fade-leave-active below version 2.1.8 */ {
+  transform: translateX(10px);
+  opacity: 0;
+}
+
 .open {
   transform: rotate(75deg);
 }
@@ -83,6 +97,7 @@ export default {
   }
 
   &-menu {
+    transition: 0.5s;
     min-width: 215px;
     z-index: 99;
     border: 1px solid #10161f;
