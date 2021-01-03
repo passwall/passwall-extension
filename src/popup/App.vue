@@ -1,7 +1,9 @@
 <template>
   <div>
     <!-- Content -->
-    <RouterView />
+    <transition name="fade" mode="out-in">
+      <router-view />
+    </transition>
 
     <!--  Hidden -->
     <TheIcons />
