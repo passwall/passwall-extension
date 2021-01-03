@@ -10,10 +10,15 @@
     />
     <!-- Text -->
     <div v-else class="d-flex flex-items-center flex-justify-between px-3 py-2">
-      <span v-text="value" class="fw-medium h6 mr-2" />
+      <span v-text="show ? value : '●●●●●●'" class="fw-medium h6 mr-2" />
       <div class="d-flex flex-items-center" v-if="showIcons">
         <slot name="second-icon">
-          <VIcon name="eye" size="20" />
+          <VIcon
+            class="c-pointer"
+            :name="show ? 'eye-off' : 'eye'"
+            size="20"
+            @click="show = !show"
+          />
         </slot>
         <ClipboardButton class="ml-2" v-if="value" :copy="value" />
       </div>
@@ -30,6 +35,12 @@ export default {
     value: String,
     editMode: Boolean,
     showIcons: Boolean,
+  },
+
+  data() {
+    return {
+      show: false,
+    };
   },
 };
 </script>
