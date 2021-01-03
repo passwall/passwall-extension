@@ -2,7 +2,7 @@
   <div class="container">
     <div class="mx-3">
       <div class="py-3 head">
-        <span class="fw-bold h5">Loginss</span>
+        <span class="fw-bold h5">Logins</span>
       </div>
 
       <EmptyState v-if="items.length <= 0" />
