@@ -2,6 +2,7 @@
   <li
     class="d-flex flex-justify-between flex-content-center py-3 c-pointer item"
     v-bind="$attrs"
+    v-on="$listeners"
   >
     <CompanyLogo :url="url" />
     <div class="flex-auto ml-3">
