@@ -13,7 +13,12 @@
     />
     <!-- Error -->
     <p class="error" v-if="getError" v-text="getError" />
-    <VIcon name="search" class="icon" color="#8B93A1" />
+    <VIcon
+      :name="value.length <= 0 ? 'search' : 'x-icon'"
+      @click="$emit('input', '')"
+      class="icon c-pointer"
+      color="#8B93A1"
+    />
   </div>
 </template>
 
