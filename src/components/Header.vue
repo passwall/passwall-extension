@@ -1,5 +1,8 @@
 <template>
-  <div class="d-flex flex-items-center flex-justify-between header px-3">
+  <div
+    class="d-flex flex-items-center flex-justify-between header px-3"
+    v-bind="$attrs"
+  >
     <slot name="content">
       <div class="d-flex flex-items-center ">
         <VAvatar :name="user.name" class="mr-1" />

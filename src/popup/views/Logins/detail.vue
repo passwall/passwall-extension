@@ -1,6 +1,6 @@
 <template>
   <div>
-    <Header>
+    <Header class="bg-black-400">
       <template v-slot:content>
         <VIcon class="c-pointer" name="arrow-left" @click="$router.back()" />
         <div class="d-flex flex-auto flex-items-center ml-4">
@@ -15,23 +15,51 @@
     </Header>
     <FormRowText
       :value="detail.title"
-      :title="$t('TITLE')"
+      title="title"
+      :edit-mode="false"
+      :show-icons="false"
+    >
+      <template v-slot:second-icon>
+        <div />
+      </template>
+    </FormRowText>
+    <FormRowText
+      :value="detail.username"
+      title="username"
       :edit-mode="false"
       :show-icons="true"
+    >
+      <template v-slot:second-icon> <div /> </template>
+    </FormRowText>
+    <FormRowText
+      :value="detail.password"
+      title="password"
+      :edit-mode="false"
+      :show-icons="true"
+      password
     />
+    <FormRowText
+      :value="detail.url"
+      title="website"
+      :edit-mode="false"
+      :show-icons="true"
+    >
+      <template v-slot:second-icon>
+        <VIcon class="c-pointer" name="external-link" @click="openLink" />
+      </template>
+    </FormRowText>
   </div>
 </template>
 
 <script>
 export default {
-  data() {
-    return {
-      form: {
-        title: detail.title,
-      },
-    };
+  methods: {
+    openLink() {
+      this.$browser.tabs.create({
+        url: this.detail.url,
+      });
+    },
   },
-  methods: {},
   computed: {
     detail() {
       return this.$store.state.Logins.detail;

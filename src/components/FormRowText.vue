@@ -35,11 +35,15 @@ export default {
     value: String,
     editMode: Boolean,
     showIcons: Boolean,
+    password: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   data() {
     return {
-      show: false,
+      show: !this.password,
     };
   },
 };
@@ -49,5 +53,6 @@ export default {
 .title {
   letter-spacing: 2px;
   color: $color-gray-300;
+  text-transform: uppercase;
 }
 </style>

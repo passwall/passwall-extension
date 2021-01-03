@@ -8,6 +8,7 @@ const router = new Router({
     {
       path: "/login",
       name: "login",
+
       component: require("@p/views/Auth/Login").default,
       meta: {
         auth: true,
