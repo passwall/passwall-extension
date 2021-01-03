@@ -4,7 +4,7 @@
     :height="height || size"
     :transform="`rotate(${rotation} 0 0)`"
     v-on="$listeners"
-    class="v-icon"
+    class="v-icon no-select"
   >
     <use :xlink:href="`#${name}`" />
   </svg>

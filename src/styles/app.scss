@@ -33,6 +33,10 @@ html {
   color: $color-gray-300;
 }
 
+.no-select {
+  user-select: none;
+}
+
 .container {
   max-height: 360px;
 }
