@@ -44,9 +44,5 @@ export default {
     right: 16px;
     cursor: pointer;
   }
-  .scroll {
-    overflow-y: auto;
-    scrollbar-width: none; /* Firefox */
-  }
 }
 </style>

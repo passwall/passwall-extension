@@ -33,6 +33,11 @@ html {
   color: $color-gray-300;
 }
 
+.scroll {
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+}
+
 .no-select {
   user-select: none;
 }

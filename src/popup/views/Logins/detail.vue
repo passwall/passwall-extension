@@ -13,41 +13,47 @@
         </div>
       </template>
     </Header>
-    <FormRowText
-      :value="detail.title"
-      title="title"
-      :edit-mode="false"
-      :show-icons="false"
-    >
-      <template v-slot:second-icon>
-        <div />
-      </template>
-    </FormRowText>
-    <FormRowText
-      :value="detail.username"
-      title="username"
-      :edit-mode="false"
-      :show-icons="true"
-    >
-      <template v-slot:second-icon> <div /> </template>
-    </FormRowText>
-    <FormRowText
-      :value="detail.password"
-      title="password"
-      :edit-mode="false"
-      :show-icons="true"
-      password
-    />
-    <FormRowText
-      :value="detail.url"
-      title="website"
-      :edit-mode="false"
-      :show-icons="true"
-    >
-      <template v-slot:second-icon>
-        <VIcon class="c-pointer" name="external-link" @click="openLink" />
-      </template>
-    </FormRowText>
+    <div class="scroll">
+      <FormRowText
+        :value="detail.title"
+        title="title"
+        :edit-mode="false"
+        :show-icons="false"
+      >
+        <template v-slot:second-icon>
+          <div />
+        </template>
+      </FormRowText>
+      <FormRowText
+        :value="detail.username"
+        title="username"
+        :edit-mode="false"
+        :show-icons="true"
+      >
+        <template v-slot:second-icon> <div /> </template>
+      </FormRowText>
+      <FormRowText
+        :value="detail.password"
+        title="password"
+        :edit-mode="false"
+        :show-icons="true"
+        password
+      />
+      <FormRowText
+        :value="detail.url"
+        title="website"
+        :edit-mode="false"
+        :show-icons="true"
+      >
+        <template v-slot:second-icon>
+          <VIcon class="c-pointer" name="external-link" @click="openLink" />
+        </template>
+      </FormRowText>
+
+      <div class="mb-7">
+        <VTextArea :value="detail.note" label="Note" name="note" disabled />
+      </div>
+    </div>
   </div>
 </template>
 

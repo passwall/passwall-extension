@@ -13,6 +13,12 @@ Vue.prototype.$c = Constants;
 import VeeValidate from "vee-validate";
 Vue.use(VeeValidate, { events: "input|blur" });
 
+import VueClipboard from "vue-clipboard2";
+Vue.use(VueClipboard);
+
+import VTooltip from "v-tooltip";
+Vue.use(VTooltip);
+
 import VueWait from "vue-wait";
 Vue.use(VueWait);
 

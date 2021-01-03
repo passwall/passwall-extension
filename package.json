@@ -10,8 +10,10 @@
   "dependencies": {
     "axios": "^0.20.0",
     "core-js": "^3.6.5",
+    "v-tooltip": "^2.1.1",
     "vee-validate": "2.2.15",
     "vue": "^2.6.11",
+    "vue-clipboard2": "^0.3.1",
     "vue-i18n": "^8.22.2",
     "vue-router": "^3.4.9",
     "vue-wait": "^1.4.8",

@@ -8,7 +8,7 @@ const router = new Router({
     {
       path: "/login",
       name: "login",
-
+      redirect: "/home",
       component: require("@p/views/Auth/Login").default,
       meta: {
         auth: true,
@@ -54,12 +54,12 @@ const router = new Router({
     },
 
     {
-      path: "/create",
+      path: "logins/create",
       name: "LoginCreate",
       component: require("@p/views/Logins/create").default,
     },
     {
-      path: ":id",
+      path: "/logins/:id",
       name: "LoginDetail",
       component: require("@p/views/Logins/detail").default,
     },
