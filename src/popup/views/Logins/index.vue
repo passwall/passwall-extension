@@ -14,6 +14,7 @@
           :url="item.url"
           :title="item.title"
           :username="item.username"
+          @click="clickItem(item.id)"
         />
       </ul>
     </div>
@@ -26,7 +27,12 @@ import { mapState } from "vuex";
 export default {
   computed: {
     ...mapState("Logins", ["items"]),
-  }
+  },
+  methods: {
+    clickItem(id) {
+      this.$router.push({ name: "LoginDetail", params: { id } });
+    },
+  },
 };
 </script>
 
