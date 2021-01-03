@@ -7,12 +7,14 @@ Vue.prototype.$browser = browser;
 import * as Waiters from "@/utils/waiters";
 Vue.prototype.$waiters = Waiters;
 
+import * as Constants from "@/utils/constants";
+Vue.prototype.$c = Constants;
+
 import VeeValidate from "vee-validate";
 Vue.use(VeeValidate, { events: "input|blur" });
 
 import VueWait from "vue-wait";
 Vue.use(VueWait);
-
 
 window.wait = new VueWait({
   registerComponent: false,
