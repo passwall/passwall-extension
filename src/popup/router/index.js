@@ -63,6 +63,16 @@ const router = new Router({
       name: "LoginDetail",
       component: require("@p/views/Logins/detail").default,
     },
+        {
+      path: "/credit-card/create",
+      name: "CardCreate",
+      component: require("@p/views/CreditCard/create").default,
+    },
+    {
+      path: "/credit-card/:id",
+      name: "CardDetail",
+      component: require("@p/views/CreditCard/detail").default,
+    },
 
     { path: "*", redirect: "/login" },
   ],

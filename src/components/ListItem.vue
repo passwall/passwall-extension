@@ -9,7 +9,7 @@
       <p class="fs-medium fw-medium" v-text="title" />
       <p class="fs-small fw-medium c-gray-300 mt-1" v-text="subtitle" />
     </div>
-    <VIcon name="arrow-right" />
+    <VIcon name="arrow-right" color="#8B93A1"/>
   </li>
 </template>
 
