@@ -11,9 +11,10 @@
         <ListItem
           v-for="item in items"
           :key="item.id"
-          :url="item.url"
-          :title="item.title"
-          :username="item.username"
+          :url="item.card_name"
+          :title="item.card_name"
+          :subtitle="item.number"
+          :check="false"
         />
       </ul>
     </div>

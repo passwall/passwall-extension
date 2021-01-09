@@ -1,7 +1,7 @@
 <template>
   <div class="d-flex flex-justify-center flex-items-center logoWrap">
     <img
-      v-if="logoAvailable"
+      v-if="logoAvailable && check"
       class="logo"
       :src="`http://logo.clearbit.com/${domain}?size=40?format=png`"
       alt="logo"
@@ -20,6 +20,10 @@ export default {
     url: {
       type: String,
       default: "",
+    },
+    check: {
+      type: Boolean,
+      default: true,
     },
   },
   data() {

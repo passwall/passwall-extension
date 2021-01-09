@@ -13,7 +13,7 @@
           :key="item.id"
           :url="item.url"
           :title="item.title"
-          :username="item.username"
+          :subtitle="item.username"
           @click="clickItem(item.id)"
         />
       </ul>
