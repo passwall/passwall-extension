@@ -15,6 +15,7 @@ export default {
   PrivateNotes: "Private Notes",
   UseThis: "Use this",
   CreditCards: "Credit Cards",
+  Emails: "Credit Cards",
   Identities: "Identities",
   GiveFeedback: "Give Feedback",
   "Search passwords, websites, notes": "Search passwords, websites, notes",

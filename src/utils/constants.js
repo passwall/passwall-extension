@@ -7,26 +7,26 @@ export const TABS = [
   {
     name: "Credit Card",
     iconName: "credit-card",
-    createRouteName: "LoginCreate",
+    createRouteName: "CreditCardCreate",
   },
   {
     name: "Emails",
     iconName: "at-symbol",
-    createRouteName: "LoginCreate",
+    createRouteName: "EmailCreate",
   },
   {
     name: "Bank Account",
     iconName: "shield-check",
-    createRouteName: "LoginCreate",
+    createRouteName: "BankAccountCreate",
   },
   {
     name: "Private Notes",
     iconName: "clipboard-secure",
-    createRouteName: "LoginCreate",
+    createRouteName: "PrivateNoteCreate",
   },
   {
     name: "Servers",
     iconName: "terminal",
-    createRouteName: "LoginCreate",
+    createRouteName: "ServerCreate",
   },
 ];
