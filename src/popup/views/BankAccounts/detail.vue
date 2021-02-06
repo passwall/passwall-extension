@@ -20,45 +20,43 @@
         :edit-mode="false"
         :show-icons="false"
       >
-        <template v-slot:second-icon>
-          <div />
-        </template>
+        <template v-slot:second-icon> <div /> </template>
       </FormRowText>
       <FormRowText
-        :value="detail.cardholder_name"
-        title="cardholder name"
+        :value="detail.account_name"
+        title="account name"
         :edit-mode="false"
         :show-icons="true"
       >
         <template v-slot:second-icon> <div /> </template>
       </FormRowText>
       <FormRowText
-        :value="detail.type"
-        title="type"
+        :value="detail.account_number"
+        title="account number"
         :edit-mode="false"
         :show-icons="true"
       >
         <template v-slot:second-icon> <div /> </template>
       </FormRowText>
       <FormRowText
-        :value="detail.number"
-        title="number"
+        :value="detail.iban"
+        title="iban"
         :edit-mode="false"
         :show-icons="true"
       >
         <template v-slot:second-icon> <div /> </template>
       </FormRowText>
       <FormRowText
-        :value="detail.expiry_date"
-        title="expiry date"
+        :value="detail.currency"
+        title="currency"
         :edit-mode="false"
         :show-icons="true"
       >
         <template v-slot:second-icon> <div /> </template>
       </FormRowText>
       <FormRowText
-        :value="detail.verification_number"
-        title="verification number"
+        :value="detail.password"
+        title="password"
         :edit-mode="false"
         :show-icons="true"
         password
@@ -72,7 +70,7 @@ export default {
   methods: {},
   computed: {
     detail() {
-      return this.$store.state.CreditCards.detail;
+      return this.$store.state.BankAccounts.detail;
     },
   },
 };

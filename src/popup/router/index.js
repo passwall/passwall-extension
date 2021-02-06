@@ -83,6 +83,16 @@ const router = new Router({
       name: "EmailDetail",
       component: require("@p/views/Emails/detail").default,
     },
+    {
+      path: "/bank-accounts/create",
+      name: "BankAccountCreate",
+      component: require("@p/views/BankAccounts/create").default,
+    },
+    {
+      path: "/bank-accounts/:id",
+      name: "BankAccountDetail",
+      component: require("@p/views/BankAccounts/detail").default,
+    },
 
     { path: "*", redirect: "/login" },
   ],
