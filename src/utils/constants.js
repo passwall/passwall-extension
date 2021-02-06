@@ -5,8 +5,8 @@ export const TABS = [
     createRouteName: "LoginCreate",
   },
   {
-    name: "Credit Card",
-    iconName: "credit-card",
+    name: "Credit Cards",
+    iconName: "credit-cards",
     createRouteName: "CreditCardCreate",
   },
   {
@@ -15,7 +15,7 @@ export const TABS = [
     createRouteName: "EmailCreate",
   },
   {
-    name: "Bank Account",
+    name: "Bank Accounts",
     iconName: "shield-check",
     createRouteName: "BankAccountCreate",
   },

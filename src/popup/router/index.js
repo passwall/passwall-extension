@@ -28,12 +28,12 @@ const router = new Router({
         {
           path: "/bank-accounts",
           name: "BankAccounts",
-          component: require("@p/views/BankAccount").default,
+          component: require("@/popup/views/BankAccounts").default,
         },
         {
           path: "/credit-cards",
           name: "CreditCards",
-          component: require("@p/views/CreditCard").default,
+          component: require("@/popup/views/CreditCards").default,
         },
         {
           path: "/emails",
@@ -64,14 +64,14 @@ const router = new Router({
       component: require("@p/views/Logins/detail").default,
     },
     {
-      path: "/credit-card/create",
-      name: "CardCreate",
-      component: require("@p/views/CreditCard/create").default,
+      path: "/credit-cards/create",
+      name: "CreditCardCreate",
+      component: require("@/popup/views/CreditCards/create").default,
     },
     {
-      path: "/credit-card/:id",
-      name: "CardDetail",
-      component: require("@p/views/CreditCard/detail").default,
+      path: "/credit-cards/:id",
+      name: "CreditCardDetail",
+      component: require("@/popup/views/CreditCards/detail").default,
     },
     {
       path: "/emails/create",

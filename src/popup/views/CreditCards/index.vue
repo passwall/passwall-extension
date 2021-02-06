@@ -11,10 +11,10 @@
         <ListItem
           v-for="item in items"
           :key="item.id"
-          :url="item.card_name"
-          :title="item.card_name"
+          :url="item.title"
+          :title="item.title"
           :subtitle="item.number"
-          :check="false"
+          @click="clickItem(item.id)"
         />
       </ul>
     </div>
@@ -23,9 +23,17 @@
 
 <script>
 import { mapState } from "vuex";
+
 export default {
   computed: {
-    ...mapState("CreditCard", ["items"]),
+    ...mapState("CreditCards", ["items"]),
+  },
+  
+  methods: {
+    clickItem(id) {
+      this.$store.dispatch("CreditCards/setDetail", id);
+      this.$router.push({ name: "CreditCardDetail", params: { id } });
+    },
   },
 };
 </script>

@@ -3,8 +3,11 @@ import Vuex from "vuex";
 Vue.use(Vuex);
 
 import Logins from "@p/views/Logins/store";
-import CreditCard from "@p/views/CreditCard/store";
+import CreditCards from "@/popup/views/CreditCards/store";
 import Emails from "@p/views/Emails/store";
+import BankAccounts from "@p/views/BankAccounts/store";
+import Notes from "@p/views/Notes/store";
+import Servers from "@p/views/Servers/store";
 
 export default new Vuex.Store({
   state() {
@@ -17,7 +20,10 @@ export default new Vuex.Store({
 
   modules: {
     Logins,
-    CreditCard,
+    CreditCards,
     Emails,
+    BankAccounts,
+    Notes,
+    Servers,
   },
 });

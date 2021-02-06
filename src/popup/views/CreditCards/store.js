@@ -4,23 +4,23 @@ const ITEMS = [
     created_at: "2020-05-02T17:47:42.739124+03:00",
     updated_at: "2020-05-02T17:47:42.739124+03:00",
     deleted_at: null,
-    card_name: "Enpara",
+    title: "Enpara",
     cardholder_name: "Ömer Faruk Oruç",
     type: "Matercard",
     number: "1234-5678-1234-5678",
-    verification_number: "000",
+    verification_number: "123",
     expiry_date: "12/2022",
   },
   {
-    id: 1,
+    id: 2,
     created_at: "2020-05-02T17:47:42.739124+03:00",
     updated_at: "2020-05-02T17:47:42.739124+03:00",
     deleted_at: null,
-    card_name: "İş Bankası",
+    title: "İş Bankası",
     cardholder_name: "Ömer Faruk Oruç",
     type: "Matercard",
     number: "1234-5678-1234-5678",
-    verification_number: "000",
+    verification_number: "456",
     expiry_date: "12/2022",
   },
 ];
@@ -31,7 +31,17 @@ export default {
   state() {
     return {
       items: ITEMS,
-      detail: ITEMS[0],
+      detail: ITEMS[0]
     };
+  },
+  mutations: {
+    setDetail(state, id) {
+      state.detail = state.items.find((l) => l.id === id);
+    },
+  },
+  actions: {
+    setDetail({ commit }, id) {
+      commit("setDetail", id);
+    },
   },
 };
