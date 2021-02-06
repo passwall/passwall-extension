@@ -93,6 +93,16 @@ const router = new Router({
       name: "BankAccountDetail",
       component: require("@p/views/BankAccounts/detail").default,
     },
+    {
+      path: "/notes/create",
+      name: "NoteCreate",
+      component: require("@p/views/Notes/create").default,
+    },
+    {
+      path: "/notes/:id",
+      name: "NoteDetail",
+      component: require("@p/views/Notes/detail").default,
+    },
 
     { path: "*", redirect: "/login" },
   ],
