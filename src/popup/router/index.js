@@ -103,6 +103,16 @@ const router = new Router({
       name: "NoteDetail",
       component: require("@p/views/Notes/detail").default,
     },
+    {
+      path: "/servers/create",
+      name: "ServerCreate",
+      component: require("@p/views/Servers/create").default,
+    },
+    {
+      path: "/servers/:id",
+      name: "ServerDetail",
+      component: require("@p/views/Servers/detail").default,
+    },
 
     { path: "*", redirect: "/login" },
   ],
