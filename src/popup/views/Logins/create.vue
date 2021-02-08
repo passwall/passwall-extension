@@ -16,60 +16,88 @@
       </template>
     </Header>
     <div class="scroll">
-      <FormRowText
-        :value="detail.title"
-        title="title"
-        :show-icons="false"
-      >
-        <template v-slot:second-icon>
-          <div />
-        </template>
-      </FormRowText>
-      <FormRowText
-        :value="detail.username"
-        title="username"
-        :edit-mode="true"
-        :show-icons="true"
-      >
-        <template v-slot:second-icon> <div /> </template>
-      </FormRowText>
-      <FormRowText
-        :value="detail.password"
-        title="password"
-        :edit-mode="false"
-        :show-icons="true"
-        password
-      />
-      <FormRowText
-        :value="detail.url"
-        title="website"
-        :edit-mode="false"
-        :show-icons="true"
-      >
-        <template v-slot:second-icon>
-          <VIcon class="c-pointer" name="external-link" @click="openLink" />
-        </template>
-      </FormRowText>
+      <form @submit="onSubmit">
+        <div class="form-row">
+          <label v-text="'Title'" />
+          <VFormText
+            name="Title"
+            v-model="form.title"
+            v-validate="'required'"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
+        </div>
 
-      <div class="mb-7">
-        <VTextArea :value="detail.note" label="Note" name="note" disabled />
-      </div>
+        <div class="form-row">
+          <label v-text="'Username'" />
+          <VFormText
+            name="Username"
+            v-model="form.username"
+            v-validate="'required'"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
+        </div>
+
+        <div class="form-row">
+          <label v-text="'Password'" />
+          <div class="d-flex flex-justify-between ">
+            <VFormText
+              name="Password"
+              class="flex-auto"
+              v-model="form.password"
+              v-validate="'required'"
+              :placeholder="$t('ClickToFill')"
+              theme="no-border"
+              :type="showPass ? 'text' : 'password'"
+            />
+            <div class="d-flex flex-items-center mr-3">
+              <ClipboardButton :copy="form.password" />
+              <!-- Show/Hide -->
+              <ShowPassButton @click="showPass = $event" />
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <label v-text="'Web Site'" />
+          <div class="d-flex flex-justify-between">
+            <VFormText
+              name="Web Site"
+              class="flex-auto"
+              v-model="form.website"
+              v-validate="'required'"
+              :placeholder="$t('ClickToFill')"
+              theme="no-border"
+            />
+            <LinkButton class="mr-3" :link="form.website" />
+          </div>
+        </div>
+
+        <div class="mb-7">
+          <VTextArea :value="form.note" label="Note" name="note" />
+        </div>
+      </form>
     </div>
   </div>
 </template>
 
 <script>
 export default {
-  methods: {
-    openLink() {
-      this.$browser.tabs.create({
-        url: this.detail.url,
-      });
-    },
+  data() {
+    return {
+      showPass: false,
+      form: {
+        title: "",
+        username: "",
+        password: "",
+        website: "",
+        note: "",
+      },
+    };
   },
-  computed: {
-    detail() {
-      return this.$store.state.Logins.detail;
+  methods: {
+    onSubmit() {
+      console.log("submit");
     },
   },
 };

@@ -16,64 +16,89 @@
       </template>
     </Header>
     <div class="scroll">
-      <FormRowText
-        :value="detail.title"
-        title="title"
-        :show-icons="false"
-      >
-        <template v-slot:second-icon>
-          <div />
-        </template>
-      </FormRowText>
-      <FormRowText
-        :value="detail.cardholder_name"
-        title="cardholder name"
-        :show-icons="false"
-      >
-        <template v-slot:second-icon>
-          <div />
-        </template>
-      </FormRowText>
-      <FormRowText
-        :value="detail.type"
-        title="type"
-        :show-icons="false"
-      >
-        <template v-slot:second-icon>
-          <div />
-        </template>
-      </FormRowText>
-      <FormRowText
-        :value="detail.number"
-        title="number"
-        :show-icons="false"
-      >
-        <template v-slot:second-icon>
-          <div />
-        </template>
-      </FormRowText>
-      <FormRowText
-        :value="detail.expiry_date"
-        title="expiry date"
-        :show-icons="false"
-      >
-        <template v-slot:second-icon>
-          <div />
-        </template>
-      </FormRowText>    
-      <FormRowText
-        :value="detail.verification_number"
-        title="verification number"
-        :edit-mode="false"
-        :show-icons="true"
-        password
-      />
+      <div class="form-row">
+        <label v-text="'Title'" />
+        <VFormText
+          name="Title"
+          v-model="form.title"
+          v-validate="'required'"
+          :placeholder="$t('ClickToFill')"
+          theme="no-border"
+        />
+      </div>
+
+      <div class="form-row">
+        <label v-text="'Card Holder Name'" />
+        <VFormText
+          name="Card Holder Name"
+          v-model="form.cardHolderName"
+          v-validate="'required'"
+          :placeholder="$t('ClickToFill')"
+          theme="no-border"
+        />
+      </div>
+
+      <div class="form-row">
+        <label v-text="'Type'" />
+        <VFormText
+          name="Type"
+          v-model="form.type"
+          v-validate="'required'"
+          :placeholder="$t('ClickToFill')"
+          theme="no-border"
+        />
+      </div>
+
+      <div class="form-row">
+        <label v-text="'Number'" />
+        <VFormText
+          name="Number"
+          v-model="form.number"
+          v-validate="'required'"
+          :placeholder="$t('ClickToFill')"
+          theme="no-border"
+        />
+      </div>
+
+      <div class="form-row">
+        <label v-text="'Expiration Date'" />
+        <VFormText
+          name="Expiration Date"
+          v-model="form.expiryDate"
+          v-validate="'required'"
+          :placeholder="$t('ClickToFill')"
+          theme="no-border"
+        />
+      </div>
+      <div class="form-row">
+        <label v-text="'Verification Number'" />
+        <VFormText
+          name="Verification Number"
+          v-model="form.verificationNumber"
+          v-validate="'required'"
+          :placeholder="$t('ClickToFill')"
+          theme="no-border"
+          password
+        />
+      </div>
     </div>
   </div>
 </template>
 
 <script>
 export default {
+  data() {
+    return {
+      form: {
+        title: "",
+        cardHolderName: "",
+        type: "",
+        number: "",
+        expiryDate: "",
+        verificationNumber: "",
+      },
+    };
+  },
   methods: {},
   computed: {
     detail() {

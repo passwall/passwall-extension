@@ -31,7 +31,7 @@ export default {
   state() {
     return {
       items: ITEMS,
-      detail: ITEMS[0]
+      detail: null,
     };
   },
   mutations: {

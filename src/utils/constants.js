@@ -6,7 +6,7 @@ export const TABS = [
   },
   {
     name: "Credit Cards",
-    iconName: "credit-cards",
+    iconName: "credit-card",
     createRouteName: "CreditCardCreate",
   },
   {

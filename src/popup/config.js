@@ -10,6 +10,9 @@ Vue.prototype.$waiters = Waiters;
 import * as Constants from "@/utils/constants";
 Vue.prototype.$c = Constants;
 
+import * as Helpers from "@/utils/helpers";
+Vue.prototype.$helpers = Helpers;
+
 import VeeValidate from "vee-validate";
 Vue.use(VeeValidate, { events: "input|blur" });
 
