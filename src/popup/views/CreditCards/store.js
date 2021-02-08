@@ -34,14 +34,10 @@ export default {
       detail: null,
     };
   },
-  mutations: {
-    setDetail(state, id) {
-      state.detail = state.items.find((l) => l.id === id);
-    },
-  },
+  mutations: {},
   actions: {
-    setDetail({ commit }, id) {
-      commit("setDetail", id);
+    setDetail({ state }, id) {
+      state.detail = state.items.find((l) => l.id === id);
     },
   },
 };
