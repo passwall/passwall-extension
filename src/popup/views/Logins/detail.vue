@@ -46,7 +46,7 @@
         :show-icons="true"
       >
         <template v-slot:second-icon>
-          <VIcon class="c-pointer" name="external-link" @click="openLink" />
+          <LinkButton :link="detail.url" />
         </template>
       </FormRowText>
 

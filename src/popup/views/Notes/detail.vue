@@ -3,13 +3,13 @@
     <Header class="bg-black-400">
       <template v-slot:content>
         <VIcon class="c-pointer" name="arrow-left" @click="$router.back()" />
-        <div class="d-flex flex-auto flex-items-center ml-4">
+        <div class="d-flex flex-auto flex-items-center ml-3">
           <CompanyLogo :url="detail.title" />
           <span class="fw-bold h5 ml-2">{{ detail.title }}</span>
         </div>
-        <div>
-          <VIcon class="c-pointer trash" name="trash" />
-          <VIcon class="c-pointer ml-3" name="cogs" />
+        <div class="d-flex">
+          <VIcon class="c-pointer trash flex-shrink-0 " name="trash" />
+          <VIcon class="c-pointer ml-3 flex-shrink-0 " name="cogs" />
         </div>
       </template>
     </Header>
