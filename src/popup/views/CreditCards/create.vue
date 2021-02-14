@@ -16,71 +16,83 @@
       </template>
     </Header>
     <div class="scroll">
-      <div class="form-row">
-        <label v-text="'Title'" />
-        <VFormText
-          name="Title"
-          v-model="form.title"
-          v-validate="'required'"
-          :placeholder="$t('ClickToFill')"
-          theme="no-border"
-        />
-      </div>
+      <form @submit.stop.prevent="onSubmit">
+        <div class="form-row">
+          <label v-text="'Title'" />
+          <VFormText
+            name="Title"
+            v-model="form.title"
+            v-validate="'required'"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
+        </div>
 
-      <div class="form-row">
-        <label v-text="'Card Holder Name'" />
-        <VFormText
-          name="Card Holder Name"
-          v-model="form.cardHolderName"
-          v-validate="'required'"
-          :placeholder="$t('ClickToFill')"
-          theme="no-border"
-        />
-      </div>
+        <div class="form-row">
+          <label v-text="'Card Holder Name'" />
+          <VFormText
+            name="Card Holder Name"
+            v-model="form.cardHolderName"
+            v-validate="'required'"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
+        </div>
 
-      <div class="form-row">
-        <label v-text="'Type'" />
-        <VFormText
-          name="Type"
-          v-model="form.type"
-          v-validate="'required'"
-          :placeholder="$t('ClickToFill')"
-          theme="no-border"
-        />
-      </div>
+        <div class="form-row">
+          <label v-text="'Type'" />
+          <VFormText
+            name="Type"
+            v-model="form.type"
+            v-validate="'required'"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
+        </div>
 
-      <div class="form-row">
-        <label v-text="'Number'" />
-        <VFormText
-          name="Number"
-          v-model="form.number"
-          v-validate="'required'"
-          :placeholder="$t('ClickToFill')"
-          theme="no-border"
-        />
-      </div>
+        <div class="form-row">
+          <label v-text="'Number'" />
+          <VFormText
+            name="Number"
+            v-model="form.number"
+            v-validate="'required'"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
+        </div>
 
-      <div class="form-row">
-        <label v-text="'Expiration Date'" />
-        <VFormText
-          name="Expiration Date"
-          v-model="form.expiryDate"
-          v-validate="'required'"
-          :placeholder="$t('ClickToFill')"
-          theme="no-border"
-        />
-      </div>
-      <div class="form-row">
-        <label v-text="'Verification Number'" />
-        <VFormText
-          name="Verification Number"
-          v-model="form.verificationNumber"
-          v-validate="'required'"
-          :placeholder="$t('ClickToFill')"
-          theme="no-border"
-          password
-        />
-      </div>
+        <div class="form-row">
+          <label v-text="'Expiration Date'" />
+          <VFormText
+            name="Expiration Date"
+            v-model="form.expiryDate"
+            v-validate="'required'"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
+        </div>
+        <div class="form-row">
+          <label v-text="'Verification Number'" />
+          <div class="d-flex flex-justify-between ">
+            <VFormText
+              name="Verification Number"
+              v-model="form.verificationNumber"
+              v-validate="'required'"
+              :placeholder="$t('ClickToFill')"
+              theme="no-border"
+              :type="showPass ? 'text' : 'password'"
+            />
+            <div class="d-flex flex-items-center mr-3">
+              <ShowPassButton @click="showPass = $event" />
+            </div>
+          </div>
+          <div class="form-row px-3 pb-3">
+            <VButton type="submit" class="flex-auto mt-3" size="medium">
+              {{ $t("Save") }}
+            </VButton>
+          </div>
+        </div>
+      </form>
     </div>
   </div>
 </template>
@@ -89,6 +101,7 @@
 export default {
   data() {
     return {
+      showPass: false,
       form: {
         title: "",
         cardHolderName: "",
@@ -99,7 +112,11 @@ export default {
       },
     };
   },
-  methods: {},
+  methods: {
+    async onSubmit() {
+      if (!(await this.$validator.validateAll())) return;
+    },
+  },
   computed: {
     detail() {
       return this.$store.state.CreditCards.detail;
