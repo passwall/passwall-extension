@@ -5,14 +5,14 @@
         <span class="fw-bold h5">Logins</span>
       </div>
 
-      <EmptyState v-if="items.length <= 0" />
+      <EmptyState v-if="filteredList.length <= 0" />
 
       <ul class="items" v-else>
         <ListItem
-          v-for="item in items"
+          v-for="item in filteredList"
           :key="item.id"
           :url="item.url"
-          :title="item.title"
+          :title="item.url"
           :subtitle="item.username"
           @click="clickItem(item.id)"
         />
@@ -22,17 +22,20 @@
 </template>
 
 <script>
-import { mapState } from 'vuex'
+import { mapActions, mapState } from 'vuex'
+import ListMixin from '@/mixins/list'
 
 export default {
-  computed: {
-    ...mapState('Logins', ['items'])
-  },
+  mixins: [ListMixin],
   methods: {
+    ...mapActions('Logins', ['FetchAll']),
     clickItem(id) {
       this.$store.dispatch('Logins/setDetail', id)
       this.$router.push({ name: 'LoginDetail', params: { id } })
     }
+  },
+  computed: {
+    ...mapState('Logins', ['ItemList'])
   }
 }
 </script>

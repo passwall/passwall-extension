@@ -1,83 +1,43 @@
-import LoginService from '@/api/services/Logins'
+import LoginsService from '@/api/services/Logins'
+import CryptoUtils from '@/utils/crypto'
 
-const ITEMS = [
-  {
-    id: 1,
-    username: 'yakuter@gmail.com',
-    url: 'https://slack.com/',
-    title: 'Slack',
-    password: 'passWorD123',
-    note:
-      "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's"
-  },
-  {
-    id: 2,
-    username: 'yakuter@gmail.com',
-    url: 'https://www.gmail.com/',
-    title: 'Gmail',
-    password: 'passWorD123',
-    note: 'Secret Note'
-  },
-  {
-    id: 5,
-    username: 'yakuter@gmail.com',
-    url: 'https://9gag.com/',
-    title: '9GAG',
-    password: 'passWorD123',
-    note: 'Secret Note'
-  },
-  {
-    id: 4,
-    username: 'yakuter@gmail.com',
-    url: 'https://www.twitter.com/',
-    title: 'Twitter',
-    password: 'passWorD123',
-    note: 'Secret Note'
-  },
-  {
-    id: 3,
-    username: 'yakuter@gmail.com',
-    url: 'https://www.spotify.com/tr/',
-    title: 'Spotify',
-    password: 'passWorD123',
-    note: 'Secret Note'
-  },
-
-  {
-    id: 6,
-    username: 'yakuter@gmail.com',
-    url: 'https://www.gmail.com/',
-    title: 'Gmail',
-    password: 'passWorD123',
-    note: 'Secret Note'
-  },
-  {
-    id: 7,
-    username: 'yakuter@gmail.com',
-    url: 'https://www.gmail.com/',
-    title: 'Gmail',
-    password: 'passWorD123',
-    note: 'Secret Note'
-  },
-  {
-    id: 8,
-    username: 'yakuter@gmail.com',
-    url: 'https://www.gmail.com/',
-    title: 'Gmail',
-    password: 'passWorD123',
-    note: 'Secret Note'
-  }
-]
+const EncryptedFields = ['username', 'password', 'extra']
 
 export default {
   namespaced: true,
 
   state() {
     return {
-      items: ITEMS,
-      detail: null
+      ItemList: [],
+      detail: {}
     }
   },
-  mutations: {},
-  actions: {}
+
+  actions: {
+    async FetchAll({ state }, query) {
+      const { data } = await LoginsService.FetchAll(query)
+
+      const itemList = JSON.parse(CryptoUtils.aesDecrypt(data.data))
+
+      itemList.forEach(element => {
+        CryptoUtils.decryptFields(element, EncryptedFields)
+      })
+
+      state.ItemList = itemList
+    },
+
+    Delete(_, id) {
+      return LoginsService.Delete(id)
+    },
+
+    Create(_, data) {
+      const payload = CryptoUtils.encryptPayload(data, EncryptedFields)
+      return LoginsService.Create(payload)
+    },
+
+    Update(_, data) {
+      const payload = CryptoUtils.encryptPayload(data, EncryptedFields)
+      return LoginsService.Update(data.id, payload)
+    }
+  }
 }
