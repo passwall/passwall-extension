@@ -1,39 +1,39 @@
-import { mapState } from "vuex";
+import { mapState } from 'vuex'
 
 export default {
   beforeRouteUpdate(to, _, next) {
     if (to.params.refresh) {
-      this.fetchAll();
+      this.fetchAll()
     }
-    next();
+    next()
   },
 
   created() {
-    this.fetchAll();
+    this.fetchAll()
   },
 
   methods: {
     async fetchAll() {
       try {
-        await this.$request(this.FetchAll);
+        await this.$request(this.FetchAll)
       } catch (error) {
-        console.log(error);
+        console.log(error)
       }
-    },
+    }
   },
 
   computed: {
-    ...mapState(["searchQuery"]),
+    ...mapState(['searchQuery']),
 
     filteredList() {
-      return this.ItemList.filter((item) =>
-        Object.values(item).some((value) =>
-          (value || "")
+      return this.ItemList.filter(item =>
+        Object.values(item).some(value =>
+          (value || '')
             .toString()
             .toLowerCase()
             .includes(this.searchQuery.toLowerCase())
         )
-      );
-    },
-  },
-};
+      )
+    }
+  }
+}

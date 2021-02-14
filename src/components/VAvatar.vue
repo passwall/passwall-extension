@@ -1,26 +1,23 @@
 <template>
   <div :class="[{ fancy: pro }, 'avatar']">
-    <div
-      :class="[{ 'fancy-content': pro }, 'avatar-content', 'h6']"
-      v-text="firstLettersOfName"
-    />
+    <div :class="[{ 'fancy-content': pro }, 'avatar-content', 'h6']" v-text="firstLettersOfName" />
   </div>
 </template>
 
 <script>
 export default {
-  name: "VAvatar",
+  name: 'VAvatar',
   props: {
     name: String,
-    pro: Boolean,
+    pro: Boolean
   },
   computed: {
     firstLettersOfName() {
-      const [firstName, lastName] = this.name.split(" ");
-      return `${firstName[0]}${(lastName || " ")[0]}`;
-    },
-  },
-};
+      const [firstName, lastName] = this.name.split(' ')
+      return `${firstName[0]}${(lastName || ' ')[0]}`
+    }
+  }
+}
 </script>
 
 <style lang="scss">

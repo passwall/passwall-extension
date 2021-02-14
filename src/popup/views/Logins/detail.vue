@@ -14,22 +14,12 @@
       </template>
     </Header>
     <div class="scroll">
-      <FormRowText
-        :value="detail.title"
-        title="title"
-        :edit-mode="false"
-        :show-icons="false"
-      >
+      <FormRowText :value="detail.title" title="title" :edit-mode="false" :show-icons="false">
         <template v-slot:second-icon>
           <div />
         </template>
       </FormRowText>
-      <FormRowText
-        :value="detail.username"
-        title="username"
-        :edit-mode="false"
-        :show-icons="true"
-      >
+      <FormRowText :value="detail.username" title="username" :edit-mode="false" :show-icons="true">
         <template v-slot:second-icon> <div /> </template>
       </FormRowText>
       <FormRowText
@@ -39,12 +29,7 @@
         :show-icons="true"
         password
       />
-      <FormRowText
-        :value="detail.url"
-        title="website"
-        :edit-mode="false"
-        :show-icons="true"
-      >
+      <FormRowText :value="detail.url" title="website" :edit-mode="false" :show-icons="true">
         <template v-slot:second-icon>
           <LinkButton :link="detail.url" />
         </template>
@@ -62,16 +47,16 @@ export default {
   methods: {
     openLink() {
       this.$browser.tabs.create({
-        url: this.detail.url,
-      });
-    },
+        url: this.detail.url
+      })
+    }
   },
   computed: {
     detail() {
-      return this.$store.state.Logins.detail;
-    },
-  },
-};
+      return this.$store.state.Logins.detail
+    }
+  }
+}
 </script>
 
 <style lang="scss">

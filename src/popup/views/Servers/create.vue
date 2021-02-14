@@ -16,27 +16,13 @@
       </template>
     </Header>
     <div class="scroll">
-      <FormRowText
-        :value="detail.title"
-        title="title"
-        :show-icons="false"
-      >
+      <FormRowText :value="detail.title" title="title" :show-icons="false">
         <template v-slot:second-icon> <div /> </template>
       </FormRowText>
-      <FormRowText
-        :value="detail.ip"
-        title="ip"
-        :edit-mode="false"
-        :show-icons="false"
-      >
+      <FormRowText :value="detail.ip" title="ip" :edit-mode="false" :show-icons="false">
         <template v-slot:second-icon> <div /> </template>
       </FormRowText>
-      <FormRowText
-        :value="detail.username"
-        title="username"
-        :edit-mode="false"
-        :show-icons="true"
-      >
+      <FormRowText :value="detail.username" title="username" :edit-mode="false" :show-icons="true">
         <template v-slot:second-icon> <div /> </template>
       </FormRowText>
       <FormRowText
@@ -46,12 +32,7 @@
         :show-icons="true"
         password
       />
-      <FormRowText
-        :value="detail.url"
-        title="website"
-        :edit-mode="false"
-        :show-icons="true"
-      >
+      <FormRowText :value="detail.url" title="website" :edit-mode="false" :show-icons="true">
         <template v-slot:second-icon>
           <VIcon class="c-pointer" name="external-link" @click="openLink" />
         </template>
@@ -98,16 +79,16 @@ export default {
   methods: {
     openLink() {
       this.$browser.tabs.create({
-        url: this.detail.url,
-      });
-    },
+        url: this.detail.url
+      })
+    }
   },
   computed: {
     detail() {
-      return this.$store.state.Servers.detail;
-    },
-  },
-};
+      return this.$store.state.Servers.detail
+    }
+  }
+}
 </script>
 
 <style lang="scss">

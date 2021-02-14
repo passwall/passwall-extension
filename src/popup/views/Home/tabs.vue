@@ -35,16 +35,16 @@
 
 <script>
 export default {
-  name: "Tabs",
+  name: 'Tabs',
   methods: {
     switchTabs(name) {
-      this.$router.replace({ name });
+      this.$router.replace({ name })
     },
     getColor(name) {
-      return this.$route.name === name;
-    },
-  },
-};
+      return this.$route.name === name
+    }
+  }
+}
 </script>
 
 <style lang="scss" scoped>

@@ -4,10 +4,7 @@
       <VIcon name="passwall-with-text" width="140px" height="32px" />
     </div>
     <div class="p-4 pt-5">
-      <form
-        class="login-form d-flex flex-column"
-        @submit.stop.prevent="onLogin"
-      >
+      <form class="login-form d-flex flex-column" @submit.stop.prevent="onLogin">
         <label v-text="$t('Username')" class="mb-2" />
         <VFormText
           v-model="LoginForm.email"
@@ -35,7 +32,7 @@
           style="letter-spacing: 2px"
           :loading="$wait.is($waiters.Auth.Login)"
         >
-          {{ $t("Login") }}
+          {{ $t('Login') }}
         </VButton>
 
         <VButton
@@ -45,7 +42,7 @@
           style="letter-spacing: 2px"
           @click="newTab"
         >
-          {{ $t("SignUp") }}
+          {{ $t('SignUp') }}
         </VButton>
       </form>
     </div>
@@ -53,43 +50,43 @@
 </template>
 
 <script>
-import { mapActions } from "vuex";
+import { mapActions } from 'vuex'
 
 export default {
-  name: "Login",
+  name: 'Login',
   data() {
     return {
       LoginForm: {
-        email: localStorage.email || "",
-        master_password: "",
-      },
-    };
+        email: localStorage.email || '',
+        master_password: ''
+      }
+    }
   },
   methods: {
-    ...mapActions(["Login"]),
+    ...mapActions(['Login']),
     async onLogin() {
-      if (!(await this.$validator.validateAll())) return;
-      const onError = (error) => {
-        let text = this.$t("Ooops! Something went wrong!");
+      if (!(await this.$validator.validateAll())) return
+      const onError = error => {
+        let text = this.$t('Ooops! Something went wrong!')
         if (error.response.status == 401) {
-          text = this.$t(error.response.data.message);
+          text = this.$t(error.response.data.message)
         }
-        this.$notifyError(text);
-      };
+        this.$notifyError(text)
+      }
       const onSuccess = async () => {
-        await this.Login({ ...this.LoginForm });
-        this.$router.replace({ name: "Home" });
-      };
-      this.$request(onSuccess, this.$waiters.Auth.Login, onError);
+        await this.Login({ ...this.LoginForm })
+        this.$router.replace({ name: 'Home' })
+      }
+      this.$request(onSuccess, this.$waiters.Auth.Login, onError)
     },
 
     newTab() {
       this.$browser.tabs.create({
-        url: "https://signup.passwall.io/",
-      });
-    },
-  },
-};
+        url: 'https://signup.passwall.io/'
+      })
+    }
+  }
+}
 </script>
 
 <style lang="scss">

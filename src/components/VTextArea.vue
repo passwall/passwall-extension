@@ -16,7 +16,7 @@
 
 <script>
 export default {
-  name: "VTextArea",
+  name: 'VTextArea',
 
   props: {
     name: String,
@@ -24,23 +24,23 @@ export default {
     sensitive: Boolean,
     label: {
       type: String,
-      default: "",
-    },
+      default: ''
+    }
   },
 
   computed: {
     getError() {
-      const error = this.errors.items.find((e) => e.field == this.name);
-      return error ? error.msg : "";
+      const error = this.errors.items.find(e => e.field == this.name)
+      return error ? error.msg : ''
     },
 
     inputListeners() {
       return Object.assign({}, this.$listeners, {
-        input: (event) => this.$emit("input", event.target.value),
-      });
-    },
-  },
-};
+        input: event => this.$emit('input', event.target.value)
+      })
+    }
+  }
+}
 </script>
 
 <style lang="scss">

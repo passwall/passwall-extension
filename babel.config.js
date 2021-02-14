@@ -1,15 +1,15 @@
 module.exports = {
-  presets: ["@vue/cli-plugin-babel/preset"],
+  presets: ['@vue/cli-plugin-babel/preset'],
   plugins: [
     [
-      "module-resolver",
+      'module-resolver',
       {
-        root: ["./src"],
+        root: ['./src'],
         alias: {
-          "@p": "./src/popup",
-          "@": "./src"
+          '@p': './src/popup',
+          '@': './src'
         }
       }
     ]
   ]
-};
+}

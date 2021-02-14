@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="d-flex flex-items-center flex-justify-between header px-3"
-    v-bind="$attrs"
-  >
+  <div class="d-flex flex-items-center flex-justify-between header px-3" v-bind="$attrs">
     <slot name="content">
       <div class="d-flex flex-items-center ">
         <VAvatar :name="user.name" class="mr-1" />
@@ -10,9 +7,7 @@
           <span class="fs-x-big fw-semibold ff-inter">{{ user.name }}</span>
           <div class="mt-2">
             <span class="fs-x-big fw-semibold ff-inter c-secondary">FREE</span>
-            <span class="fs-x-big fw-semibold ff-inter h6 c-gray-300 ml-1"
-              >9 days left</span
-            >
+            <span class="fs-x-big fw-semibold ff-inter h6 c-gray-300 ml-1">9 days left</span>
           </div>
         </div>
       </div>
@@ -22,14 +17,14 @@
 </template>
 
 <script>
-import { mapState } from "vuex";
+import { mapState } from 'vuex'
 
 export default {
-  name: "Header",
+  name: 'Header',
   computed: {
-    ...mapState(["user"]),
-  },
-};
+    ...mapState(['user'])
+  }
+}
 </script>
 
 <style lang="scss">

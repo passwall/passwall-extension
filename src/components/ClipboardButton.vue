@@ -1,25 +1,20 @@
 <template>
-  <button
-    type="button"
-    class="clipboard-btn"
-    v-clipboard:copy="copy"
-    v-tooltip="$t('Copy')"
-  >
+  <button type="button" class="clipboard-btn" v-clipboard:copy="copy" v-tooltip="$t('Copy')">
     <VIcon name="duplicate" size="20px" />
   </button>
 </template>
 
 <script>
 export default {
-  name: "ClipboardButton",
+  name: 'ClipboardButton',
 
   props: {
     copy: {
       type: String,
-      default: "",
-    },
-  },
-};
+      default: ''
+    }
+  }
+}
 </script>
 
 <style lang="scss">

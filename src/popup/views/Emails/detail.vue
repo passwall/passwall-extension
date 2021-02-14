@@ -14,22 +14,12 @@
       </template>
     </Header>
     <div class="scroll">
-      <FormRowText
-        :value="detail.title"
-        title="title"
-        :edit-mode="false"
-        :show-icons="false"
-      >
+      <FormRowText :value="detail.title" title="title" :edit-mode="false" :show-icons="false">
         <template v-slot:second-icon>
           <div />
         </template>
       </FormRowText>
-      <FormRowText
-        :value="detail.email"
-        title="email"
-        :edit-mode="false"
-        :show-icons="true"
-      >
+      <FormRowText :value="detail.email" title="email" :edit-mode="false" :show-icons="true">
         <template v-slot:second-icon> <div /> </template>
       </FormRowText>
       <FormRowText
@@ -48,10 +38,10 @@ export default {
   methods: {},
   computed: {
     detail() {
-      return this.$store.state.Emails.detail;
-    },
-  },
-};
+      return this.$store.state.Emails.detail
+    }
+  }
+}
 </script>
 
 <style lang="scss">

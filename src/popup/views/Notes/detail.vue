@@ -14,12 +14,7 @@
       </template>
     </Header>
     <div class="scroll">
-      <FormRowText
-        :value="detail.title"
-        title="title"
-        :edit-mode="false"
-        :show-icons="false"
-      >
+      <FormRowText :value="detail.title" title="title" :edit-mode="false" :show-icons="false">
         <template v-slot:second-icon>
           <div />
         </template>
@@ -37,10 +32,10 @@ export default {
   methods: {},
   computed: {
     detail() {
-      return this.$store.state.Notes.detail;
-    },
-  },
-};
+      return this.$store.state.Notes.detail
+    }
+  }
+}
 </script>
 
 <style lang="scss">

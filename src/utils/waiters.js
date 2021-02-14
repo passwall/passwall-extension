@@ -1,3 +1,3 @@
 export const Auth = {
-  Login: "Auth_Login",
-};
+  Login: 'Auth_Login'
+}

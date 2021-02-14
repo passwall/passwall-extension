@@ -87,20 +87,20 @@ export default {
     return {
       showPass: false,
       form: {
-        title: "",
-        username: "",
-        password: "",
-        website: "",
-        note: "",
-      },
-    };
+        title: '',
+        username: '',
+        password: '',
+        website: '',
+        note: ''
+      }
+    }
   },
   methods: {
     onSubmit() {
-      console.log("submit");
-    },
-  },
-};
+      console.log('submit')
+    }
+  }
+}
 </script>
 
 <style lang="scss">

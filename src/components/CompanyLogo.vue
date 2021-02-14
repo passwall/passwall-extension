@@ -15,38 +15,38 @@
 
 <script>
 export default {
-  name: "CompanyLogo",
+  name: 'CompanyLogo',
   props: {
     url: {
       type: String,
-      default: "",
+      default: ''
     },
     check: {
       type: Boolean,
-      default: true,
-    },
+      default: true
+    }
   },
   data() {
     return {
-      logoAvailable: true,
-    };
+      logoAvailable: true
+    }
   },
 
   methods: {
     domainFromUrl(url) {
-      const matches = url.match(/^(?:https?:)?(?:\/\/)?([^\/\?]+)/i);
-      return matches ? matches[1] : "NONE";
-    },
+      const matches = url.match(/^(?:https?:)?(?:\/\/)?([^\/\?]+)/i)
+      return matches ? matches[1] : 'NONE'
+    }
   },
   computed: {
     logoLetter() {
-      return this.domain[0].toUpperCase();
+      return this.domain[0].toUpperCase()
     },
     domain() {
-      return this.domainFromUrl(this.url);
-    },
-  },
-};
+      return this.domainFromUrl(this.url)
+    }
+  }
+}
 </script>
 
 <style lang="scss">

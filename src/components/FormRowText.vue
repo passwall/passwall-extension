@@ -28,7 +28,7 @@
 
 <script>
 export default {
-  name: "FormRowText",
+  name: 'FormRowText',
 
   props: {
     title: String,
@@ -37,16 +37,16 @@ export default {
     showIcons: Boolean,
     password: {
       type: Boolean,
-      default: false,
-    },
+      default: false
+    }
   },
 
   data() {
     return {
-      show: !this.password,
-    };
-  },
-};
+      show: !this.password
+    }
+  }
+}
 </script>
 
 <style lang="scss" scoped>

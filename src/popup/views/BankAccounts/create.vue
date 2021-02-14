@@ -16,39 +16,19 @@
       </template>
     </Header>
     <div class="scroll">
-      <FormRowText
-        :value="detail.title"
-        title="title"
-        :show-icons="false"
-      >
+      <FormRowText :value="detail.title" title="title" :show-icons="false">
         <template v-slot:second-icon> <div /> </template>
       </FormRowText>
-      <FormRowText
-        :value="detail.account_name"
-        title="account name"
-        :show-icons="false"
-      >
+      <FormRowText :value="detail.account_name" title="account name" :show-icons="false">
         <template v-slot:second-icon> <div /> </template>
       </FormRowText>
-      <FormRowText
-        :value="detail.account_number"
-        title="account number"
-        :show-icons="false"
-      >
+      <FormRowText :value="detail.account_number" title="account number" :show-icons="false">
         <template v-slot:second-icon> <div /> </template>
       </FormRowText>
-      <FormRowText
-        :value="detail.iban"
-        title="iban"
-        :show-icons="false"
-      >
+      <FormRowText :value="detail.iban" title="iban" :show-icons="false">
         <template v-slot:second-icon> <div /> </template>
       </FormRowText>
-      <FormRowText
-        :value="detail.currency"
-        title="currency"
-        :show-icons="false"
-      >
+      <FormRowText :value="detail.currency" title="currency" :show-icons="false">
         <template v-slot:second-icon> <div /> </template>
       </FormRowText>
       <FormRowText
@@ -67,10 +47,10 @@ export default {
   methods: {},
   computed: {
     detail() {
-      return this.$store.state.BankAccounts.detail;
-    },
-  },
-};
+      return this.$store.state.BankAccounts.detail
+    }
+  }
+}
 </script>
 
 <style lang="scss">

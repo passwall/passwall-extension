@@ -9,33 +9,33 @@
       <p class="fs-medium fw-medium" v-text="title" />
       <p class="fs-small fw-medium c-gray-300 mt-1" v-text="subtitle" />
     </div>
-    <VIcon name="arrow-right" color="#8B93A1"/>
+    <VIcon name="arrow-right" color="#8B93A1" />
   </li>
 </template>
 
 <script>
 export default {
-  name: "ListItem",
+  name: 'ListItem',
 
   props: {
     url: {
       type: String,
-      default: "",
+      default: ''
     },
     title: {
       type: String,
-      default: "",
+      default: ''
     },
     subtitle: {
       type: String,
-      default: "",
+      default: ''
     },
     check: {
       type: Boolean,
-      default: true,
-    },
-  },
-};
+      default: true
+    }
+  }
+}
 </script>
 
 <style lang="scss" scoped>

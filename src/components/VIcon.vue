@@ -12,19 +12,19 @@
 
 <script>
 export default {
-  name: "VIcon",
+  name: 'VIcon',
   props: {
     name: String,
     width: [String, Number],
     height: [String, Number],
     rotation: {
       type: [String, Number],
-      default: "0",
+      default: '0'
     },
     size: {
       type: [String, Number],
-      default: "24px",
-    },
-  },
-};
+      default: '24px'
+    }
+  }
+}
 </script>

@@ -3,7 +3,7 @@ export default {
 
   state() {
     return {
-      items: [],
-    };
-  },
-};
+      items: []
+    }
+  }
+}

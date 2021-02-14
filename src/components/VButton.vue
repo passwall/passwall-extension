@@ -8,56 +8,47 @@
     v-on="inputListeners"
   >
     <slot />
-    <VIcon
-      v-if="loading"
-      name="refresh"
-      size="14px"
-      class="spin c-white ml-2"
-    />
+    <VIcon v-if="loading" name="refresh" size="14px" class="spin c-white ml-2" />
   </button>
 </template>
 
 <script>
 export default {
-  name: "VButton",
+  name: 'VButton',
 
   props: {
     size: {
       type: String,
-      default: "small",
+      default: 'small'
     },
     theme: {
       type: String,
-      default: "primary",
-      validator: (value) => ["primary", "text"].includes(value),
+      default: 'primary',
+      validator: value => ['primary', 'text'].includes(value)
     },
     loading: {
       type: Boolean,
-      default: false,
-    },
+      default: false
+    }
   },
 
   computed: {
     clazz() {
-      return [
-        `--${this.size}`,
-        `--theme-${this.theme}`,
-        { "--loading": this.loading },
-      ];
+      return [`--${this.size}`, `--theme-${this.theme}`, { '--loading': this.loading }]
     },
 
     getError() {
-      const error = this.errors.items.find((e) => e.field == this.name);
-      return error ? error.msg : "";
+      const error = this.errors.items.find(e => e.field == this.name)
+      return error ? error.msg : ''
     },
 
     inputListeners() {
       return Object.assign({}, this.$listeners, {
-        input: (event) => this.$emit("input", event.target.value),
-      });
-    },
-  },
-};
+        input: event => this.$emit('input', event.target.value)
+      })
+    }
+  }
+}
 </script>
 
 <style lang="scss">
@@ -67,7 +58,7 @@ export default {
   color: #fff;
   font-weight: 600;
   cursor: pointer;
-  font-family: "Inter", sans-serif;
+  font-family: 'Inter', sans-serif;
 
   &.--loading {
     opacity: 0.6;

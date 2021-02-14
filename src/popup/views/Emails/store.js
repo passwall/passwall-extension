@@ -1,11 +1,11 @@
 const ITEMS = [
   {
     id: 1,
-    title: "Passwall",
-    email: "hello@passwall.io",
-    password: "passWorD123",
-  },
-];
+    title: 'Passwall',
+    email: 'hello@passwall.io',
+    password: 'passWorD123'
+  }
+]
 
 export default {
   namespaced: true,
@@ -13,13 +13,13 @@ export default {
   state() {
     return {
       items: ITEMS,
-      detail: ITEMS[0],
-    };
+      detail: ITEMS[0]
+    }
   },
   mutations: {},
   actions: {
     setDetail({ state }, id) {
-      state.detail = state.items.find((l) => l.id === id);
-    },
-  },
-};
+      state.detail = state.items.find(l => l.id === id)
+    }
+  }
+}

@@ -11,21 +11,21 @@
 
 <script>
 export default {
-  name: "ShowPassButton",
+  name: 'ShowPassButton',
   data() {
-    return { isShow: false };
+    return { isShow: false }
   },
   computed: {
     inputListeners() {
       return Object.assign({}, this.$listeners, {
-        click: (event) => {
-          this.isShow = !this.isShow;
-          return this.$emit("click", this.isShow);
-        },
-      });
-    },
-  },
-};
+        click: event => {
+          this.isShow = !this.isShow
+          return this.$emit('click', this.isShow)
+        }
+      })
+    }
+  }
+}
 </script>
 
 <style lang="scss">

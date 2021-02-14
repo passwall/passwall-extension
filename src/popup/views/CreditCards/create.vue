@@ -88,7 +88,7 @@
           </div>
           <div class="form-row px-3 pb-3">
             <VButton type="submit" class="flex-auto mt-3" size="medium">
-              {{ $t("Save") }}
+              {{ $t('Save') }}
             </VButton>
           </div>
         </div>
@@ -103,26 +103,26 @@ export default {
     return {
       showPass: false,
       form: {
-        title: "",
-        cardHolderName: "",
-        type: "",
-        number: "",
-        expiryDate: "",
-        verificationNumber: "",
-      },
-    };
+        title: '',
+        cardHolderName: '',
+        type: '',
+        number: '',
+        expiryDate: '',
+        verificationNumber: ''
+      }
+    }
   },
   methods: {
     async onSubmit() {
-      if (!(await this.$validator.validateAll())) return;
-    },
+      if (!(await this.$validator.validateAll())) return
+    }
   },
   computed: {
     detail() {
-      return this.$store.state.CreditCards.detail;
-    },
-  },
-};
+      return this.$store.state.CreditCards.detail
+    }
+  }
+}
 </script>
 
 <style lang="scss">

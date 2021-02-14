@@ -1,19 +1,19 @@
 // Config
-@import "config/variables";
-@import "config/font-face";
-@import "config/formalize";
+@import 'config/variables';
+@import 'config/font-face';
+@import 'config/formalize';
 
 // Plugins
-@import "plugins/v-tooltip";
-@import "plugins/vue-notifications.scss";
+@import 'plugins/v-tooltip';
+@import 'plugins/vue-notifications.scss';
 
 // Utilities
-@import "utilities/space";
-@import "utilities/colors";
-@import "utilities/flexbox";
-@import "utilities/typography";
-@import "utilities/display";
-@import "utilities/visibility";
+@import 'utilities/space';
+@import 'utilities/colors';
+@import 'utilities/flexbox';
+@import 'utilities/typography';
+@import 'utilities/display';
+@import 'utilities/visibility';
 
 html {
   color: $color-white;

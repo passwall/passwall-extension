@@ -18,42 +18,38 @@
 
 <script>
 export default {
-  name: "VFormText",
+  name: 'VFormText',
 
   props: {
     name: String,
     value: String,
     theme: {
       type: String,
-      default: "default",
+      default: 'default'
     },
     size: {
       type: String,
-      default: "small",
-    },
+      default: 'small'
+    }
   },
 
   computed: {
     clazz() {
-      return [
-        `--${this.size}`,
-        `--${this.theme}`,
-        { "--error": this.getError },
-      ];
+      return [`--${this.size}`, `--${this.theme}`, { '--error': this.getError }]
     },
 
     getError() {
-      const error = this.errors.items.find((e) => e.field == this.name);
-      return error ? error.msg : "";
+      const error = this.errors.items.find(e => e.field == this.name)
+      return error ? error.msg : ''
     },
 
     inputListeners() {
       return Object.assign({}, this.$listeners, {
-        input: (event) => this.$emit("input", event.target.value),
-      });
-    },
-  },
-};
+        input: event => this.$emit('input', event.target.value)
+      })
+    }
+  }
+}
 </script>
 
 <style lang="scss">

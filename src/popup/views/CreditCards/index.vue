@@ -22,20 +22,20 @@
 </template>
 
 <script>
-import { mapState } from "vuex";
+import { mapState } from 'vuex'
 
 export default {
   computed: {
-    ...mapState("CreditCards", ["items"]),
+    ...mapState('CreditCards', ['items'])
   },
-  
+
   methods: {
     clickItem(id) {
-      this.$store.dispatch("CreditCards/setDetail", id);
-      this.$router.push({ name: "CreditCardDetail", params: { id } });
-    },
-  },
-};
+      this.$store.dispatch('CreditCards/setDetail', id)
+      this.$router.push({ name: 'CreditCardDetail', params: { id } })
+    }
+  }
+}
 </script>
 
 <style lang="scss"></style>

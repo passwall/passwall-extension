@@ -24,16 +24,16 @@
 </template>
 
 <script>
-import Tabs from "./tabs";
+import Tabs from './tabs'
 
 export default {
   components: { Tabs },
   data() {
     return {
-      searchText: "",
-    };
-  },
-};
+      searchText: ''
+    }
+  }
+}
 </script>
 
 <style lang="scss">

@@ -64,12 +64,7 @@
         <path d="M126.105 8H129.582V24.7131H126.105V8Z" fill="white" />
         <path d="M132.523 8H136V24.7131H132.523V8Z" fill="white" />
       </symbol>
-      <symbol
-        id="refresh"
-        viewBox="0 0 20 20"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
+      <symbol id="refresh" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path
           fill="currentColor"
           fill-rule="evenodd"
@@ -436,6 +431,6 @@
 
 <script>
 export default {
-  name: "TheIcons",
-};
+  name: 'TheIcons'
+}
 </script>

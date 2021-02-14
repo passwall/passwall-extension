@@ -1,32 +1,27 @@
 <template>
-  <button
-    type="button"
-    class="external-btn"
-    v-tooltip="$t('OpenLink')"
-    @click="openLink"
-  >
+  <button type="button" class="external-btn" v-tooltip="$t('OpenLink')" @click="openLink">
     <VIcon class="c-pointer" name="external-link" size="20px" />
   </button>
 </template>
 
 <script>
 export default {
-  name: "LinkButton",
+  name: 'LinkButton',
   props: {
     link: {
       type: String,
-      default: "",
-    },
+      default: ''
+    }
   },
   methods: {
     openLink() {
       if (this.$helpers.isValidHttpUrl(this.link))
         this.$browser.tabs.create({
-          url: this.link,
-        });
-    },
-  },
-};
+          url: this.link
+        })
+    }
+  }
+}
 </script>
 
 <style lang="scss">

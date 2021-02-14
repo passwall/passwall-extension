@@ -1,17 +1,17 @@
 const ITEMS = [
   {
     id: 1,
-    title: "Toplantı Notları",
+    title: 'Toplantı Notları',
     note:
-      "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's",
+      "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's"
   },
   {
     id: 2,
-    title: "Genel Değerlendirme",
+    title: 'Genel Değerlendirme',
     note:
-      "Lorem Ipsum has been the industry's Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's",
-  },
-];
+      "Lorem Ipsum has been the industry's Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's"
+  }
+]
 
 export default {
   namespaced: true,
@@ -19,13 +19,13 @@ export default {
   state() {
     return {
       items: ITEMS,
-      detail: ITEMS[0],
-    };
+      detail: ITEMS[0]
+    }
   },
   mutations: {},
   actions: {
     setDetail({ state }, id) {
-      state.detail = state.items.find((l) => l.id === id);
-    },
-  },
-};
+      state.detail = state.items.find(l => l.id === id)
+    }
+  }
+}
