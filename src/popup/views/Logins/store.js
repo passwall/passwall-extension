@@ -1,3 +1,5 @@
+import LoginService from "@/api/services/Logins";
+
 const ITEMS = [
   {
     id: 1,
@@ -77,9 +79,5 @@ export default {
     };
   },
   mutations: {},
-  actions: {
-    setDetail({ state }, id) {
-      state.detail = state.items.find((l) => l.id === id);
-    },
-  },
+  actions: {},
 };
