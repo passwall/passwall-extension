@@ -4,6 +4,7 @@ export default {
     "We are not able to recover anyone’s master password.",
   ServerURL: "Server URL",
   EMailAddress: "E-Mail Address",
+  YourEMailAddress: "Your E-Mail Address",
   MasterPassword: "Master Password",
   AllItems: "All Items",
   Categories: "Categories",

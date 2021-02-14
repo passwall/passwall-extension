@@ -8,13 +8,13 @@
         class="login-form d-flex flex-column"
         @submit.stop.prevent="onLogin"
       >
-        <label v-text="$t('Username')" class="mb-2" />
+        <label v-text="$t('EMailAddress')" class="mb-2" />
         <VFormText
           v-model="LoginForm.email"
           size="medium"
           name="username"
           v-validate="'required'"
-          :placeholder="$t('YourUsername')"
+          :placeholder="$t('YourEMailAddress')"
         />
 
         <label class="mb-2 mt-4" v-text="$t('Password')" />
