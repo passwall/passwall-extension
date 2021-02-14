@@ -10,7 +10,7 @@
       >
         <label v-text="$t('Username')" class="mb-2" />
         <VFormText
-          v-model="LoginForm.username"
+          v-model="LoginForm.email"
           size="medium"
           name="username"
           v-validate="'required'"
@@ -53,20 +53,34 @@
 </template>
 
 <script>
+import { mapActions } from "vuex";
+
 export default {
   name: "Login",
   data() {
     return {
       LoginForm: {
-        username: "",
+        email: localStorage.email || "",
         master_password: "",
       },
     };
   },
   methods: {
+    ...mapActions(["Login"]),
     async onLogin() {
       if (!(await this.$validator.validateAll())) return;
-      this.$router.replace({ name: "Home" });
+      const onError = (error) => {
+        let text = this.$t("Ooops! Something went wrong!");
+        if (error.response.status == 401) {
+          text = this.$t(error.response.data.message);
+        }
+        this.$notifyError(text);
+      };
+      const onSuccess = async () => {
+        await this.Login({ ...this.LoginForm });
+        this.$router.replace({ name: "Home" });
+      };
+      this.$request(onSuccess, this.$waiters.Auth.Login, onError);
     },
 
     newTab() {

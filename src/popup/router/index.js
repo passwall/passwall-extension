@@ -8,7 +8,6 @@ const router = new Router({
     {
       path: "/login",
       name: "login",
-      redirect: "/home",
       component: require("@p/views/Auth/Login").default,
       meta: {
         auth: true,

@@ -5,6 +5,7 @@
       <router-view />
     </transition>
 
+    <notifications width="100%" position="top right" />
     <!--  Hidden -->
     <TheIcons />
   </div>

@@ -1,5 +1,5 @@
 import Vue from "vue";
-import "@p/router";
+import router from "@p/router";
 
 import browser from "webextension-polyfill";
 Vue.prototype.$browser = browser;
@@ -24,6 +24,10 @@ Vue.use(VTooltip);
 
 import VueWait from "vue-wait";
 Vue.use(VueWait);
+
+import Notifications from 'vue-notification'
+Vue.use(Notifications, { duration: 2500 })
+Vue.prototype.$notifyError = text => Vue.prototype.$notify({ type: 'error', text })
 
 window.wait = new VueWait({
   registerComponent: false,
