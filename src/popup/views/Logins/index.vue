@@ -5,8 +5,8 @@
         <span class="fw-bold h5">Logins</span>
       </div>
 
+      <ListLoader v-if="$wait.is($waiters.Logins.ALL)" />
       <EmptyState v-if="filteredList.length <= 0" />
-
       <ul class="items" v-else>
         <ListItem
           v-for="item in filteredList"
@@ -27,6 +27,7 @@ import ListMixin from '@/mixins/list'
 
 export default {
   mixins: [ListMixin],
+  name: 'Logins', // it uses for loading state !! important
   methods: {
     ...mapActions('Logins', ['FetchAll']),
     clickItem(id) {

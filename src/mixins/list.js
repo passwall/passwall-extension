@@ -15,7 +15,7 @@ export default {
   methods: {
     async fetchAll() {
       try {
-        await this.$request(this.FetchAll)
+        await this.$request(this.FetchAll, this.$waiters[this.$options.name].ALL)
       } catch (error) {
         console.log(error)
       }
@@ -24,7 +24,6 @@ export default {
 
   computed: {
     ...mapState(['searchQuery']),
-
     filteredList() {
       return this.ItemList.filter(item =>
         Object.values(item).some(value =>
