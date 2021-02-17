@@ -1,5 +1,5 @@
 import Vue from 'vue'
-import store from "@p/store"
+import store from '@p/store'
 import router from '@p/router'
 
 import browser from 'webextension-polyfill'
@@ -65,6 +65,7 @@ Vue.prototype.$request = async (callback, waitKey, errorCallback = null) => {
     console.log(error)
 
     if (error.response) {
+      console.log(error.response)
       if (error.response.status === 401 && !router.app._route.meta.auth) {
         store.dispatch('Logout')
         return router.push({ name: 'Login' })

@@ -1,5 +1,6 @@
 import Vue from 'vue'
 import Router from 'vue-router'
+import AuthCheck from './auth-check'
 
 Vue.use(Router)
 
@@ -7,7 +8,7 @@ const router = new Router({
   routes: [
     {
       path: '/login',
-      name: 'login',
+      name: 'Login',
       component: require('@p/views/Auth/Login').default,
       meta: {
         auth: true
@@ -122,5 +123,7 @@ router.afterEach((to, from) => {
   const fromDepth = from.path.split('/').length
   to.meta.transitionName = toDepth < fromDepth ? 'slide-right' : 'slide-left'
 })
+
+router.beforeEach(AuthCheck)
 
 export default router
