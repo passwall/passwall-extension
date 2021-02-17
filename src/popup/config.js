@@ -68,7 +68,6 @@ Vue.prototype.$request = async (callback, waitKey, errorCallback = null) => {
     console.log(error)
 
     if (error.response) {
-      console.log(error.response)
       if (error.response.status === 401 && !router.app._route.meta.auth) {
         store.dispatch('Logout')
         return router.push({ name: 'Login' })
