@@ -8349,6 +8349,11 @@ vue-notification@^1.3.20:
   resolved "https://registry.yarnpkg.com/vue-notification/-/vue-notification-1.3.20.tgz#d85618127763b46f3e25b8962b857947d5a97cbe"
   integrity sha512-vPj67Ah72p8xvtyVE8emfadqVWguOScAjt6OJDEUdcW5hW189NsqvfkOrctxHUUO9UYl9cTbIkzAEcPnHu+zBQ==
 
+vue-outside-events@^1.1.3:
+  version "1.1.3"
+  resolved "https://registry.yarnpkg.com/vue-outside-events/-/vue-outside-events-1.1.3.tgz#75b3e3b7856590fbe4455c87075b54f92b2a9654"
+  integrity sha512-8FZqTRy3JUd1L/CFDoUPpuk4uM3piWFX1EixgKp4E3iOwDZfDHZVsnPYORbazs41XFB5u1EVPUOzbrR8iI4ImQ==
+
 vue-resize@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/vue-resize/-/vue-resize-1.0.0.tgz#380565b36e411190d85f8fbd3aa230a4cc22f1a5"

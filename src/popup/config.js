@@ -26,6 +26,9 @@ Vue.use(VTooltip)
 import VueWait from 'vue-wait'
 Vue.use(VueWait)
 
+import vOutsideEvents from 'vue-outside-events'
+Vue.use(vOutsideEvents)
+
 import Notifications from 'vue-notification'
 Vue.use(Notifications, { duration: 2500 })
 Vue.prototype.$notifyError = text => Vue.prototype.$notify({ type: 'error', text })
