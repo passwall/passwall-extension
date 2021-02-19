@@ -14,7 +14,7 @@
           :url="item.url"
           :title="item.url"
           :subtitle="item.username"
-          @click="clickItem(item.id)"
+          @click="clickItem(item)"
         />
       </ul>
     </div>
@@ -30,9 +30,8 @@ export default {
   name: 'Logins', // it uses for loading state !! important
   methods: {
     ...mapActions('Logins', ['FetchAll']),
-    clickItem(id) {
-      this.$store.dispatch('Logins/setDetail', id)
-      this.$router.push({ name: 'LoginDetail', params: { id } })
+    clickItem(detail) {
+      this.$router.push({ name: 'LoginDetail', params: { detail, id: detail.id } })
     }
   },
   computed: {

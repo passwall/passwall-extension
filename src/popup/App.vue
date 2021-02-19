@@ -24,5 +24,6 @@ body {
   min-height: 490px;
   max-height: 560px;
   background-color: $color-gray-500;
+  scrollbar-width: none; /* Firefox */
 }
 </style>

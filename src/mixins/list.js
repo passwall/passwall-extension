@@ -1,17 +1,13 @@
 import { mapState } from 'vuex'
 
 export default {
-  beforeRouteUpdate(to, _, next) {
-    if (to.params.refresh) {
-      this.fetchAll()
-    }
-    next()
+  beforeRouteEnter(to, from, next) {
+    next(vm => {
+      if (!to.params.cache) {
+        vm.fetchAll()
+      }
+    })
   },
-
-  created() {
-    this.fetchAll()
-  },
-
   methods: {
     async fetchAll() {
       try {
