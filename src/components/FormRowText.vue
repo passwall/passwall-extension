@@ -10,7 +10,7 @@
     />
     <!-- Text -->
     <div v-else class="d-flex flex-items-center flex-justify-between px-3 py-2">
-      <span v-text="show ? value : '●●●●●●'" class="fw-medium h6 mr-2" />
+      <span v-text="show ? value : '●●●●●●'" class="fw-medium h6 w-80 mr-2" />
       <div class="d-flex flex-items-center" v-if="showIcons">
         <slot name="second-icon">
           <VIcon
