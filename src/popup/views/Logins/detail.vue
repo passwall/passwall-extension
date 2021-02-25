@@ -45,7 +45,7 @@
       </FormRowText>
 
       <div class="mb-7">
-        <VTextArea :value="form.note" label="Note" name="note" disabled />
+        <VTextArea :value="form.extra" label="Note" name="note" disabled />
       </div>
     </div>
   </div>
@@ -64,11 +64,6 @@ export default {
     },
     goBack() {
       this.$router.push({ name: 'Logins', params: { cache: true } })
-    }
-  },
-  computed: {
-    detail() {
-      return this.$store.state.Logins.detail
     }
   }
 }

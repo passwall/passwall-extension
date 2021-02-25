@@ -16,7 +16,7 @@
       </template>
     </Header>
     <div class="scroll">
-      <form @submit="onSubmit">
+      <form @submit.prevent="onSubmit" class="create-form">
         <div class="form-row">
           <label v-text="'Title'" />
           <VFormText
@@ -64,24 +64,36 @@
             <VFormText
               name="Web Site"
               class="flex-auto"
-              v-model="form.website"
+              v-model="form.url"
               v-validate="'required'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
             />
-            <LinkButton class="mr-3" :link="form.website" />
+            <LinkButton class="mr-3" :link="form.url" />
           </div>
         </div>
 
-        <div class="mb-7">
-          <VTextArea :value="form.note" label="Note" name="note" />
+        <div>
+          <VTextArea :value="form.extra" label="Note" name="note" />
         </div>
+
+        <VButton
+          class="mx-2 my-2"
+          size="medium"
+          type="submit"
+          style="letter-spacing: 2px"
+          :loading="$wait.is($waiters.Logins.CREATE)"
+        >
+          Save
+        </VButton>
       </form>
     </div>
   </div>
 </template>
 
 <script>
+import { mapActions } from 'vuex'
+
 export default {
   data() {
     return {
@@ -90,14 +102,20 @@ export default {
         title: '',
         username: '',
         password: '',
-        website: '',
-        note: ''
+        url: '',
+        extra: ''
       }
     }
   },
   methods: {
-    onSubmit() {
-      console.log('submit')
+    ...mapActions('Logins', ['Create']),
+    async onSubmit() {
+      if (!(await this.$validator.validateAll())) return
+      const onSuccess = async () => {
+        await this.Create({ ...this.form })
+        this.$router.push({ name: 'Logins' })
+      }
+      this.$request(onSuccess, this.$waiters.Logins.CREATE)
     }
   }
 }

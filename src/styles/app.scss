@@ -215,6 +215,11 @@ hr {
   animation: spin 2s linear infinite;
 }
 
+.create-form {
+  display: flex;
+  flex-direction: column;
+}
+
 /** Detail Page **/
 .detail-page {
   width: 100%;
