@@ -16,7 +16,7 @@
       </template>
     </Header>
     <div class="scroll">
-      <form @submit.stop.prevent="onSubmit">
+      <form @submit.prevent="onSubmit" class="create-form">
         <div class="form-row">
           <label v-text="'Title'" />
           <VFormText
@@ -32,7 +32,7 @@
           <label v-text="'Card Holder Name'" />
           <VFormText
             name="Card Holder Name"
-            v-model="form.cardHolderName"
+            v-model="form.cardholder_name"
             v-validate="'required'"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
@@ -65,7 +65,7 @@
           <label v-text="'Expiration Date'" />
           <VFormText
             name="Expiration Date"
-            v-model="form.expiryDate"
+            v-model="form.expiry_date"
             v-validate="'required'"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
@@ -76,50 +76,60 @@
           <div class="d-flex flex-justify-between ">
             <VFormText
               name="Verification Number"
-              v-model="form.verificationNumber"
+              class="flex-auto"
+              v-model="form.verification_number"
               v-validate="'required'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showPass ? 'text' : 'password'"
             />
             <div class="d-flex flex-items-center mr-3">
+              <ClipboardButton :copy="form.verification_number" />
               <ShowPassButton @click="showPass = $event" />
             </div>
           </div>
-          <div class="form-row px-3 pb-3">
-            <VButton type="submit" class="flex-auto mt-3" size="medium">
-              {{ $t('Save') }}
-            </VButton>
-          </div>
         </div>
+
+        <VButton
+          class="mx-2 my-2"
+          size="medium"
+          type="submit"
+          style="letter-spacing: 2px"
+          :loading="$wait.is($waiters.CreditCards.Create)"
+        >
+          Save
+        </VButton>
       </form>
     </div>
   </div>
 </template>
 
 <script>
+import { mapActions } from 'vuex'
+
 export default {
   data() {
     return {
       showPass: false,
       form: {
         title: '',
-        cardHolderName: '',
+        cardholder_name: '',
         type: '',
         number: '',
-        expiryDate: '',
-        verificationNumber: ''
+        expiry_date: '',
+        verification_number: ''
       }
     }
   },
   methods: {
+    ...mapActions('CreditCards', ['Create']),
     async onSubmit() {
       if (!(await this.$validator.validateAll())) return
-    }
-  },
-  computed: {
-    detail() {
-      return this.$store.state.CreditCards.detail
+      const onSuccess = async () => {
+        await this.Create({ ...this.form })
+        this.$router.push({ name: 'CreditCards' })
+      }
+      this.$request(onSuccess, this.$waiters.CreditCards.Create)
     }
   }
 }

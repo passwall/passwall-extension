@@ -5,16 +5,16 @@
         <span class="fw-bold h5">Bank Accounts</span>
       </div>
 
-      <EmptyState v-if="items.length <= 0" />
-
+      <ListLoader v-if="$wait.is($waiters.BankAccounts.All)" />
+      <EmptyState v-if="filteredList.length <= 0" />
       <ul class="items" v-else>
         <ListItem
-          v-for="item in items"
+          v-for="item in filteredList"
           :key="item.id"
           :url="item.title"
           :title="item.title"
           :subtitle="item.iban"
-          @click="clickItem(item.id)"
+          @click="clickItem(item)"
         />
       </ul>
     </div>
@@ -22,18 +22,20 @@
 </template>
 
 <script>
-import { mapState } from 'vuex'
+import { mapActions, mapState } from 'vuex'
+import ListMixin from '@/mixins/list'
 
 export default {
-  computed: {
-    ...mapState('BankAccounts', ['items'])
-  },
-
+  mixins: [ListMixin],
+  name: 'BankAccounts', // it uses for loading state !! important
   methods: {
-    clickItem(id) {
-      this.$store.dispatch('BankAccounts/setDetail', id)
-      this.$router.push({ name: 'BankAccountDetail', params: { id } })
+    ...mapActions('BankAccounts', ['FetchAll']),
+    clickItem(detail) {
+      this.$router.push({ name: 'BankAccountDetail', params: { detail, id: detail.id } })
     }
+  },
+  computed: {
+    ...mapState('BankAccounts', ['ItemList'])
   }
 }
 </script>

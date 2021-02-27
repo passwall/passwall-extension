@@ -28,12 +28,12 @@ const router = new Router({
         {
           path: '/bank-accounts',
           name: 'BankAccounts',
-          component: require('@/popup/views/BankAccounts').default
+          component: require('@p/views/BankAccounts').default
         },
         {
           path: '/credit-cards',
           name: 'CreditCards',
-          component: require('@/popup/views/CreditCards').default
+          component: require('@p/views/CreditCards').default
         },
         {
           path: '/emails',
@@ -66,12 +66,12 @@ const router = new Router({
     {
       path: '/credit-cards/create',
       name: 'CreditCardCreate',
-      component: require('@/popup/views/CreditCards/create').default
+      component: require('@p/views/CreditCards/create').default
     },
     {
       path: '/credit-cards/:id',
       name: 'CreditCardDetail',
-      component: require('@/popup/views/CreditCards/detail').default
+      component: require('@p/views/CreditCards/detail').default
     },
     {
       path: '/emails/create',

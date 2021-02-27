@@ -82,7 +82,7 @@
           size="medium"
           type="submit"
           style="letter-spacing: 2px"
-          :loading="$wait.is($waiters.Logins.CREATE)"
+          :loading="$wait.is($waiters.Logins.Create)"
         >
           Save
         </VButton>
@@ -115,7 +115,7 @@ export default {
         await this.Create({ ...this.form })
         this.$router.push({ name: 'Logins' })
       }
-      this.$request(onSuccess, this.$waiters.Logins.CREATE)
+      this.$request(onSuccess, this.$waiters.Logins.Create)
     }
   }
 }

@@ -5,16 +5,16 @@
         <span class="fw-bold h5">Credit Cards</span>
       </div>
 
-      <EmptyState v-if="items.length <= 0" />
-
+      <ListLoader v-if="$wait.is($waiters.CreditCards.All)" />
+      <EmptyState v-if="filteredList.length <= 0" />
       <ul class="items" v-else>
         <ListItem
-          v-for="item in items"
+          v-for="item in filteredList"
           :key="item.id"
           :url="item.title"
           :title="item.title"
           :subtitle="item.number"
-          @click="clickItem(item.id)"
+          @click="clickItem(item)"
         />
       </ul>
     </div>
@@ -22,20 +22,22 @@
 </template>
 
 <script>
-import { mapState } from 'vuex'
+import { mapActions, mapState } from 'vuex'
+import ListMixin from '@/mixins/list'
 
 export default {
-  computed: {
-    ...mapState('CreditCards', ['items'])
-  },
-
+  mixins: [ListMixin],
+  name: 'CreditCards', // it uses for loading state !! important
   methods: {
-    clickItem(id) {
-      this.$store.dispatch('CreditCards/setDetail', id)
-      this.$router.push({ name: 'CreditCardDetail', params: { id } })
+    ...mapActions('CreditCards', ['FetchAll']),
+    clickItem(detail) {
+      this.$router.push({ name: 'CreditCardDetail', params: { detail, id: detail.id } })
     }
+  },
+  computed: {
+    ...mapState('CreditCards', ['ItemList'])
   }
 }
 </script>
 
-<style lang="scss"></style>
+<style scoped lang="scss"></style>

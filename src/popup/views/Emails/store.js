@@ -1,25 +1,43 @@
-const ITEMS = [
-  {
-    id: 1,
-    title: 'Passwall',
-    email: 'hello@passwall.io',
-    password: 'passWorD123'
-  }
-]
+import EmailsService from '@/api/services/Emails'
+import CryptoUtils from '@/utils/crypto'
+
+const EncryptedFields = ['email', 'password']
 
 export default {
   namespaced: true,
 
   state() {
     return {
-      items: ITEMS,
-      detail: ITEMS[0]
+      ItemList: [],
+      detail: {}
     }
   },
-  mutations: {},
+
   actions: {
-    setDetail({ state }, id) {
-      state.detail = state.items.find(l => l.id === id)
+    async FetchAll({ state }, query) {
+      const { data } = await EmailsService.FetchAll(query)
+
+      const itemList = JSON.parse(CryptoUtils.aesDecrypt(data.data))
+
+      itemList.forEach(element => {
+        CryptoUtils.decryptFields(element, EncryptedFields)
+      })
+
+      state.ItemList = itemList
+    },
+
+    Delete(_, id) {
+      return EmailsService.Delete(id)
+    },
+
+    Create(_, data) {
+      const payload = CryptoUtils.encryptPayload(data, EncryptedFields)
+      return EmailsService.Create(payload)
+    },
+
+    Update(_, data) {
+      const payload = CryptoUtils.encryptPayload(data, EncryptedFields)
+      return EmailsService.Update(data.id, payload)
     }
   }
 }

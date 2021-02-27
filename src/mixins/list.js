@@ -11,7 +11,7 @@ export default {
   methods: {
     async fetchAll() {
       try {
-        await this.$request(this.FetchAll, this.$waiters[this.$options.name].ALL)
+        await this.$request(this.FetchAll, this.$waiters[this.$options.name].All)
       } catch (error) {
         console.log(error)
       }

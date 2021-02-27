@@ -5,7 +5,7 @@
         <span class="fw-bold h5">Logins</span>
       </div>
 
-      <ListLoader v-if="$wait.is($waiters.Logins.ALL)" />
+      <ListLoader v-if="$wait.is($waiters.Logins.All)" />
       <EmptyState v-if="filteredList.length <= 0" />
       <ul class="items" v-else>
         <ListItem

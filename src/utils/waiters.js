@@ -3,6 +3,11 @@ export const Auth = {
 }
 
 export const Logins = {
-  ALL: 'logins_all',
-  CREATE: 'logins_create'
+  All: 'logins_all',
+  Create: 'logins_create'
+}
+
+export const CreditCards = {
+  All: 'credit_cards_all',
+  Create: 'credit_cards_create'
 }

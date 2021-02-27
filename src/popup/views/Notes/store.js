@@ -1,31 +1,43 @@
-const ITEMS = [
-  {
-    id: 1,
-    title: 'Toplantı Notları',
-    note:
-      "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's"
-  },
-  {
-    id: 2,
-    title: 'Genel Değerlendirme',
-    note:
-      "Lorem Ipsum has been the industry's Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's"
-  }
-]
+import NotesService from '@/api/services/Notes'
+import CryptoUtils from '@/utils/crypto'
+
+const EncryptedFields = ['note']
 
 export default {
   namespaced: true,
 
   state() {
     return {
-      items: ITEMS,
-      detail: ITEMS[0]
+      ItemList: [],
+      detail: {}
     }
   },
-  mutations: {},
+
   actions: {
-    setDetail({ state }, id) {
-      state.detail = state.items.find(l => l.id === id)
+    async FetchAll({ state }, query) {
+      const { data } = await NotesService.FetchAll(query)
+
+      const itemList = JSON.parse(CryptoUtils.aesDecrypt(data.data))
+
+      itemList.forEach(element => {
+        CryptoUtils.decryptFields(element, EncryptedFields)
+      })
+
+      state.ItemList = itemList
+    },
+
+    Delete(_, id) {
+      return NotesService.Delete(id)
+    },
+
+    Create(_, data) {
+      const payload = CryptoUtils.encryptPayload(data, EncryptedFields)
+      return NotesService.Create(payload)
+    },
+
+    Update(_, data) {
+      const payload = CryptoUtils.encryptPayload(data, EncryptedFields)
+      return NotesService.Update(data.id, payload)
     }
   }
 }

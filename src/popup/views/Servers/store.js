@@ -1,36 +1,15 @@
-const ITEMS = [
-  {
-    id: 1,
-    created_at: '2020-05-02T17:47:42.739124+03:00',
-    updated_at: '2020-05-02T17:47:42.739124+03:00',
-    deleted_at: null,
-    title: 'Passwall Server',
-    ip: '192.68.1.1',
-    username: 'passwall',
-    password: 'password123',
-    url: 'https://passwall.io',
-    hosting_username: 'hostuser',
-    hosting_password: 'hostpass',
-    admin_username: 'adminuser',
-    admin_password: 'adminpass',
-    extra: 'passwall extra notes'
-  },
-  {
-    id: 2,
-    created_at: '2020-05-02T17:47:42.739124+03:00',
-    updated_at: '2020-05-02T17:47:42.739124+03:00',
-    deleted_at: null,
-    title: 'Google Server',
-    ip: '127.0.0.1',
-    username: 'passwall',
-    password: 'password123',
-    url: 'https://passwall.io',
-    hosting_username: 'hostuser',
-    hosting_password: 'hostpass',
-    admin_username: 'adminuser',
-    admin_password: 'adminpass',
-    extra: 'passwall extra notes'
-  }
+import ServersService from '@/api/services/Servers'
+import CryptoUtils from '@/utils/crypto'
+
+const EncryptedFields = [
+  'ip',
+  'username',
+  'password',
+  'hosting_username',
+  'hosting_password',
+  'admin_username',
+  'admin_password',
+  'extra'
 ]
 
 export default {
@@ -38,14 +17,36 @@ export default {
 
   state() {
     return {
-      items: ITEMS,
-      detail: ITEMS[0]
+      ItemList: [],
+      detail: {}
     }
   },
-  mutations: {},
+
   actions: {
-    setDetail({ state }, id) {
-      state.detail = state.items.find(l => l.id === id)
+    async FetchAll({ state }, query) {
+      const { data } = await ServersService.FetchAll(query)
+
+      const itemList = JSON.parse(CryptoUtils.aesDecrypt(data.data))
+
+      itemList.forEach(element => {
+        CryptoUtils.decryptFields(element, EncryptedFields)
+      })
+
+      state.ItemList = itemList
+    },
+
+    Delete(_, id) {
+      return ServersService.Delete(id)
+    },
+
+    Create(_, data) {
+      const payload = CryptoUtils.encryptPayload(data, EncryptedFields)
+      return ServersService.Create(payload)
+    },
+
+    Update(_, data) {
+      const payload = CryptoUtils.encryptPayload(data, EncryptedFields)
+      return ServersService.Update(data.id, payload)
     }
   }
 }
