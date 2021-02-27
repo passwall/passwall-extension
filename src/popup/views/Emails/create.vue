@@ -16,31 +16,86 @@
       </template>
     </Header>
     <div class="scroll">
-      <FormRowText :value="detail.title" title="title" :show-icons="false">
-        <template v-slot:second-icon>
-          <div />
-        </template>
-      </FormRowText>
-      <FormRowText :value="detail.email" title="email" :edit-mode="true" :show-icons="true">
-        <template v-slot:second-icon> <div /> </template>
-      </FormRowText>
-      <FormRowText
-        :value="detail.password"
-        title="password"
-        :edit-mode="false"
-        :show-icons="true"
-        password
-      />
+      <form @submit.prevent="onSubmit" class="create-form">
+        <div class="form-row">
+          <label v-text="'Title'" />
+          <VFormText
+            name="Title"
+            v-model="form.title"
+            v-validate="'required'"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
+        </div>
+
+        <div class="form-row">
+          <label v-text="'Email'" />
+          <VFormText
+            name="Email"
+            v-model="form.email"
+            v-validate="'required'"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
+        </div>
+
+        <div class="form-row">
+          <label v-text="'Password'" />
+          <div class="d-flex flex-justify-between ">
+            <VFormText
+              name="Password"
+              class="flex-auto"
+              v-model="form.password"
+              v-validate="'required'"
+              :placeholder="$t('ClickToFill')"
+              theme="no-border"
+              :type="showPass ? 'text' : 'password'"
+            />
+            <div class="d-flex flex-items-center mr-3">
+              <ClipboardButton :copy="form.password" />
+              <ShowPassButton @click="showPass = $event" />
+            </div>
+          </div>
+        </div>      
+
+        <VButton
+          class="mx-2 my-2"
+          size="medium"
+          type="submit"
+          style="letter-spacing: 2px"
+          :loading="$wait.is($waiters.Logins.Create)"
+        >
+          Save
+        </VButton>
+      </form>
+
     </div>
   </div>
 </template>
 
 <script>
+import { mapActions } from 'vuex'
+
 export default {
-  methods: {},
-  computed: {
-    detail() {
-      return this.$store.state.Emails.detail
+  data() {
+    return {
+      showPass: false,
+      form: {
+        title: '',
+        email: '',
+        password: ''
+      }
+    }
+  },
+  methods: {
+    ...mapActions('Emails', ['Create']),
+    async onSubmit() {
+      if (!(await this.$validator.validateAll())) return
+      const onSuccess = async () => {
+        await this.Create({ ...this.form })
+        this.$router.push({ name: 'Emails' })
+      }
+      this.$request(onSuccess, this.$waiters.Emails.Create)
     }
   }
 }
