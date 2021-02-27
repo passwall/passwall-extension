@@ -28,7 +28,12 @@
           <div />
         </template>
       </FormRowText>
-      <FormRowText :value="form.username" title="username" :edit-mode="false" :show-icons="true">
+      <FormRowText 
+        :value="form.username" 
+        title="username" 
+        :edit-mode="false" 
+        :show-icons="true"
+      >
         <template v-slot:second-icon> <div /> </template>
       </FormRowText>
       <FormRowText
@@ -38,7 +43,12 @@
         :show-icons="true"
         password
       />
-      <FormRowText :value="form.url" title="website" :edit-mode="false" :show-icons="true">
+      <FormRowText 
+        :value="form.url" 
+        title="website" 
+        :edit-mode="false" 
+        :show-icons="true"
+      >
         <template v-slot:second-icon>
           <LinkButton :link="form.url" />
         </template>

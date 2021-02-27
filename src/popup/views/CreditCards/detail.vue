@@ -6,9 +6,7 @@
           <VIcon class="c-pointer" name="arrow-left" @click="goBack" />
           <div class="d-flex flex-auto flex-items-center ml-3">
             <CompanyLogo :url="form.title" />
-            <span class="title fw-bold h5 ml-2">{{
-              form.title || $helpers.parseHostName(form.url)
-            }}</span>
+            <span class="title fw-bold h5 ml-2">{{ form.title }}</span>
           </div>
           <div class="d-flex">
             <VIcon class="c-pointer trash" name="trash" />
