@@ -9,62 +9,82 @@
             <span class="title fw-bold h5 ml-2">{{ form.title }}</span>
           </div>
           <div class="d-flex">
+
+            <!-- Delete Btn -->
             <button v-tooltip="$t('Delete')" @click="onClickDelete">
               <VIcon class="c-pointer trash" name="trash" />
             </button>
-            <VIcon class="c-pointer ml-2" name="cogs" />
+
+            <!-- Edit Btn -->
+            <button v-if="!isEditMode" v-tooltip="$t('Edit')" @click="isEditMode = true">
+              <VIcon class="c-pointer ml-2 cogs" name="cogs" />
+            </button>
+            
           </div>
         </div>
       </template>
     </Header>
     <div class="scroll">
-      <FormRowText
-        :value="form.title || $helpers.parseHostName(form.url)"
-        title="title"
-        :edit-mode="false"
-        :show-icons="false"
-      >
-        <template v-slot:second-icon> <div /> </template>
-      </FormRowText>
-      <FormRowText 
-        :value="form.cardholder_name" 
-        title="cardholder name" 
-        :edit-mode="false" 
-        :show-icons="true"
-      >
-        <template v-slot:second-icon> <div /> </template>
-      </FormRowText>
-      <FormRowText 
-        :value="form.type" 
-        title="type" 
-        :edit-mode="false" 
-        :show-icons="true"
-      >
-        <template v-slot:second-icon> <div /> </template>
-      </FormRowText>
-      <FormRowText 
-        :value="form.number" 
-        title="number" 
-        :edit-mode="false" 
-        :show-icons="true"
-      >
-        <template v-slot:second-icon> <div /> </template>
-      </FormRowText>
-      <FormRowText
-        :value="form.expiry_date"
-        title="expiry date"
-        :edit-mode="false"
-        :show-icons="true"
-      >
-        <template v-slot:second-icon> <div /> </template>
-      </FormRowText>
-      <FormRowText
-        :value="form.verification_number"
-        title="verification number"
-        :edit-mode="false"
-        :show-icons="true"
-        password
-      />
+      <form class="form" @submit.stop.prevent="onClickUpdate">
+        <FormRowText
+          v-model="form.title"
+          title="title"
+          :edit-mode="isEditMode"
+          :show-icons="false"
+        >
+          <template v-slot:second-icon> <div /> </template>
+        </FormRowText>
+        <FormRowText 
+          v-model="form.cardholder_name" 
+          title="cardholder name" 
+          :edit-mode="isEditMode" 
+          :show-icons="true"
+        >
+          <template v-slot:second-icon> <div /> </template>
+        </FormRowText>
+        <FormRowText 
+          v-model="form.type" 
+          title="type" 
+          :edit-mode="isEditMode" 
+          :show-icons="true"
+        >
+          <template v-slot:second-icon> <div /> </template>
+        </FormRowText>
+        <FormRowText 
+          v-model="form.number" 
+          title="number" 
+          :edit-mode="isEditMode" 
+          :show-icons="true"
+        >
+          <template v-slot:second-icon> <div /> </template>
+        </FormRowText>
+        <FormRowText
+          v-model="form.expiry_date"
+          title="expiry date"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        >
+          <template v-slot:second-icon> <div /> </template>
+        </FormRowText>
+        <FormRowText
+          v-model="form.verification_number"
+          title="verification number"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+          password
+        />
+
+        <!-- Save & Cancel -->
+        <div class="d-flex m-3" v-if="isEditMode">
+          <VButton class="flex-1" theme="text" :disabled="loading" @click="isEditMode = false">
+            {{ $t('Cancel') }}
+          </VButton>
+          <VButton class="flex-1" type="submit" :loading="loading">
+            {{ $t('Save') }}
+          </VButton>
+        </div>
+      
+      </form>
     </div>
   </div>
 </template>
@@ -75,8 +95,22 @@ import DetailMixin from '@/mixins/detail'
 
 export default {
   mixins: [DetailMixin],
+
+  data() {
+    return {
+      isEditMode: false,
+      showPass: false
+    }
+  },
+
+  beforeRouteUpdate(to, from, next) {
+    this.isEditMode = false
+    this.showPass = false
+    next()
+  },
+
   methods: {
-    ...mapActions('CreditCards', ['Delete']),
+    ...mapActions('CreditCards', ['Delete', 'Update']),
 
     openLink() {
       this.$browser.tabs.create({
@@ -99,10 +133,24 @@ export default {
       }
 
       this.$request(onSuccess, this.$waiters.CreditCards.Delete)
+    },
+
+    async onClickUpdate() {
+      const onSuccess = async () => {
+        await this.Update({ ...this.form })
+        this.$router.push({ name: 'CreditCards', params: { cache: true } })
+      }
+
+      await this.$request(onSuccess, this.$waiters.CreditCards.Update)
+      this.isEditMode = false
     }
   },
   computed: {
-    ...mapState('CreditCards', ['ItemList'])
+    ...mapState('CreditCards', ['Detail', 'ItemList']),
+
+    loading() {
+      return this.$wait.is(this.$waiters.CreditCards.Update)
+    }
   }
 }
 </script>
@@ -110,6 +158,9 @@ export default {
 <style lang="scss">
 .trash {
   color: $color-danger;
+}
+.cogs {
+  color: #FFFFFF;
 }
 .title {
   flex: 1;

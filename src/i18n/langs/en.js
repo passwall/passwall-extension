@@ -29,6 +29,7 @@ export default {
   YourPassword: "Your password",
   Address: "Address",
   Save: "Save",
+  Cancel: "Cancel",
   Hide: "Hide",
   Show: "Show",
   ClickToFill: "Click to fill",

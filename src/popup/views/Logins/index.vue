@@ -12,7 +12,7 @@
           v-for="item in filteredList"
           :key="item.id"
           :url="item.url"
-          :title="item.url"
+          :title="item.title"
           :subtitle="item.username"
           @click="clickItem(item)"
         />

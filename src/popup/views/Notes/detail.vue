@@ -9,27 +9,53 @@
             <span class="title fw-bold h5 ml-2">{{ form.title }}</span>
           </div>
           <div class="d-flex">
+
+            <!-- Delete Btn -->
             <button v-tooltip="$t('Delete')" @click="onClickDelete">
               <VIcon class="c-pointer trash" name="trash" />
             </button>
-            <VIcon class="c-pointer ml-2" name="cogs" />
+
+            <!-- Edit Btn -->
+            <button v-if="!isEditMode" v-tooltip="$t('Edit')" @click="isEditMode = true">
+              <VIcon class="c-pointer ml-2 cogs" name="cogs" />
+            </button>
+            
           </div>
         </div>
       </template>
     </Header>
     <div class="scroll">
-      <FormRowText 
-        :value="form.title" 
-        title="title" 
-        :edit-mode="false" 
-        :show-icons="false"
-      >
-        <template v-slot:second-icon> <div /> </template>
-      </FormRowText>
+      <form class="form" @submit.stop.prevent="onClickUpdate">
+        <FormRowText 
+          v-model="form.title" 
+          title="title" 
+          :edit-mode="isEditMode" 
+          :show-icons="false"
+        >
+          <template v-slot:second-icon> <div /> </template>
+        </FormRowText>
 
-      <div class="mb-7">
-        <VTextArea :value="form.note" label="Note" name="note" disabled />
-      </div>
+        <div>
+          <VTextArea 
+            v-model="form.note" 
+            label="Note" 
+            name="note" 
+            :placeholder="$t(isEditMode ? 'ClickToFill' : 'ContentHidden')"
+            :disabled="!isEditMode" 
+          />
+        </div>
+
+        <!-- Save & Cancel -->
+        <div class="d-flex m-3" v-if="isEditMode">
+          <VButton class="flex-1" theme="text" :disabled="loading" @click="isEditMode = false">
+            {{ $t('Cancel') }}
+          </VButton>
+          <VButton class="flex-1" type="submit" :loading="loading">
+            {{ $t('Save') }}
+          </VButton>
+        </div>
+      
+      </form>
     </div>
   </div>
 </template>
@@ -40,8 +66,22 @@ import DetailMixin from '@/mixins/detail'
 
 export default {
   mixins: [DetailMixin],
+
+  data() {
+    return {
+      isEditMode: false,
+      showPass: false
+    }
+  },
+
+  beforeRouteUpdate(to, from, next) {
+    this.isEditMode = false
+    this.showPass = false
+    next()
+  },
+
   methods: {
-    ...mapActions('Notes', ['Delete']),
+    ...mapActions('Notes', ['Delete', 'Update']),
 
     openLink() {
       this.$browser.tabs.create({
@@ -64,11 +104,25 @@ export default {
       }
 
       this.$request(onSuccess, this.$waiters.Notes.Delete)
+    },
+
+    async onClickUpdate() {
+      const onSuccess = async () => {
+        await this.Update({ ...this.form })
+        this.$router.push({ name: 'Notes', params: { cache: true } })
+      }
+
+      await this.$request(onSuccess, this.$waiters.Notes.Update)
+      this.isEditMode = false
     }
   },
 
   computed: {
-    ...mapState('Notes', ['ItemList'])
+    ...mapState('Notes', ['Detail', 'ItemList']),
+
+    loading() {
+      return this.$wait.is(this.$waiters.Notes.Update)
+    }
   }
 }
 </script>
@@ -76,6 +130,9 @@ export default {
 <style lang="scss">
 .trash {
   color: $color-danger;
+}
+.cogs {
+  color: #FFFFFF;
 }
 .title {
   flex: 1;

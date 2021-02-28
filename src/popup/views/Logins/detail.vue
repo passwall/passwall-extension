@@ -11,52 +11,78 @@
             }}</span>
           </div>
           <div class="d-flex">
+
+            <!-- Delete Btn -->
             <button v-tooltip="$t('Delete')" @click="onClickDelete">
               <VIcon class="c-pointer trash" name="trash" />
             </button>
-            <VIcon class="c-pointer ml-2" name="cogs" />
+
+            <!-- Edit Btn -->
+            <button v-if="!isEditMode" v-tooltip="$t('Edit')" @click="isEditMode = true">
+              <VIcon class="c-pointer ml-2 cogs" name="cogs" />
+            </button>
+            
           </div>
         </div>
       </template>
     </Header>
     <div class="scroll">
-      <FormRowText
-        :value="form.title || $helpers.parseHostName(form.url)"
-        title="title"
-        :edit-mode="false"
-        :show-icons="false"
-      >
-        <template v-slot:second-icon> <div /> </template>
-      </FormRowText>
-      <FormRowText 
-        :value="form.username" 
-        title="username" 
-        :edit-mode="false" 
-        :show-icons="true"
-      >
-        <template v-slot:second-icon> <div /> </template>
-      </FormRowText>
-      <FormRowText
-        :value="form.password"
-        title="password"
-        :edit-mode="false"
-        :show-icons="true"
-        password
-      />
-      <FormRowText 
-        :value="form.url" 
-        title="website" 
-        :edit-mode="false" 
-        :show-icons="true"
-      >
-        <template v-slot:second-icon>
-          <LinkButton :link="form.url" />
-        </template>
-      </FormRowText>
+      <form class="form" @submit.stop.prevent="onClickUpdate">
+        <FormRowText
+          v-model="form.title"
+          title="title"
+          :edit-mode="isEditMode"
+          :show-icons="false"
+        >
+          <template v-slot:second-icon> <div /> </template>
+        </FormRowText>
+        <FormRowText 
+          v-model="form.username" 
+          title="username" 
+          :edit-mode="isEditMode" 
+          :show-icons="true"
+        >
+          <template v-slot:second-icon> <div /> </template>
+        </FormRowText>
+        <FormRowText
+          v-model="form.password"
+          title="password"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+          password
+        />
+        <FormRowText 
+          v-model="form.url" 
+          title="website" 
+          :edit-mode="isEditMode" 
+          :show-icons="true"
+        >
+          <template v-slot:second-icon>
+            <LinkButton :link="form.url" />
+          </template>
+        </FormRowText>
 
-      <div class="mb-7">
-        <VTextArea :value="form.extra" label="Extra" name="extra" disabled />
-      </div>
+        <div>
+          <VTextArea 
+            v-model="form.extra" 
+            label="Extra" 
+            name="extra"
+            :placeholder="$t(isEditMode ? 'ClickToFill' : 'ContentHidden')"
+            :disabled="!isEditMode"
+          />
+        </div>
+      
+        <!-- Save & Cancel -->
+        <div class="d-flex m-3" v-if="isEditMode">
+          <VButton class="flex-1" theme="text" :disabled="loading" @click="isEditMode = false">
+            {{ $t('Cancel') }}
+          </VButton>
+          <VButton class="flex-1" type="submit" :loading="loading">
+            {{ $t('Save') }}
+          </VButton>
+        </div>
+      
+      </form>
     </div>
   </div>
 </template>
@@ -68,9 +94,22 @@ import DetailMixin from '@/mixins/detail'
 export default {
 
   mixins: [DetailMixin],
+
+  data() {
+    return {
+      isEditMode: false,
+      showPass: false
+    }
+  },
+
+  beforeRouteUpdate(to, from, next) {
+    this.isEditMode = false
+    this.showPass = false
+    next()
+  },
   
   methods: {
-    ...mapActions('Logins', ['Delete']),
+    ...mapActions('Logins', ['Delete', 'Update']),
 
     openLink() {
       this.$browser.tabs.create({
@@ -93,10 +132,25 @@ export default {
       }
 
       this.$request(onSuccess, this.$waiters.Logins.Delete)
+    },
+
+    async onClickUpdate() {
+      const onSuccess = async () => {
+        await this.Update({ ...this.form })
+        this.$router.push({ name: 'Logins', params: { cache: true } })
+      }
+
+      await this.$request(onSuccess, this.$waiters.Logins.Update)
+      this.isEditMode = false
     }
+
   },
   computed: {
-    ...mapState('Logins', ['ItemList'])
+    ...mapState('Logins', ['Detail', 'ItemList']),
+
+    loading() {
+      return this.$wait.is(this.$waiters.Logins.Update)
+    }
   }
 }
 </script>
@@ -104,6 +158,9 @@ export default {
 <style lang="scss">
 .trash {
   color: $color-danger;
+}
+.cogs {
+  color: #FFFFFF;
 }
 .title {
   flex: 1;
