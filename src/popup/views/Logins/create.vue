@@ -53,13 +53,13 @@
             />
             <div class="d-flex flex-items-center mr-3">
               <ClipboardButton :copy="form.password" />
-              <!-- Show/Hide -->
               <ShowPassButton @click="showPass = $event" />
             </div>
           </div>
         </div>
+        
         <div class="form-row">
-          <label v-text="'Web Site'" />
+          <label v-text="'Website'" />
           <div class="d-flex flex-justify-between">
             <VFormText
               name="Web Site"

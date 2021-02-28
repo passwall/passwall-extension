@@ -26,7 +26,8 @@ export default new Vuex.Store({
       searchQuery: '',
 
       user: {
-        name: 'Ömer Faruk'
+        // TODO : User bilgisi dinamik yapılacak.
+        name: 'Erhan Yakut'
       }
     }
   },

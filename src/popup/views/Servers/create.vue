@@ -16,76 +16,188 @@
       </template>
     </Header>
     <div class="scroll">
-      <FormRowText :value="detail.title" title="title" :show-icons="false">
-        <template v-slot:second-icon> <div /> </template>
-      </FormRowText>
-      <FormRowText :value="detail.ip" title="ip" :edit-mode="false" :show-icons="false">
-        <template v-slot:second-icon> <div /> </template>
-      </FormRowText>
-      <FormRowText :value="detail.username" title="username" :edit-mode="false" :show-icons="true">
-        <template v-slot:second-icon> <div /> </template>
-      </FormRowText>
-      <FormRowText
-        :value="detail.password"
-        title="password"
-        :edit-mode="false"
-        :show-icons="true"
-        password
-      />
-      <FormRowText :value="detail.url" title="website" :edit-mode="false" :show-icons="true">
-        <template v-slot:second-icon>
-          <VIcon class="c-pointer" name="external-link" @click="openLink" />
-        </template>
-      </FormRowText>
-      <FormRowText
-        :value="detail.hosting_username"
-        title="hosting username"
-        :edit-mode="false"
-        :show-icons="true"
-      >
-        <template v-slot:second-icon> <div /> </template>
-      </FormRowText>
-      <FormRowText
-        :value="detail.hosting_password"
-        title="hosting password"
-        :edit-mode="false"
-        :show-icons="true"
-        password
-      />
-      <FormRowText
-        :value="detail.admin_username"
-        title="admin username"
-        :edit-mode="false"
-        :show-icons="true"
-      >
-        <template v-slot:second-icon> <div /> </template>
-      </FormRowText>
-      <FormRowText
-        :value="detail.admin_password"
-        title="admin password"
-        :edit-mode="false"
-        :show-icons="true"
-        password
-      />
-      <div class="mb-7">
-        <VTextArea :value="detail.extra" label="Extra" name="extra" disabled />
-      </div>
+      <form @submit.prevent="onSubmit" class="create-form">
+        <div class="form-row">
+          <label v-text="'Title'" />
+          <VFormText
+            name="Title"
+            v-model="form.title"
+            v-validate="'required'"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
+        </div>
+
+        <div class="form-row">
+          <label v-text="'IP Address'" />
+          <VFormText
+            name="IP Address"
+            v-model="form.ip"
+            v-validate="'required'"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
+        </div>
+
+        <div class="form-row">
+          <label v-text="'Username'" />
+          <VFormText
+            name="Username"
+            v-model="form.username"
+            v-validate="'required'"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
+        </div>
+
+        <div class="form-row">
+          <label v-text="'Password'" />
+          <div class="d-flex flex-justify-between ">
+            <VFormText
+              name="Password"
+              class="flex-auto"
+              v-model="form.password"
+              v-validate="'required'"
+              :placeholder="$t('ClickToFill')"
+              theme="no-border"
+              :type="showPass ? 'text' : 'password'"
+            />
+            <div class="d-flex flex-items-center mr-3">
+              <ClipboardButton :copy="form.password" />
+              <ShowPassButton @click="showPass = $event" />
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label v-text="'Website'" />
+          <div class="d-flex flex-justify-between">
+            <VFormText
+              name="Web Site"
+              class="flex-auto"
+              v-model="form.url"
+              v-validate="'required'"
+              :placeholder="$t('ClickToFill')"
+              theme="no-border"
+            />
+            <LinkButton class="mr-3" :link="form.url" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label v-text="'Hosting Username'" />
+          <div class="d-flex flex-justify-between">
+            <VFormText
+              name="Hosting Username"
+              class="flex-auto"
+              v-model="form.hosting_username"
+              v-validate="'required'"
+              :placeholder="$t('ClickToFill')"
+              theme="no-border"
+            />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label v-text="'Hosting Password'" />
+          <div class="d-flex flex-justify-between ">
+            <VFormText
+              name="Hosting Password"
+              class="flex-auto"
+              v-model="form.hosting_password"
+              v-validate="'required'"
+              :placeholder="$t('ClickToFill')"
+              theme="no-border"
+              :type="showPass ? 'text' : 'password'"
+            />
+            <div class="d-flex flex-items-center mr-3">
+              <ClipboardButton :copy="form.hosting_password" />
+              <ShowPassButton @click="showPass = $event" />
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label v-text="'Admin Username'" />
+          <div class="d-flex flex-justify-between">
+            <VFormText
+              name="Admin Username"
+              class="flex-auto"
+              v-model="form.admin_username"
+              v-validate="'required'"
+              :placeholder="$t('ClickToFill')"
+              theme="no-border"
+            />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label v-text="'Admin Password'" />
+          <div class="d-flex flex-justify-between ">
+            <VFormText
+              name="Admin Password"
+              class="flex-auto"
+              v-model="form.admin_password"
+              v-validate="'required'"
+              :placeholder="$t('ClickToFill')"
+              theme="no-border"
+              :type="showPass ? 'text' : 'password'"
+            />
+            <div class="d-flex flex-items-center mr-3">
+              <ClipboardButton :copy="form.admin_password" />
+              <ShowPassButton @click="showPass = $event" />
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <VTextArea :value="form.extra" label="Extra" name="extra" disabled />
+        </div>
+      
+        <VButton
+          class="mx-2 my-2"
+          size="medium"
+          type="submit"
+          style="letter-spacing: 2px"
+          :loading="$wait.is($waiters.Logins.Create)"
+        >
+          Save
+        </VButton>
+      </form>
+
     </div>
   </div>
 </template>
 
 <script>
+import { mapActions } from 'vuex'
+
 export default {
-  methods: {
-    openLink() {
-      this.$browser.tabs.create({
-        url: this.detail.url
-      })
+  data() {
+    return {
+      showPass: false,
+      form: {
+        title: '',
+        ip: '',
+        username: '',
+        password: '',
+        hosting_username: '',
+        hosting_password: '',
+        admin_username: '',
+        admin_password: '',
+        extra: ''
+      }
     }
   },
-  computed: {
-    detail() {
-      return this.$store.state.Servers.detail
+  methods: {
+    ...mapActions('Servers', ['Create']),
+    async onSubmit() {
+      if (!(await this.$validator.validateAll())) return
+      const onSuccess = async () => {
+        await this.Create({ ...this.form })
+        this.$router.push({ name: 'Servers' })
+      }
+      this.$request(onSuccess, this.$waiters.Servers.Create)
     }
   }
 }

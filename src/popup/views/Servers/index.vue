@@ -5,16 +5,16 @@
         <span class="fw-bold h5">Servers</span>
       </div>
 
-      <EmptyState v-if="items.length <= 0" />
-
+      <ListLoader v-if="$wait.is($waiters.Logins.All)" />
+      <EmptyState v-if="filteredList.length <= 0" />
       <ul class="items" v-else>
         <ListItem
-          v-for="item in items"
+          v-for="item in filteredList"
           :key="item.id"
           :url="item.url"
           :title="item.title"
           :subtitle="item.ip"
-          @click="clickItem(item.id)"
+          @click="clickItem(item)"
         />
       </ul>
     </div>
@@ -22,17 +22,20 @@
 </template>
 
 <script>
-import { mapState } from 'vuex'
+import { mapActions, mapState } from 'vuex'
+import ListMixin from '@/mixins/list'
 
 export default {
-  computed: {
-    ...mapState('Servers', ['items'])
-  },
+  mixins: [ListMixin],
+  name: 'Servers', // it uses for loading state !! important
   methods: {
-    clickItem(id) {
-      this.$store.dispatch('Servers/setDetail', id)
-      this.$router.push({ name: 'ServerDetail', params: { id } })
+    ...mapActions('Servers', ['FetchAll']),
+    clickItem(detail) {
+      this.$router.push({ name: 'ServerDetail', params: { detail, id: detail.id } })
     }
+  },
+  computed: {
+    ...mapState('Servers', ['ItemList'])
   }
 }
 </script>
