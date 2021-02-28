@@ -151,7 +151,7 @@
         </div>
 
         <div class="form-row">
-          <VTextArea :value="form.extra" label="Extra" name="extra" disabled />
+          <VTextArea :value="form.extra" label="Extra" name="extra" />
         </div>
       
         <VButton
