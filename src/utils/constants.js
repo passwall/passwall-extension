@@ -22,7 +22,7 @@ export const TABS = [
   {
     name: 'Private Notes',
     iconName: 'clipboard-secure',
-    createRouteName: 'PrivateNoteCreate'
+    createRouteName: 'NoteCreate'
   },
   {
     name: 'Servers',

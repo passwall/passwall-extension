@@ -63,7 +63,7 @@
           size="medium"
           type="submit"
           style="letter-spacing: 2px"
-          :loading="$wait.is($waiters.Logins.Create)"
+          :loading="$wait.is($waiters.Emails.Create)"
         >
           Save
         </VButton>

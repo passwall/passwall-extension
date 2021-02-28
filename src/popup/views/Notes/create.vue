@@ -16,25 +16,65 @@
       </template>
     </Header>
     <div class="scroll">
-      <FormRowText :value="detail.title" title="title" :show-icons="false">
-        <template v-slot:second-icon>
-          <div />
-        </template>
-      </FormRowText>
+      <form @submit.prevent="onSubmit" class="create-form">
+        <div class="form-row">
+          <label v-text="'Title'" />
+          <VFormText
+            name="Title"
+            v-model="form.title"
+            v-validate="'required'"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
+        </div>
 
-      <div class="mb-7">
-        <VTextArea :value="detail.note" label="Note" name="note" disabled />
-      </div>
+        <div class="form-row">
+          <!-- <div class="mb-7"> -->
+            <label v-text="'Note'" />
+            <VTextArea 
+              :value="form.note" 
+              label="Note" 
+              name="note" 
+            />
+          <!-- </div> -->
+        </div>
+
+        <VButton
+          class="mx-2 my-2"
+          size="medium"
+          type="submit"
+          style="letter-spacing: 2px"
+          :loading="$wait.is($waiters.Notes.Create)"
+        >
+          Save
+        </VButton>
+      </form>
     </div>
   </div>
 </template>
 
 <script>
+import { mapActions } from 'vuex'
+
 export default {
-  methods: {},
-  computed: {
-    detail() {
-      return this.$store.state.Notes.detail
+  data() {
+    return {
+      showPass: false,
+      form: {
+        title: '',
+        note: ''
+      }
+    }
+  },
+  methods: {
+    ...mapActions('Notes', ['Create']),
+    async onSubmit() {
+      if (!(await this.$validator.validateAll())) return
+      const onSuccess = async () => {
+        await this.Create({ ...this.form })
+        this.$router.push({ name: 'Notes' })
+      }
+      this.$request(onSuccess, this.$waiters.Notes.Create)
     }
   }
 }
