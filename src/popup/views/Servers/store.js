@@ -18,7 +18,7 @@ export default {
   state() {
     return {
       ItemList: [],
-      detail: {}
+      Detail: {}
     }
   },
 

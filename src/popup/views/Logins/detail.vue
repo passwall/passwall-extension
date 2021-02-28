@@ -11,7 +11,7 @@
             }}</span>
           </div>
           <div class="d-flex">
-            <button class="detail-page-header-icon" v-tooltip="'Delete'" @click="onClickDelete">
+            <button v-tooltip="$t('Delete')" @click="onClickDelete">
               <VIcon class="c-pointer trash" name="trash" />
             </button>
             <VIcon class="c-pointer ml-2" name="cogs" />

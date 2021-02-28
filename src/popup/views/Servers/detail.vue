@@ -9,7 +9,9 @@
             <span class="title fw-bold h5 ml-2">{{ form.title }}</span>
           </div>
           <div class="d-flex">
-            <VIcon class="c-pointer trash" name="trash" />
+            <button v-tooltip="$t('Delete')" @click="onClickDelete">
+              <VIcon class="c-pointer trash" name="trash" />
+            </button>
             <VIcon class="c-pointer ml-2" name="cogs" />
           </div>
         </div>
@@ -28,7 +30,7 @@
         :value="form.ip" 
         title="ip" 
         :edit-mode="false" 
-        :show-icons="false"
+        :show-icons="true"
       >
         <template v-slot:second-icon> <div /> </template>
       </FormRowText>
@@ -95,19 +97,39 @@
 </template>
 
 <script>
+import { mapState, mapActions } from 'vuex'
 import DetailMixin from '@/mixins/detail'
 
 export default {
   mixins: [DetailMixin],
   methods: {
+    ...mapActions('Servers', ['Delete']),
+
     openLink() {
       this.$browser.tabs.create({
         url: this.detail.url
       })
     },
+
     goBack() {
       this.$router.push({ name: 'Servers', params: { cache: true } })
+    },
+
+    onClickDelete() {
+      const onSuccess = async () => {
+        await this.Delete(this.form.id)
+        const index = this.ItemList.findIndex(item => item.id == this.form.id)
+        if (index !== -1) {
+          this.ItemList.splice(index, 1)
+        }
+        this.$router.push({ name: 'Servers', params: { cache: true } })
+      }
+
+      this.$request(onSuccess, this.$waiters.Servers.Delete)
     }
+  },
+  computed: {
+    ...mapState('Servers', ['ItemList'])
   }
 }
 </script>
