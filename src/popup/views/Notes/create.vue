@@ -28,15 +28,13 @@
           />
         </div>
 
-        <div class="form-row">
-          <!-- <div class="mb-7"> -->
-            <label v-text="'Note'" />
-            <VTextArea 
-              :value="form.note" 
-              label="Note" 
-              name="note" 
-            />
-          <!-- </div> -->
+        <div>
+          <VTextArea 
+            :placeholder="$t('ClickToFill')" 
+            v-model="form.note" 
+            label="Note" 
+            name="note" 
+          />
         </div>
 
         <VButton

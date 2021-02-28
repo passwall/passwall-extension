@@ -74,7 +74,12 @@
         </div>
 
         <div>
-          <VTextArea :value="form.extra" label="Note" name="note" />
+          <VTextArea 
+            :placeholder="$t('ClickToFill')" 
+            v-model="form.extra" 
+            label="Extra" 
+            name="extra" 
+          />
         </div>
 
         <VButton

@@ -150,8 +150,13 @@
           </div>
         </div>
 
-        <div class="form-row">
-          <VTextArea :value="form.extra" label="Extra" name="extra" />
+        <div>
+          <VTextArea 
+            :placeholder="$t('ClickToFill')" 
+            v-model="form.extra" 
+            label="Extra" 
+            name="extra" 
+          />
         </div>
       
         <VButton

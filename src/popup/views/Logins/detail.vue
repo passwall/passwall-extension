@@ -24,9 +24,7 @@
         :edit-mode="false"
         :show-icons="false"
       >
-        <template v-slot:second-icon>
-          <div />
-        </template>
+        <template v-slot:second-icon> <div /> </template>
       </FormRowText>
       <FormRowText 
         :value="form.username" 
@@ -55,7 +53,7 @@
       </FormRowText>
 
       <div class="mb-7">
-        <VTextArea :value="form.extra" label="Note" name="note" disabled />
+        <VTextArea :value="form.extra" label="Extra" name="extra" disabled />
       </div>
     </div>
   </div>
