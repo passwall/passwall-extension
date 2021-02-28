@@ -4,7 +4,8 @@ export const Auth = {
 
 export const Logins = {
   All: 'logins_all',
-  Create: 'logins_create'
+  Create: 'logins_create',
+  Delete: 'logins_delete'
 }
 
 export const CreditCards = {

@@ -9,7 +9,7 @@ export default {
   state() {
     return {
       ItemList: [],
-      detail: {}
+      Detail: {}
     }
   },
 
@@ -31,7 +31,6 @@ export default {
     },
 
     Create(_, data) {
-      console.log(data)
       const payload = CryptoUtils.encryptPayload(data, EncryptedFields)
       return LoginsService.Create(payload)
     },
