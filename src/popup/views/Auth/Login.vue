@@ -17,13 +17,13 @@
           :placeholder="$t('YourEMailAddress')"
         />
 
-        <label class="mb-2 mt-4" v-text="$t('Password')" />
+        <label class="mb-2 mt-4" v-text="$t('MasterPassword')" />
         <VFormText
           v-model="LoginForm.master_password"
           size="medium"
           type="password"
           name="Password"
-          :placeholder="$t('YourPassword')"
+          :placeholder="$t('YourMasterPassword')"
           v-validate="'required|min:6|max:100'"
         />
 

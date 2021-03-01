@@ -6,6 +6,7 @@ export default {
   EMailAddress: "E-Mail Address",
   YourEMailAddress: "Your E-Mail Address",
   MasterPassword: "Master Password",
+  YourMasterPassword: "Your Master Password",
   AllItems: "All Items",
   Categories: "Categories",
   Logins: "Logins",
