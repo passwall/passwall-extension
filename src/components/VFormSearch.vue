@@ -8,14 +8,14 @@
       autocorrect="off"
       autocomplete="off"
       spellcheck="false"
-      v-on="inputListeners"
+      v-on="$listeners"
       v-bind="$attrs"
     />
     <!-- Error -->
     <p class="error" v-if="getError" v-text="getError" />
     <VIcon
       :name="value.length <= 0 ? 'search' : 'x-icon'"
-      @click="$emit('input', '')"
+      @click="$emit('input', { target: { value: '' } })"
       class="icon c-pointer"
       color="#8B93A1"
     />
@@ -47,12 +47,6 @@ export default {
     getError() {
       const error = this.errors.items.find(e => e.field == this.name)
       return error ? error.msg : ''
-    },
-
-    inputListeners() {
-      return Object.assign({}, this.$listeners, {
-        input: event => this.$emit('input', event.target.value)
-      })
     }
   }
 }

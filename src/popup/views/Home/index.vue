@@ -13,7 +13,8 @@
       <div class="mx-3">
         <VFormSearch
           class="mt-2"
-          v-model="searchText"
+          :value="searchQuery"
+          @input="onInputSearchQuery"
           theme="black"
           size="medium"
           name="search"
@@ -33,7 +34,7 @@
 
 <script>
 import Tabs from './tabs'
-import { mapActions } from 'vuex'
+import { mapActions, mapMutations, mapState } from 'vuex'
 
 export default {
   components: { Tabs },
@@ -43,8 +44,12 @@ export default {
       showSettings: false
     }
   },
+  computed: {
+    ...mapState(['searchQuery'])
+  },
   methods: {
     ...mapActions(['Logout']),
+    ...mapMutations(['onInputSearchQuery']),
 
     closeSettings(e) {
       if (e.target === this.$refs.overlay) {

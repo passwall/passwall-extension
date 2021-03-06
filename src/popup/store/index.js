@@ -74,6 +74,11 @@ export default new Vuex.Store({
       lsKeys.forEach(key => localStorage.removeItem(key))
     }
   },
+  mutations: {
+    onInputSearchQuery(state, event) {
+      state.searchQuery = event.target.value
+    }
+  },
 
   modules: {
     Logins,
