@@ -31,6 +31,10 @@ export default new Vuex.Store({
   getters: {
     hasProPlan(state) {
       return state.user.status == 'active'
+    },
+    safeUser() {
+      const { name, next_bill_date } = localStorage
+      return { name, next_bill_date }
     }
   },
 
@@ -46,12 +50,14 @@ export default new Vuex.Store({
       CryptoUtils.encryptKey = state.master_hash
       CryptoUtils.transmissionKey = state.transmission_key
       state.user = data
-      console.log(data)
 
       localStorage.email = payload.email
       localStorage.server = payload.server
       localStorage.access_token = data.access_token
       localStorage.refresh_token = data.refresh_token
+      localStorage.name = data.name
+      localStorage.next_bill_date = data.next_bill_date
+
       if (process.env.NODE_ENV !== 'production') {
         localStorage.master_hash = state.master_hash
         localStorage.transmission_key = state.transmission_key
