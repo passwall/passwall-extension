@@ -49,21 +49,6 @@
             <LinkButton :link="form.url" />
           </template>
         </FormRowText>
-        <FormRowText v-model="form.url" title="website" :edit-mode="isEditMode" :show-icons="true">
-          <template v-slot:second-icon>
-            <LinkButton :link="form.url" />
-          </template>
-        </FormRowText>
-        <FormRowText v-model="form.url" title="website" :edit-mode="isEditMode" :show-icons="true">
-          <template v-slot:second-icon>
-            <LinkButton :link="form.url" />
-          </template>
-        </FormRowText>
-        <FormRowText v-model="form.url" title="website" :edit-mode="isEditMode" :show-icons="true">
-          <template v-slot:second-icon>
-            <LinkButton :link="form.url" />
-          </template>
-        </FormRowText>
 
         <div>
           <VTextArea
