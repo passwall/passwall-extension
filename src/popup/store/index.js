@@ -25,10 +25,7 @@ export default new Vuex.Store({
       master_hash: localStorage.master_hash,
       searchQuery: '',
 
-      user: {
-        // TODO : User bilgisi dinamik yapılacak.
-        name: 'Erhan Yakut'
-      }
+      user: {}
     }
   },
   getters: {
@@ -49,6 +46,7 @@ export default new Vuex.Store({
       CryptoUtils.encryptKey = state.master_hash
       CryptoUtils.transmissionKey = state.transmission_key
       state.user = data
+      console.log(data)
 
       localStorage.email = payload.email
       localStorage.server = payload.server
