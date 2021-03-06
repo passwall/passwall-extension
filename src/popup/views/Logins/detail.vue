@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="content">
     <Header class="bg-black-400">
       <template v-slot:content>
         <div class="d-flex flex-items-center w-100">
@@ -11,7 +11,6 @@
             }}</span>
           </div>
           <div class="d-flex">
-
             <!-- Delete Btn -->
             <button v-tooltip="$t('Delete')" @click="onClickDelete">
               <VIcon class="c-pointer trash" name="trash" />
@@ -21,25 +20,19 @@
             <button v-if="!isEditMode" v-tooltip="$t('Edit')" @click="isEditMode = true">
               <VIcon class="c-pointer ml-2 cogs" name="cogs" />
             </button>
-            
           </div>
         </div>
       </template>
     </Header>
-    <div class="scroll">
+    <div class="scroll detail">
       <form class="form" @submit.stop.prevent="onClickUpdate">
-        <FormRowText
-          v-model="form.title"
-          title="title"
-          :edit-mode="isEditMode"
-          :show-icons="false"
-        >
+        <FormRowText v-model="form.title" title="title" :edit-mode="isEditMode" :show-icons="false">
           <template v-slot:second-icon> <div /> </template>
         </FormRowText>
-        <FormRowText 
-          v-model="form.username" 
-          title="username" 
-          :edit-mode="isEditMode" 
+        <FormRowText
+          v-model="form.username"
+          title="username"
+          :edit-mode="isEditMode"
           :show-icons="true"
         >
           <template v-slot:second-icon> <div /> </template>
@@ -51,27 +44,37 @@
           :show-icons="true"
           password
         />
-        <FormRowText 
-          v-model="form.url" 
-          title="website" 
-          :edit-mode="isEditMode" 
-          :show-icons="true"
-        >
+        <FormRowText v-model="form.url" title="website" :edit-mode="isEditMode" :show-icons="true">
+          <template v-slot:second-icon>
+            <LinkButton :link="form.url" />
+          </template>
+        </FormRowText>
+        <FormRowText v-model="form.url" title="website" :edit-mode="isEditMode" :show-icons="true">
+          <template v-slot:second-icon>
+            <LinkButton :link="form.url" />
+          </template>
+        </FormRowText>
+        <FormRowText v-model="form.url" title="website" :edit-mode="isEditMode" :show-icons="true">
+          <template v-slot:second-icon>
+            <LinkButton :link="form.url" />
+          </template>
+        </FormRowText>
+        <FormRowText v-model="form.url" title="website" :edit-mode="isEditMode" :show-icons="true">
           <template v-slot:second-icon>
             <LinkButton :link="form.url" />
           </template>
         </FormRowText>
 
         <div>
-          <VTextArea 
-            v-model="form.extra" 
-            label="Extra" 
+          <VTextArea
+            v-model="form.extra"
+            label="Extra"
             name="extra"
             :placeholder="$t(isEditMode ? 'ClickToFill' : 'ContentHidden')"
             :disabled="!isEditMode"
           />
         </div>
-      
+
         <!-- Save & Cancel -->
         <div class="d-flex m-3" v-if="isEditMode">
           <VButton class="flex-1" theme="text" :disabled="loading" @click="isEditMode = false">
@@ -81,7 +84,6 @@
             {{ $t('Save') }}
           </VButton>
         </div>
-      
       </form>
     </div>
   </div>
@@ -92,7 +94,6 @@ import { mapState, mapActions } from 'vuex'
 import DetailMixin from '@/mixins/detail'
 
 export default {
-
   mixins: [DetailMixin],
 
   data() {
@@ -107,7 +108,7 @@ export default {
     this.showPass = false
     next()
   },
-  
+
   methods: {
     ...mapActions('Logins', ['Delete', 'Update']),
 
@@ -116,7 +117,7 @@ export default {
         url: this.detail.url
       })
     },
-    
+
     goBack() {
       this.$router.push({ name: 'Logins', params: { cache: true } })
     },
@@ -143,7 +144,6 @@ export default {
       await this.$request(onSuccess, this.$waiters.Logins.Update)
       this.isEditMode = false
     }
-
   },
   computed: {
     ...mapState('Logins', ['Detail', 'ItemList']),
@@ -160,11 +160,10 @@ export default {
   color: $color-danger;
 }
 .cogs {
-  color: #FFFFFF;
+  color: #ffffff;
 }
 .title {
   flex: 1;
-
   word-break: break-all;
 }
 </style>

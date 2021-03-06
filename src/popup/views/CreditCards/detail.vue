@@ -24,7 +24,7 @@
         </div>
       </template>
     </Header>
-    <div class="scroll">
+    <div class="scroll detail">
       <form class="form" @submit.stop.prevent="onClickUpdate">
         <FormRowText
           v-model="form.title"

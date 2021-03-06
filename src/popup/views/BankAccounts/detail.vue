@@ -9,29 +9,22 @@
             <span class="title fw-bold h5 ml-2">{{ form.title }}</span>
           </div>
           <div class="d-flex">
-
             <!-- Delete Btn -->
             <button v-tooltip="$t('Delete')" @click="onClickDelete">
               <VIcon class="c-pointer trash" name="trash" />
             </button>
-            
+
             <!-- Edit Btn -->
             <button v-if="!isEditMode" v-tooltip="$t('Edit')" @click="isEditMode = true">
               <VIcon class="c-pointer ml-2 cogs" name="cogs" />
             </button>
-
           </div>
         </div>
       </template>
     </Header>
-    <div class="scroll">
+    <div class="scroll detail">
       <form class="form" @submit.stop.prevent="onClickUpdate">
-        <FormRowText 
-          v-model="form.title" 
-          title="title" 
-          :edit-mode="isEditMode" 
-          :show-icons="false"
-        >
+        <FormRowText v-model="form.title" title="title" :edit-mode="isEditMode" :show-icons="false">
           <template v-slot:second-icon> <div /> </template>
         </FormRowText>
         <FormRowText
@@ -50,18 +43,13 @@
         >
           <template v-slot:second-icon> <div /> </template>
         </FormRowText>
-        <FormRowText 
-          v-model="form.iban" 
-          title="iban" 
-          :edit-mode="isEditMode" 
-          :show-icons="true"
-        >
+        <FormRowText v-model="form.iban" title="iban" :edit-mode="isEditMode" :show-icons="true">
           <template v-slot:second-icon> <div /> </template>
         </FormRowText>
-        <FormRowText 
-          v-model="form.currency" 
-          title="currency" 
-          :edit-mode="isEditMode" 
+        <FormRowText
+          v-model="form.currency"
+          title="currency"
+          :edit-mode="isEditMode"
           :show-icons="true"
         >
           <template v-slot:second-icon> <div /> </template>
@@ -158,7 +146,7 @@ export default {
   color: $color-danger;
 }
 .cogs {
-  color: #FFFFFF;
+  color: #ffffff;
 }
 .title {
   flex: 1;
