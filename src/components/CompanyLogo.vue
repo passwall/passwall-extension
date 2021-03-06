@@ -1,5 +1,5 @@
 <template>
-  <div class="d-flex flex-justify-center flex-items-center logoWrap">
+  <div class="d-flex flex-justify-center flex-items-center flex-shrink-0 logoWrap">
     <img
       v-if="logoAvailable && check"
       class="logo"

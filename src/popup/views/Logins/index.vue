@@ -12,7 +12,7 @@
           v-for="item in filteredList"
           :key="item.id"
           :url="item.url"
-          :title="item.title"
+          :title="$helpers.textEllipsis(item.title || item.url, 30)"
           :subtitle="item.username"
           @click="clickItem(item)"
         />
