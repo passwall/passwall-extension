@@ -17,18 +17,6 @@ const getTestId = id => {
   return `[data-testid='${id}']`
 }
 
-const getLocalStorage = async page => {
-  const j = await page.evaluate(() => {
-    let json = {}
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      json[key] = localStorage.getItem(key)
-    }
-    return json
-  })
-  return j
-}
-
 describe('Popup page', () => {
   let page, browser
   const usernameField = '[data-testid="username"] > input'
@@ -91,8 +79,11 @@ describe('Popup page', () => {
 
     await page.waitForSelector(usernameLabel)
     const labelText = await page.$eval(usernameLabel, el => el.innerText)
-    const localStorageData = await getLocalStorage(page)
-    const userObj = JSON.parse(localStorageData.user)
+    const userObj = await page.evaluate(async () => {
+      const $vm = document.querySelector('body > div').__vue__
+      const storage = $vm.$storage
+      return storage.getItem('user')
+    })
     await page.screenshot({ path: path.join(ssPath, 'home.png') })
 
     expect(labelText).toEqual('Erhan Yakut')
@@ -121,8 +112,12 @@ describe('Popup page', () => {
     await page.waitForSelector(logoutBtn)
     await page.$eval(logoutBtn, el => el.click())
 
-    const localStorageData = await getLocalStorage(page)
+    const userObj = await page.evaluate(async () => {
+      const $vm = document.querySelector('body > div').__vue__
+      const storage = $vm.$storage
+      return storage.getItem('user')
+    })
     await page.screenshot({ path: path.join(ssPath, 'logout.png') })
-    expect(localStorageData.user).not.toBeDefined()
+    expect(userObj).toBeNull()
   })
 })

@@ -6,7 +6,8 @@
     "serve": "vue-cli-service build --mode development --watch",
     "build": "vue-cli-service build",
     "lint": "vue-cli-service lint",
-    "test": "yarn build && jest"
+    "test": "jest",
+    "test:build": "yarn build && jest"
   },
   "jest": {
     "verbose": true,
