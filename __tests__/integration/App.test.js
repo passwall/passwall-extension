@@ -6,6 +6,8 @@ const pathToExtension = path.join(path.join(__dirname, '..', '..', 'dist'))
 const ssPath = path.join(__dirname, 'ss')
 
 const puppeteerArgs = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
   `--disable-extensions-except=${pathToExtension}`,
   `--load-extension=${pathToExtension}`,
   '--show-component-extension-options'
@@ -34,9 +36,10 @@ describe('Popup page', () => {
 
   beforeAll(async () => {
     jest.setTimeout(10000)
-    const extensionId = 'odglpdofikjpafligcbgbfjafilpknko'
+    const extensionId = 'jabeoiimmbndiolpljnmijcppnphdigl'
     const chromeExtPath = `chrome-extension://${extensionId}/popup.html`
     browser = await puppeteer.launch({
+      executablePath: process.env.PUPPETEER_EXEC_PATH,
       headless: false,
       slowMo: 1,
       devtools: true,

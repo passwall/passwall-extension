@@ -5,6 +5,7 @@
   "description": "Passwall official extension",
   "default_locale": "en",
   "permissions": ["tabs", "activeTab", "<all_urls>", "*://*/*", "webRequest"],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA+KCvbvNcEFoYK6Wv2YDjMDSfXEY5czwNjy8tqe9dWXcKmV64zKahzXPkaS4g7ZA5S1fHD7sWuai4g78K7xUGMvgtDTY9AYcyjmNgW1bE+ZwRPgZFXEwKHQCwXAgUDiHfhRfngSf1sgvznAZrMzNWkppJc0Pi0gR1HqyxRBxO6f2b2BDkaPszlFxTi3AQ1mT+v34ogorgT6yKnfaD9wQfIoPW4eiPNb/OPWW2I/R7P+mGGuqKLAU2KddRuPjC2plS2VEVjXPXCG4w2M6SRyFClpCeWR2F0GCmTbjRbKWoAmtCiX5OeORa39jvSh4vZBEZBYPa57RlRdxRWVxhUso2aQIDAQAB",
   "icons": {
     "16": "icons/16.png",
     "48": "icons/48.png",

@@ -53,10 +53,8 @@ export default new Vuex.Store({
       localStorage.refresh_token = data.refresh_token
       localStorage.user = JSON.stringify(data)
 
-      if (process.env.NODE_ENV !== 'production') {
-        localStorage.master_hash = state.master_hash
-        localStorage.transmission_key = state.transmission_key
-      }
+      localStorage.master_hash = state.master_hash
+      localStorage.transmission_key = state.transmission_key
 
       HTTPClient.setHeader('Authorization', `Bearer ${state.access_token}`)
     },
