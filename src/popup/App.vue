@@ -12,8 +12,16 @@
 </template>
 
 <script>
+import { mapActions } from 'vuex'
+
 export default {
-  name: 'App'
+  name: 'App',
+  methods: {
+    ...mapActions(['loadStore'])
+  },
+  created() {
+    this.loadStore()
+  }
 }
 </script>
 

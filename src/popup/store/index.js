@@ -31,10 +31,6 @@ export default new Vuex.Store({
   getters: {
     hasProPlan(state) {
       return state.user.status == 'active'
-    },
-    safeUser() {
-      const { name, next_bill_date } = localStorage
-      return { name, next_bill_date }
     }
   },
 
@@ -55,8 +51,7 @@ export default new Vuex.Store({
       localStorage.server = payload.server
       localStorage.access_token = data.access_token
       localStorage.refresh_token = data.refresh_token
-      localStorage.name = data.name
-      localStorage.next_bill_date = data.next_bill_date
+      localStorage.user = JSON.stringify(data)
 
       if (process.env.NODE_ENV !== 'production') {
         localStorage.master_hash = state.master_hash
@@ -76,6 +71,9 @@ export default new Vuex.Store({
         key => ['email', 'server'].includes(key) === false
       )
       lsKeys.forEach(key => localStorage.removeItem(key))
+    },
+    loadStore({ state }) {
+      state.user = JSON.parse(localStorage.user)
     }
   },
   mutations: {
