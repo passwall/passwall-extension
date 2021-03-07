@@ -58,5 +58,6 @@ export default {
 .field {
   white-space: nowrap;
   overflow: auto;
+  scrollbar-width: none;
 }
 </style>
