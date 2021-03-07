@@ -7,6 +7,7 @@
       <form
         class="login-form d-flex flex-column"
         @submit.stop.prevent="onLogin"
+        data-testid="login-form"
       >
         <label v-text="$t('EMailAddress')" class="mb-2" />
         <VFormText
@@ -15,6 +16,7 @@
           name="username"
           v-validate="'required'"
           :placeholder="$t('YourEMailAddress')"
+          data-testid="username"
         />
 
         <label class="mb-2 mt-4" v-text="$t('MasterPassword')" />
@@ -25,6 +27,7 @@
           name="Password"
           :placeholder="$t('YourMasterPassword')"
           v-validate="'required|min:6|max:100'"
+          data-testid="password"
         />
 
         <!-- Login Btn -->

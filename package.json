@@ -5,7 +5,28 @@
   "scripts": {
     "serve": "vue-cli-service build --mode development --watch",
     "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint"
+    "lint": "vue-cli-service lint",
+    "test": "jest"
+  },
+  "jest": {
+    "verbose": true,
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "jsx",
+      "ts",
+      "tsx",
+      "node",
+      "vue"
+    ],
+    "transform": {
+      ".+\\.(css|styl|less|sass|scss|png|jpg|ttf|woff|woff2)$": "jest-transform-stub",
+      "^.+\\.js$": "babel-jest",
+      "^.+\\.vue$": "vue-jest"
+    },
+    "setupFiles": [
+      "jest-webextension-mock"
+    ]
   },
   "dependencies": {
     "axios": "^0.21.1",
@@ -30,13 +51,21 @@
     "@vue/cli-plugin-router": "~4.5.0",
     "@vue/cli-plugin-vuex": "~4.5.0",
     "@vue/cli-service": "~4.5.0",
+    "@vue/test-utils": "^1.1.3",
+    "babel-core": "^7.0.0-bridge.0",
     "babel-eslint": "^10.1.0",
     "babel-plugin-module-resolver": "^4.1.0",
     "eslint": "^6.7.2",
     "eslint-plugin-vue": "^6.2.2",
+    "jest": "^26.6.3",
+    "jest-puppeteer": "^4.4.0",
+    "jest-transform-stub": "^2.0.0",
+    "jest-webextension-mock": "^3.7.8",
+    "puppeteer": "^8.0.0",
     "sass": "^1.30.0",
     "sass-loader": "^10.1.0",
     "vue-cli-plugin-browser-extension": "latest",
+    "vue-jest": "^3.0.7",
     "vue-template-compiler": "^2.6.11"
   }
 }

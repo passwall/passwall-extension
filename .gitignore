@@ -27,3 +27,6 @@ pnpm-debug.log*
 *.pub
 *.zip
 /artifacts
+
+__tests__/**/ss/*
+!__tests__/**/ss/.gitkeep
