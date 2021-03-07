@@ -1,7 +1,7 @@
 <template>
   <div class="d-flex flex-items-center flex-justify-between header px-3" v-bind="$attrs">
     <slot name="content">
-      <div class="d-flex flex-items-center c-pointer" @click="$emit('header-click')">
+      <div class="d-flex flex-items-center c-pointer" data-testid="settings-click" @click="$emit('header-click')">
         <VAvatar :name="user.name" class="mr-1" />
         <div class="d-flex flex-column ml-2 mt-1">
           <span class="fs-x-big fw-semibold ff-inter" data-testid="username-label">{{

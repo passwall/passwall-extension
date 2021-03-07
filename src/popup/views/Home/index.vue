@@ -3,7 +3,7 @@
     <Header v-on:header-click="showSettings = !showSettings" />
     <div v-if="showSettings" ref="overlay" class="d-flex flex-column px-3 overlay">
       <div class="menu flex-self-center p-4" v-click-outside="closeSettings">
-        <div class="c-pointer" @click="logout">
+        <div class="c-pointer" data-testid="logout-btn" @click="logout">
           <VIcon name="logout" size="24px" />
           Log out
         </div>

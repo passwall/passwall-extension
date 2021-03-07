@@ -11,6 +11,22 @@ const puppeteerArgs = [
   '--show-component-extension-options'
 ]
 
+const getTestId = id => {
+  return `[data-testid='${id}']`
+}
+
+const getLocalStorage = async page => {
+  const j = await page.evaluate(() => {
+    let json = {}
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      json[key] = localStorage.getItem(key)
+    }
+    return json
+  })
+  return j
+}
+
 describe('Popup page', () => {
   let page, browser
   const usernameField = '[data-testid="username"] > input'
@@ -73,9 +89,12 @@ describe('Popup page', () => {
 
     await page.waitForSelector(usernameLabel)
     const labelText = await page.$eval(usernameLabel, el => el.innerText)
+    const localStorageData = await getLocalStorage(page)
+    const userObj = JSON.parse(localStorageData.user)
     await page.screenshot({ path: path.join(ssPath, 'home.png') })
 
     expect(labelText).toEqual('Erhan Yakut')
+    expect(userObj.name).toEqual('Erhan Yakut')
   })
 
   it('Search "Docker"', async () => {
@@ -89,5 +108,19 @@ describe('Popup page', () => {
 
     await page.screenshot({ path: path.join(ssPath, 'search.png') })
     expect(t).toBeGreaterThanOrEqual(1)
+  })
+
+  it('Log out', async () => {
+    const header = getTestId('settings-click')
+    const logoutBtn = getTestId('logout-btn')
+
+    await page.waitForSelector(header)
+    await page.$eval(header, el => el.click())
+    await page.waitForSelector(logoutBtn)
+    await page.$eval(logoutBtn, el => el.click())
+
+    const localStorageData = await getLocalStorage(page)
+    await page.screenshot({ path: path.join(ssPath, 'logout.png') })
+    expect(localStorageData.user).not.toBeDefined()
   })
 })
