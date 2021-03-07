@@ -19,6 +19,7 @@
           size="medium"
           name="search"
           placeholder="Search"
+          data-testid="searchbar"
         />
         <Tabs class="mt-3" />
       </div>

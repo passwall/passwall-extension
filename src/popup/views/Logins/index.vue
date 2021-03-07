@@ -7,7 +7,7 @@
 
       <ListLoader v-if="$wait.is($waiters.Logins.All)" />
       <EmptyState v-if="filteredList.length <= 0" />
-      <ul class="items" v-else>
+      <ul class="items" data-testid="result" v-else>
         <ListItem
           v-for="item in filteredList"
           :key="item.id"
