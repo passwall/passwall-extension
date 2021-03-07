@@ -39,7 +39,6 @@ describe('Popup page', () => {
     const extensionId = 'jabeoiimmbndiolpljnmijcppnphdigl'
     const chromeExtPath = `chrome-extension://${extensionId}/popup.html`
     browser = await puppeteer.launch({
-      executablePath: process.env.PUPPETEER_EXEC_PATH,
       headless: false,
       slowMo: 1,
       devtools: true,
