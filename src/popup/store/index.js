@@ -6,6 +6,8 @@ import CryptoUtils from '@/utils/crypto'
 import HTTPClient from '@/api/HTTPClient'
 import AuthService from '@/api/services/Auth'
 
+import Storage from '@/utils/storage'
+
 import Logins from '@p/views/Logins/store'
 import CreditCards from '@/popup/views/CreditCards/store'
 import Emails from '@p/views/Emails/store'
@@ -15,14 +17,11 @@ import Servers from '@p/views/Servers/store'
 
 export default new Vuex.Store({
   state() {
-    CryptoUtils.encryptKey = localStorage.master_hash
-    CryptoUtils.transmissionKey = localStorage.transmission_key
-
     return {
-      access_token: localStorage.access_token,
-      refresh_token: localStorage.refresh_token,
-      transmission_key: localStorage.transmission_key,
-      master_hash: localStorage.master_hash,
+      access_token: '',
+      refresh_token: '',
+      transmission_key: '',
+      master_hash: '',
       searchQuery: '',
 
       user: {}
@@ -35,10 +34,21 @@ export default new Vuex.Store({
   },
 
   actions: {
+    async init({ state }) {
+      CryptoUtils.encryptKey = await Storage.getItem('master_hash')
+      CryptoUtils.transmissionKey = await Storage.getItem('transmission_key')
+
+      state.access_token = await Storage.getItem('access_token')
+      state.refresh_token = await Storage.getItem('refresh_token')
+      state.transmission_key = await Storage.getItem('transmission_key')
+      state.master_hash = await Storage.getItem('master_hash')
+    },
+
     async Login({ state }, payload) {
       payload.master_password = CryptoUtils.sha256Encrypt(payload.master_password)
 
       const { data } = await AuthService.Login(payload)
+
       state.access_token = data.access_token
       state.refresh_token = data.refresh_token
       state.transmission_key = data.transmission_key.substr(0, 32)
@@ -47,31 +57,31 @@ export default new Vuex.Store({
       CryptoUtils.transmissionKey = state.transmission_key
       state.user = data
 
-      localStorage.email = payload.email
-      localStorage.server = payload.server
-      localStorage.access_token = data.access_token
-      localStorage.refresh_token = data.refresh_token
-      localStorage.user = JSON.stringify(data)
-
-      localStorage.master_hash = state.master_hash
-      localStorage.transmission_key = state.transmission_key
+      await Promise.all([
+        Storage.setItem('email', payload.email),
+        Storage.setItem('server', payload.server),
+        Storage.setItem('access_token', data.access_token),
+        Storage.setItem('refresh_token', data.refresh_token),
+        Storage.setItem('user', data),
+        Storage.setItem('master_hash', state.master_hash),
+        Storage.setItem('transmission_key', state.transmission_key)
+      ])
 
       HTTPClient.setHeader('Authorization', `Bearer ${state.access_token}`)
     },
 
-    Logout({ state }) {
+    async Logout({ state }) {
+      const email = await Storage.getItem('email')
+      await Storage.clear()
       state.access_token = null
       state.refresh_token = null
       state.transmission_key = null
       state.master_hash = null
       state.user = null
-      const lsKeys = Object.keys(localStorage).filter(
-        key => ['email', 'server'].includes(key) === false
-      )
-      lsKeys.forEach(key => localStorage.removeItem(key))
+      await Storage.setItem('email', email)
     },
-    loadStore({ state }) {
-      state.user = JSON.parse(localStorage.user)
+    async loadStore({ state }) {
+      state.user = await Storage.getItem('user')
     }
   },
   mutations: {

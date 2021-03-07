@@ -32,6 +32,7 @@
     "axios": "^0.21.1",
     "core-js": "^3.6.5",
     "crypto-js": "^4.0.0",
+    "localforage": "^1.9.0",
     "skeleton-loader-vue": "^1.0.6",
     "v-tooltip": "^2.1.1",
     "vee-validate": "2.2.15",

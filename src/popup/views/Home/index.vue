@@ -59,8 +59,7 @@ export default {
     },
 
     logout() {
-      this.Logout()
-      this.$router.push('Login')
+      this.Logout().then(() => this.$router.push('Login'))
     }
   }
 }
