@@ -1,7 +1,9 @@
-export default (to, _, next) => {
+import Storage from '@/utils/storage'
+
+export default async (to, _, next) => {
   const isAuthPage = to.matched.some(record => record.meta.auth)
 
-  const access_token = localStorage.getItem('access_token')
+  const access_token = await Storage.getItem('access_token')
   if (access_token) {
     if (isAuthPage) {
       return next({ name: 'Home' })

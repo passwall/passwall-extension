@@ -11,6 +11,9 @@ Vue.prototype.$waiters = Waiters
 import * as Constants from '@/utils/constants'
 Vue.prototype.$c = Constants
 
+import storage from '@/utils/storage'
+Vue.prototype.$storage = storage
+
 import * as Helpers from '@/utils/helpers'
 Vue.prototype.$helpers = Helpers
 

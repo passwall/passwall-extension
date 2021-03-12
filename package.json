@@ -1,12 +1,13 @@
 {
   "name": "passwall-extension",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service build --mode development --watch",
     "build": "vue-cli-service build",
     "lint": "vue-cli-service lint",
-    "test": "yarn build && jest"
+    "test": "jest",
+    "test:build": "yarn build && jest"
   },
   "jest": {
     "verbose": true,
@@ -32,6 +33,7 @@
     "axios": "^0.21.1",
     "core-js": "^3.6.5",
     "crypto-js": "^4.0.0",
+    "localforage": "^1.9.0",
     "skeleton-loader-vue": "^1.0.6",
     "v-tooltip": "^2.1.1",
     "vee-validate": "2.2.15",

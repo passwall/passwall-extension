@@ -63,10 +63,15 @@ export default {
   data() {
     return {
       LoginForm: {
-        email: localStorage.email || '',
+        email: '',
         master_password: ''
       }
     }
+  },
+  mounted() {
+    this.$storage.getItem('email').then(e => {
+      if (e) this.LoginForm.email = e
+    })
   },
   methods: {
     ...mapActions(['Login']),
