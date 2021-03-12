@@ -9,7 +9,17 @@
         @submit.stop.prevent="onLogin"
         data-testid="login-form"
       >
-        <label v-text="$t('EMailAddress')" class="mb-2" />
+        <label v-text="$t('ServerURL')" class="mb-2" />
+        <VFormText
+          v-model="LoginForm.server"
+          size="medium"
+          name="server"
+          v-validate="'required'"
+          :placeholder="$t('ServerURL')"
+          data-testid="server"
+        />
+        
+        <label v-text="$t('EMailAddress')" class="mb-2 mt-4"  />
         <VFormText
           v-model="LoginForm.email"
           size="medium"
@@ -19,7 +29,7 @@
           data-testid="username"
         />
 
-        <label class="mb-2 mt-4" v-text="$t('MasterPassword')" />
+        <label v-text="$t('MasterPassword')" class="mb-2 mt-4" />
         <VFormText
           v-model="LoginForm.master_password"
           size="medium"
@@ -57,12 +67,14 @@
 
 <script>
 import { mapActions } from 'vuex'
+import HTTPClient from '@/api/HTTPClient'
 
 export default {
   name: 'Login',
   data() {
     return {
       LoginForm: {
+        server: 'https://vault.passwall.io',
         email: '',
         master_password: ''
       }
@@ -71,12 +83,18 @@ export default {
   mounted() {
     this.$storage.getItem('email').then(e => {
       if (e) this.LoginForm.email = e
+    }),
+    this.$storage.getItem('server').then(e => {
+      if (e) this.LoginForm.server = e
     })
   },
   methods: {
     ...mapActions(['Login']),
     async onLogin() {
       if (!(await this.$validator.validateAll())) return
+      
+      HTTPClient.setBaseURL(this.LoginForm.server)
+      
       const onError = error => {
         let text = this.$t('Ooops! Something went wrong!')
         if (error.response.status == 401) {
@@ -84,10 +102,12 @@ export default {
         }
         this.$notifyError(text)
       }
+      
       const onSuccess = async () => {
         await this.Login({ ...this.LoginForm })
         this.$router.replace({ name: 'Home' })
       }
+      
       this.$request(onSuccess, this.$waiters.Auth.Login, onError)
     },
 
