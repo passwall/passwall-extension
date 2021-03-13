@@ -115,7 +115,8 @@ export default {
         if (index !== -1) {
           this.ItemList.splice(index, 1)
         }
-        this.$router.push({ name: 'BankAccounts', params: { cache: true } })
+        if (confirm('Are you sure you want to delete'))
+          this.$router.push({ name: 'BankAccounts', params: { cache: true } })
       }
 
       this.$request(onSuccess, this.$waiters.BankAccounts.Delete)

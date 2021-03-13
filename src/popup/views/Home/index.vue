@@ -36,7 +36,7 @@
 <script>
 import Tabs from './tabs'
 import { mapActions, mapMutations, mapState } from 'vuex'
-import { getCurrentTab, getDomain } from '@/utils/helpers'
+
 
 export default {
   components: { Tabs },
@@ -45,13 +45,6 @@ export default {
       searchText: '',
       showSettings: false
     }
-  },
-  created() {
-    getCurrentTab().then(tab => {
-      if (tab) {
-        this.onInputSearchQuery({ target: { value: getDomain(tab.url) } })
-      }
-    })
   },
   computed: {
     ...mapState(['searchQuery'])

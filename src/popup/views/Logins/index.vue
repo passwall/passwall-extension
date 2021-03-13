@@ -22,14 +22,27 @@
 </template>
 
 <script>
-import { mapActions, mapState } from 'vuex'
+import { mapActions, mapState, mapMutations } from 'vuex'
 import ListMixin from '@/mixins/list'
+
+import { getCurrentTab, getDomain } from '@/utils/helpers'
 
 export default {
   mixins: [ListMixin],
-  name: 'Logins', // it uses for loading state !! important
+  name: 'Logins', // it uses for loading state !! important,
+  beforeRouteEnter: (_, from, next) => {
+    next(vm => {
+      if (from.path === '/')
+        getCurrentTab().then(tab => {
+          if (tab) {
+            vm.onInputSearchQuery({ target: { value: getDomain(tab.url) } })
+          }
+        })
+    })
+  },
   methods: {
     ...mapActions('Logins', ['FetchAll']),
+    ...mapMutations(['onInputSearchQuery']),
     clickItem(detail) {
       this.$router.push({ name: 'LoginDetail', params: { detail, id: detail.id } })
     }

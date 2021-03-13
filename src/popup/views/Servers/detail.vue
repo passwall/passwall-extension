@@ -9,7 +9,6 @@
             <span class="title fw-bold h5 ml-2">{{ form.title }}</span>
           </div>
           <div class="d-flex">
-
             <!-- Delete Btn -->
             <button v-tooltip="$t('Delete')" @click="onClickDelete">
               <VIcon class="c-pointer trash" name="trash" />
@@ -19,33 +18,22 @@
             <button v-if="!isEditMode" v-tooltip="$t('Edit')" @click="isEditMode = true">
               <VIcon class="c-pointer ml-2 cogs" name="cogs" />
             </button>
-            
           </div>
         </div>
       </template>
     </Header>
     <div class="scroll detail">
       <form class="form" @submit.stop.prevent="onClickUpdate">
-        <FormRowText 
-          v-model="form.title" 
-          title="title" 
-          :edit-mode="isEditMode" 
-          :show-icons="false"
-        >
+        <FormRowText v-model="form.title" title="title" :edit-mode="isEditMode" :show-icons="false">
           <template v-slot:second-icon> <div /> </template>
         </FormRowText>
-        <FormRowText 
-          v-model="form.ip" 
-          title="ip" 
-          :edit-mode="isEditMode" 
-          :show-icons="true"
-        >
+        <FormRowText v-model="form.ip" title="ip" :edit-mode="isEditMode" :show-icons="true">
           <template v-slot:second-icon> <div /> </template>
         </FormRowText>
-        <FormRowText 
-          v-model="form.username" 
-          title="username" 
-          :edit-mode="isEditMode" 
+        <FormRowText
+          v-model="form.username"
+          title="username"
+          :edit-mode="isEditMode"
           :show-icons="true"
         >
           <template v-slot:second-icon> <div /> </template>
@@ -57,12 +45,7 @@
           :show-icons="true"
           password
         />
-        <FormRowText 
-          v-model="form.url" 
-          title="website" 
-          :edit-mode="isEditMode" 
-          :show-icons="true"
-        >
+        <FormRowText v-model="form.url" title="website" :edit-mode="isEditMode" :show-icons="true">
           <template v-slot:second-icon>
             <LinkButton :link="form.url" />
           </template>
@@ -97,11 +80,11 @@
           :show-icons="true"
           password
         />
-        
+
         <div>
-          <VTextArea 
-            v-model="form.extra" 
-            label="Extra" 
+          <VTextArea
+            v-model="form.extra"
+            label="Extra"
             name="extra"
             :placeholder="$t(isEditMode ? 'ClickToFill' : 'ContentHidden')"
             :disabled="!isEditMode"
@@ -117,7 +100,6 @@
             {{ $t('Save') }}
           </VButton>
         </div>
-      
       </form>
     </div>
   </div>
@@ -165,8 +147,8 @@ export default {
         }
         this.$router.push({ name: 'Servers', params: { cache: true } })
       }
-
-      this.$request(onSuccess, this.$waiters.Servers.Delete)
+      if (confirm('Are you sure you want to delete'))
+        this.$request(onSuccess, this.$waiters.Servers.Delete)
     },
 
     async onClickUpdate() {
@@ -194,7 +176,7 @@ export default {
   color: $color-danger;
 }
 .cogs {
-  color: #FFFFFF;
+  color: #ffffff;
 }
 .title {
   flex: 1;
