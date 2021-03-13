@@ -1,6 +1,7 @@
 import Vue from 'vue'
 import Router from 'vue-router'
 import AuthCheck from './auth-check'
+import ClearSearch from './clear-search'
 
 Vue.use(Router)
 
@@ -125,5 +126,6 @@ router.afterEach((to, from) => {
 })
 
 router.beforeEach(AuthCheck)
+router.beforeEach(ClearSearch)
 
 export default router
