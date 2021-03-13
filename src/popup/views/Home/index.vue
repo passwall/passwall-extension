@@ -3,9 +3,34 @@
     <Header v-on:header-click="showSettings = !showSettings" />
     <div v-if="showSettings" ref="overlay" class="d-flex flex-column px-3 overlay">
       <div class="menu flex-self-center p-4" v-click-outside="closeSettings">
-        <div class="c-pointer" data-testid="logout-btn" @click="logout">
-          <VIcon name="logout" size="24px" />
-          Log out
+        <div
+          class="c-pointer my-2 d-flex flex-items-center mb-4"
+          v-if="!hasProPlan"
+          @click="goUpgrade"
+        >
+          <VIcon name="upgrade" size="24px" class="mr-2" />
+          <span class="fs-x-big">Upgrade</span>
+        </div>
+        <div
+          class="c-pointer my-2 d-flex flex-items-center mb-4"
+          v-if="hasProPlan"
+          @click="goUpdate"
+        >
+          <VIcon name="refresh" size="24px" class="mr-2" />
+          <span class="fs-x-big">Update</span>
+        </div>
+        <div class="c-pointer my-2 d-flex flex-items-center mb-4" @click="goCancel">
+          <VIcon name="cross" size="24px" class="mr-2" />
+          <span class="fs-x-big">Cancel</span>
+        </div>
+        <div class="bg-black w-100" style="height: 1px" />
+        <div
+          class="c-pointer my-2 d-flex flex-items-center mt-4"
+          data-testid="logout-btn"
+          @click="logout"
+        >
+          <VIcon name="logout" size="24px" class="mr-2" />
+          <span class="fs-x-big">Log out</span>
         </div>
       </div>
     </div>
@@ -35,8 +60,7 @@
 
 <script>
 import Tabs from './tabs'
-import { mapActions, mapMutations, mapState } from 'vuex'
-
+import { mapActions, mapMutations, mapState, mapGetters } from 'vuex'
 
 export default {
   components: { Tabs },
@@ -46,8 +70,12 @@ export default {
       showSettings: false
     }
   },
+  created() {
+    console.log(this.hasProPlan)
+  },
   computed: {
-    ...mapState(['searchQuery'])
+    ...mapState(['searchQuery', 'user']),
+    ...mapGetters(['hasProPlan'])
   },
   methods: {
     ...mapActions(['Logout']),
@@ -57,6 +85,24 @@ export default {
       if (e.target === this.$refs.overlay) {
         this.showSettings = false
       }
+    },
+
+    goUpgrade() {
+      this.$browser.tabs.create({
+        url: 'https://signup.passwall.io/pro'
+      })
+    },
+
+    goCancel() {
+      this.$browser.tabs.create({
+        url: this.user.cancel_url
+      })
+    },
+
+    goUpdate() {
+      this.$browser.tabs.create({
+        url: this.user.update_url
+      })
     },
 
     logout() {
