@@ -1,6 +1,5 @@
 import store from '@p/store'
 
-export default (_, __, next) => {
+export default () => {
   store.commit('onInputSearchQuery', { target: { value: '' } })
-  next()
 }

@@ -124,8 +124,8 @@ router.afterEach((to, from) => {
   const fromDepth = from.path.split('/').length
   to.meta.transitionName = toDepth < fromDepth ? 'slide-right' : 'slide-left'
 })
+router.afterEach(ClearSearch)
 
 router.beforeEach(AuthCheck)
-router.afterEach(ClearSearch)
 
 export default router
