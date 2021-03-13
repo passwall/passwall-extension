@@ -1,6 +1,7 @@
 import Vue from 'vue'
 import Router from 'vue-router'
 import AuthCheck from './auth-check'
+import ClearSearch from '@p/router/clear-search'
 
 Vue.use(Router)
 
@@ -123,6 +124,7 @@ router.afterEach((to, from) => {
   const fromDepth = from.path.split('/').length
   to.meta.transitionName = toDepth < fromDepth ? 'slide-right' : 'slide-left'
 })
+router.afterEach(ClearSearch)
 
 router.beforeEach(AuthCheck)
 

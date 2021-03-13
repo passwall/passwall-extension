@@ -30,3 +30,5 @@ export const TABS = [
     createRouteName: 'ServerCreate'
   }
 ]
+
+export const BROWSER_URL_PATTERNS = [/^chrome:\/\/.*/, /about:.*/]

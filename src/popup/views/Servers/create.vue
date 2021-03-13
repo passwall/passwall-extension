@@ -63,6 +63,7 @@
               :type="showPass ? 'text' : 'password'"
             />
             <div class="d-flex flex-items-center mr-3">
+              <GeneratePassword v-model="form.password" />
               <ClipboardButton :copy="form.password" />
               <ShowPassButton @click="showPass = $event" />
             </div>
@@ -108,11 +109,12 @@
               v-validate="'required'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
-              :type="showPass ? 'text' : 'password'"
+              :type="showHostingPass ? 'text' : 'password'"
             />
             <div class="d-flex flex-items-center mr-3">
+              <GeneratePassword v-model="form.hosting_password" />
               <ClipboardButton :copy="form.hosting_password" />
-              <ShowPassButton @click="showPass = $event" />
+              <ShowPassButton @click="showHostingPass = $event" />
             </div>
           </div>
         </div>
@@ -141,11 +143,12 @@
               v-validate="'required'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
-              :type="showPass ? 'text' : 'password'"
+              :type="showAdminPass ? 'text' : 'password'"
             />
             <div class="d-flex flex-items-center mr-3">
+              <GeneratePassword v-model="form.admin_password" />
               <ClipboardButton :copy="form.admin_password" />
-              <ShowPassButton @click="showPass = $event" />
+              <ShowPassButton @click="showAdminPass = $event" />
             </div>
           </div>
         </div>
@@ -181,6 +184,8 @@ export default {
   data() {
     return {
       showPass: false,
+      showHostingPass: false,
+      showAdminPass: false,
       form: {
         title: '',
         ip: '',

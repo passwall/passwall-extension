@@ -7,7 +7,7 @@
           <div class="d-flex flex-auto flex-items-center ml-3">
             <CompanyLogo :url="form.url" />
             <span class="title fw-bold h5 ml-2">{{
-              form.title || $helpers.parseHostName(form.url)
+              form.title || $helpers.getDomain(form.url)
             }}</span>
           </div>
           <div class="d-flex">
@@ -116,8 +116,8 @@ export default {
         }
         this.$router.push({ name: 'Logins', params: { cache: true } })
       }
-
-      this.$request(onSuccess, this.$waiters.Logins.Delete)
+      if (confirm('Are you sure you want to delete'))
+        this.$request(onSuccess, this.$waiters.Logins.Delete)
     },
 
     async onClickUpdate() {
