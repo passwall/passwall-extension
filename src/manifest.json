@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
-  "name": "Passwall",
+  "name": "Passwall - Free Password Manager",
   "homepage_url": "https://passwall.io",
-  "description": "Passwall official extension",
+  "description": "Passwall is an open source password manager",
   "default_locale": "en",
   "permissions": ["tabs", "activeTab", "<all_urls>", "*://*/*", "webRequest"],
   "icons": {
@@ -23,7 +23,7 @@
   ],
   "browser_action": {
     "default_popup": "popup.html",
-    "default_title": "Passwall",
+    "default_title": "Passwall - Free Password Manager",
     "default_icon": {
       "19": "icons/19.png",
       "38": "icons/38.png"
