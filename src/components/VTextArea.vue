@@ -10,7 +10,7 @@
               @click="showNote = !showNote"
               class="detail-page-header-icon ml-2"
               v-tooltip="$t(showNote ? 'Hide' : 'Show')">
-              <VIcon :name="showNote ? 'eye-off' : 'eye'" size="12px" />
+              <VIcon :name="showNote ? 'eye-off' : 'eye'" size="20px" />
             </button>
     </div>
     <textarea

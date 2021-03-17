@@ -80,6 +80,7 @@
             v-model="form.extra" 
             label="Extra" 
             name="extra" 
+            isEditable
           />
         </div>
 
