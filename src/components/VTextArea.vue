@@ -1,8 +1,20 @@
 <template>
   <div class="text-area-wrapper">
-    <label v-if="label" class="title">{{ label }}</label>
+    <div class="d-flex">
+      <label v-if="label" class="title">{{ label }}</label>
+            <!-- Copy button goes here -->
+            <ClipboardButton :copy="value"></ClipboardButton>
+            <!-- Show/Hide button goes here -->
+            <button
+              type="button"
+              @click="showNote = !showNote"
+              class="detail-page-header-icon ml-2"
+              v-tooltip="$t(showNote ? 'Hide' : 'Show')">
+              <VIcon :name="showNote ? 'eye-off' : 'eye'" size="12px" />
+            </button>
+    </div>
     <textarea
-      :value="sensitive ? '●●●●●●' : value"
+      :value="showNote || isEditable ? value : '●●●●●●'"
       autocorrect="off"
       autocomplete="off"
       spellcheck="false"
@@ -17,23 +29,28 @@
 <script>
 export default {
   name: 'VTextArea',
-
   props: {
     name: String,
     value: String,
-    sensitive: Boolean,
+    isEditable: Boolean,
     label: {
       type: String,
       default: ''
     }
   },
-
+  data() {
+    return {
+      showNote: false
+    }
+  },
   computed: {
     getError() {
       const error = this.errors.items.find(e => e.field == this.name)
       return error ? error.msg : ''
     },
-
+    hiddenNote() {
+      return this.note.replaceAll("","*");
+    },
     inputListeners() {
       return Object.assign({}, this.$listeners, {
         input: event => this.$emit('input', event.target.value)
