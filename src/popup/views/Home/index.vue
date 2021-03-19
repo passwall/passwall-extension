@@ -8,20 +8,20 @@
           v-if="!hasProPlan"
           @click="goUpgrade"
         >
-          <VIcon name="upgrade" size="24px" class="mr-2" />
-          <span class="fs-x-big">Upgrade</span>
+          <VIcon name="upgrade" size="16px" class="mr-2" />
+          <span class="fs-big">Upgrade Subscription</span>
         </div>
         <div
           class="c-pointer my-2 d-flex flex-items-center mb-4"
           v-if="hasProPlan"
           @click="goUpdate"
         >
-          <VIcon name="refresh" size="24px" class="mr-2" />
-          <span class="fs-x-big">Update</span>
+          <VIcon name="refresh" size="16px" class="mr-2" />
+          <span class="fs-big">Update Subscription</span>
         </div>
         <div class="c-pointer my-2 d-flex flex-items-center mb-4" @click="goCancel">
-          <VIcon name="cross" size="24px" class="mr-2" />
-          <span class="fs-x-big">Cancel</span>
+          <VIcon name="cross" size="16px" class="mr-2" />
+          <span class="fs-big">Cancel Subscription</span>
         </div>
         <div class="bg-black w-100" style="height: 1px" />
         <div
@@ -30,7 +30,7 @@
           @click="logout"
         >
           <VIcon name="logout" size="24px" class="mr-2" />
-          <span class="fs-x-big">Log out</span>
+          <span class="fs-big">Log out</span>
         </div>
       </div>
     </div>
