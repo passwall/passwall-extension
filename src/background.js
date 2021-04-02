@@ -8,12 +8,13 @@ browser.runtime.onMessage.addListener(handleMessage);
 
 // Handler
 function handleMessage(request, sender, sendResponse) {
-  let url     = domainFromUrl(sender.tab.url);
-  let key     = url + ":" + request.username;
-  let status  = "No new record"
+  let url = domainFromUrl(sender.tab.url);
+  let key = url + ":" + request.username;
+  let status = "No new record"
 
   // Create new record  
-  if (typeof request.username !== 'undefined') {
+  if ((typeof request.username !== 'undefined') &&
+    (typeof request.password !== 'undefined')) {
     if (!loginHashmap.has(key)) {
       loginHashmap.set(key, {
         title: sender.tab.title,
