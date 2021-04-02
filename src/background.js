@@ -12,6 +12,7 @@ function handleMessage(request, sender, sendResponse) {
 
   // Create new record  
   if ((typeof request.username !== 'undefined') && (typeof request.password !== 'undefined')) {
+
     let url = domainFromUrl(sender.tab.url);
     let key = url + ":" + request.username;
 
@@ -35,6 +36,7 @@ function handleMessage(request, sender, sendResponse) {
 browser.tabs.onUpdated.addListener(handleUpdated);
 
 function handleUpdated(tabId, changeInfo, tabInfo) {
+  
   let url = domainFromUrl(tabInfo.url);
   console.log(url);
 
