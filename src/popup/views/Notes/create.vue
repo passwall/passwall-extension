@@ -29,11 +29,12 @@
         </div>
 
         <div>
-          <VTextArea 
-            :placeholder="$t('ClickToFill')" 
-            v-model="form.note" 
-            label="Note" 
-            name="note" 
+          <VTextArea
+            :placeholder="$t('ClickToFill')"
+            v-model="form.note"
+            label="Note"
+            name="note"
+            isEditable
           />
         </div>
 

@@ -24,12 +24,19 @@
     </Header>
     <div class="scroll detail">
       <form class="form" @submit.stop.prevent="onClickUpdate">
-        <FormRowText v-model="form.title" title="title" :edit-mode="isEditMode" :show-icons="false">
-          <template v-slot:second-icon> <div /> </template>
-        </FormRowText>
-
-        <div>
+        <div class="d-flex flex-content-between">
+          <FormRowText
+            v-model="form.title"
+            title="title"
+            :edit-mode="isEditMode"
+            :show-icons="false"
+          >
+            <template v-slot:second-icon> <div /> </template>
+          </FormRowText>
+        </div>
+        <div class="d-flex">
           <VTextArea
+            :isEditable="isEditMode"
             v-model="form.note"
             label="Note"
             name="note"
@@ -69,6 +76,7 @@ export default {
   beforeRouteUpdate(to, from, next) {
     this.isEditMode = false
     this.showPass = false
+ 
     next()
   },
 

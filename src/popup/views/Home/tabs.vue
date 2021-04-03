@@ -34,11 +34,22 @@
 </template>
 
 <script>
+import { mapGetters } from 'vuex'
+
 export default {
   name: 'Tabs',
+  computed: {
+    ...mapGetters(['hasProPlan'])
+  },
   methods: {
     switchTabs(name) {
-      this.$router.replace({ name })
+      if (!this.hasProPlan) {
+        if (name === "Logins") {
+        this.$router.replace({ name })
+        }
+      } else {
+        this.$router.replace({ name })
+      }
     },
     getColor(name) {
       return this.$route.name === name

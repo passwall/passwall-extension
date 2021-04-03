@@ -158,7 +158,8 @@
             :placeholder="$t('ClickToFill')" 
             v-model="form.extra" 
             label="Extra" 
-            name="extra" 
+            name="extra"
+            isEditable
           />
         </div>
       
