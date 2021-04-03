@@ -136,8 +136,8 @@ export default {
     },
 
     fillForm() {
-      browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
-        browser.tabs
+      this.$browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
+        this.$browser.tabs
           .sendMessage(tabs[0].id, { 
             msg: {
               username: this.form.username,
@@ -145,10 +145,10 @@ export default {
               } 
             })
           .then(() => {
-            console.log("Message sent successfully")
+            console.log("Form data sent successfully")
           })
           .catch((error) => {
-            console.error('error, double check you are on some page. i.e: streaver.com' , error);
+            console.error('Can not send form data Error: ', error);
           });
       });
     }

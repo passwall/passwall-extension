@@ -1,6 +1,6 @@
 const browser = require('webextension-polyfill')
 
-// Login Hashmap
+/* // Login Hashmap
 let loginHashmap = new Map()
 
 // Listener
@@ -63,5 +63,5 @@ function handleUpdated(tabId, changeInfo, tabInfo) {
 function domainFromUrl(url) {
   const matches = url.match(/^(?:https?:)?(?:\/\/)?([^\/\?]+)/i)
   return matches ? matches[1] : 'NONE'
-}
+} */
 

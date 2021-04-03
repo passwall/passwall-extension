@@ -19,7 +19,11 @@
           <VIcon name="refresh" size="16px" class="mr-2" />
           <span class="fs-big">Update Subscription</span>
         </div>
-        <div class="c-pointer my-2 d-flex flex-items-center mb-4" @click="goCancel">
+        <div 
+          class="c-pointer my-2 d-flex flex-items-center mb-4" 
+          v-if="hasProPlan"
+          @click="goCancel"
+        >
           <VIcon name="cross" size="16px" class="mr-2" />
           <span class="fs-big">Cancel Subscription</span>
         </div>

@@ -29,7 +29,7 @@ export default new Vuex.Store({
   },
   getters: {
     hasProPlan(state) {
-      return state.user.status == 'active'
+      return state.user.type == 'pro'
     }
   },
 
