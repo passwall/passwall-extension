@@ -44,7 +44,7 @@ export default {
   methods: {
     switchTabs(name) {
       if (!this.hasProPlan) {
-        if (name == "Logins") {
+        if (name === "Logins") {
         this.$router.replace({ name })
         }
       } else {
