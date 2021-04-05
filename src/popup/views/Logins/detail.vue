@@ -145,7 +145,7 @@ export default {
               } 
             })
           .then(() => {
-            console.log("Form data sent successfully")
+            // console.log("Form data sent successfully")
           })
           .catch((error) => {
             console.error('Can not send form data Error: ', error);

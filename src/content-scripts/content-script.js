@@ -38,9 +38,13 @@ function handleError(error) { console.log(`Error: ${error}`); } */
 // FILLER
 // Sender is in /src/popup/views/Logins/detail.vue
 browser.runtime.onMessage.addListener((request, sender) => {
-    username.style.borderColor = "#5707FF";
-    password.style.borderColor = "#5707FF";
-    
-    username.value = request.msg.username;
-    password.value = request.msg.password;
+    if (username !== "") {
+        username.style.borderColor = "#5707FF";
+        username.value = request.msg.username;
+    }
+
+    if (password !== "") {
+        password.style.borderColor = "#5707FF";
+        password.value = request.msg.password;
+    }
 });
