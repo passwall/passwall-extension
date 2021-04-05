@@ -3,7 +3,7 @@
     <div class="d-flex">
       <label v-if="label" class="title">{{ label }}</label>
             <!-- Copy button goes here -->
-            <ClipboardButton :copy="value"></ClipboardButton>
+            <ClipboardButton :copy="value" v-if="value" />
             <!-- Show/Hide button goes here -->
             <button
               type="button"

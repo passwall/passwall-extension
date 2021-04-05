@@ -64,7 +64,7 @@
             />
             <div class="d-flex flex-items-center mr-3">
               <GeneratePassword v-model="form.password" />
-              <ClipboardButton :copy="form.password" />
+              <ClipboardButton :copy="form.password" v-if="form.password" />
               <ShowPassButton @click="showPass = $event" />
             </div>
           </div>
@@ -113,7 +113,7 @@
             />
             <div class="d-flex flex-items-center mr-3">
               <GeneratePassword v-model="form.hosting_password" />
-              <ClipboardButton :copy="form.hosting_password" />
+              <ClipboardButton :copy="form.hosting_password" v-if="form.hosting_password" />
               <ShowPassButton @click="showHostingPass = $event" />
             </div>
           </div>
@@ -147,7 +147,7 @@
             />
             <div class="d-flex flex-items-center mr-3">
               <GeneratePassword v-model="form.admin_password" />
-              <ClipboardButton :copy="form.admin_password" />
+              <ClipboardButton :copy="form.admin_password" v-if="form.admin_password" />
               <ShowPassButton @click="showAdminPass = $event" />
             </div>
           </div>

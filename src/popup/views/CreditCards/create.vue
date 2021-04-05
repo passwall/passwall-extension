@@ -84,7 +84,7 @@
               :type="showPass ? 'text' : 'password'"
             />
             <div class="d-flex flex-items-center mr-3">
-              <ClipboardButton :copy="form.verification_number" />
+              <ClipboardButton :copy="form.verification_number" v-if="form.verification_number" />
               <ShowPassButton @click="showPass = $event" />
             </div>
           </div>
