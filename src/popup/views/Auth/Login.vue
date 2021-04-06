@@ -9,7 +9,7 @@
         @submit.stop.prevent="onLogin"
         data-testid="login-form"
       >
-        <label v-text="$t('ServerURL')" class="mb-2" />
+        <!-- <label v-text="$t('ServerURL')" class="mb-2" />
         <VFormText
           v-model="LoginForm.server"
           size="medium"
@@ -17,9 +17,9 @@
           v-validate="'required'"
           :placeholder="$t('ServerURL')"
           data-testid="server"
-        />
+        /> -->
         
-        <label v-text="$t('EMailAddress')" class="mb-2 mt-4"  />
+        <label v-text="$t('EMailAddress')" class="mb-2"  />
         <VFormText
           v-model="LoginForm.email"
           size="medium"
