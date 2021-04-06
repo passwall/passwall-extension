@@ -7,13 +7,13 @@ let password = "";
 
 for (i = 0; i < inputs.length; ++i) {
 
-    // Find password
+    // Find password field.
     if (inputs[i].type === "password") {
         password = inputs[i];
         
-        // Find username. Check type against type hidden or checkbox etc.
+        // Find username field. Check type against type hidden or checkbox etc.
         for (var k = i; k >= 0; k--) {  
-            if (inputs[k].type == "text") {
+            if ((inputs[k].type == "text") || (inputs[k].type == "email")) {
                 username = inputs[k];
                 break;
             }
