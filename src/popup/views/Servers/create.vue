@@ -9,10 +9,6 @@
           </div>
           <span class="fw-bold h5 ml-2">New</span>
         </div>
-        <div>
-          <VIcon class="c-pointer trash" name="trash" />
-          <VIcon class="c-pointer ml-3" name="cogs" />
-        </div>
       </template>
     </Header>
     <div class="scroll">
@@ -215,10 +211,6 @@ export default {
 </script>
 
 <style lang="scss">
-.trash {
-  color: $color-danger;
-}
-
 .new-logo {
   background-color: $color-gray-400;
   border-radius: 8px;
