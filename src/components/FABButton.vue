@@ -73,7 +73,7 @@ export default {
 }
 
 .open {
-  transform: rotate(75deg);
+  transform: rotate(135deg);
 }
 
 .fab {
