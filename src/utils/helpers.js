@@ -44,7 +44,7 @@ export function getHostName(url) {
   }
 }
 
-export function getDomain(url) {
+export function getDomain(url = "") {
   var hostName = getHostName(url)
   var domain = hostName
 
