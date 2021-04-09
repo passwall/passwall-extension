@@ -110,6 +110,12 @@ export default {
       }
     }
   },
+  created() {
+    this.$browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
+      this.form.title = tabs[0].title
+      this.form.url   = tabs[0].url
+    });
+  },
   methods: {
     ...mapActions('Logins', ['Create']),
     async onSubmit() {
