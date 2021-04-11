@@ -20,7 +20,7 @@
             >
               <VIcon class="mr-2" :name="item.iconName" width="20px" height="20px" />
               <p class="fs-medium flex-auto ml-1">{{ item.name }}</p>
-              <VIcon name="star" width="16px" height="16px" />
+              <VIcon name="star" width="20px" height="20px" />
             </li>
           </ul>
         </div>
@@ -73,7 +73,7 @@ export default {
 }
 
 .open {
-  transform: rotate(60deg);
+  transform: rotate(135deg);
 }
 
 .fab {

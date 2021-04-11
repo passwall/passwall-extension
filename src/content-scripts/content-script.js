@@ -7,13 +7,13 @@ let password = "";
 
 for (i = 0; i < inputs.length; ++i) {
 
-    // Find password
+    // Find password field.
     if (inputs[i].type === "password") {
         password = inputs[i];
         
-        // Find username. Check type against type hidden or checkbox etc.
+        // Find username field. Check type against type hidden or checkbox etc.
         for (var k = i; k >= 0; k--) {  
-            if (inputs[k].type == "text") {
+            if ((inputs[k].type == "text") || (inputs[k].type == "email")) {
                 username = inputs[k];
                 break;
             }
@@ -38,9 +38,13 @@ function handleError(error) { console.log(`Error: ${error}`); } */
 // FILLER
 // Sender is in /src/popup/views/Logins/detail.vue
 browser.runtime.onMessage.addListener((request, sender) => {
-    username.style.borderColor = "#5707FF";
-    password.style.borderColor = "#5707FF";
-    
-    username.value = request.msg.username;
-    password.value = request.msg.password;
+    if (username !== "") {
+        username.style.borderColor = "#5707FF";
+        username.value = request.msg.username;
+    }
+
+    if (password !== "") {
+        password.style.borderColor = "#5707FF";
+        password.value = request.msg.password;
+    }
 });

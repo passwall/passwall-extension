@@ -1,6 +1,6 @@
 {
   "name": "passwall-extension",
-  "version": "1.0.3",
+  "version": "1.0.6",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service build --mode development --watch",
@@ -66,8 +66,12 @@
     "puppeteer": "^8.0.0",
     "sass": "^1.30.0",
     "sass-loader": "^10.1.0",
-    "vue-cli-plugin-browser-extension": "latest",
+    "vue-cli-plugin-browser-extension": "^0.25.2",
     "vue-jest": "^3.0.7",
     "vue-template-compiler": "^2.6.11"
+  },
+  "resolutions": {
+    "cacache":"^15.0.6",
+    "ssri": "^8.0.1"
   }
 }

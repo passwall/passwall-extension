@@ -1,9 +1,5 @@
 # Passwall official browser extension
 
-## WIP
-
-- Design: [Figma](https://www.figma.com/file/5GxpGEnU8oqUDdgpstugyW/PassWall-MVP?node-id=1035%3A1160)
-
 ###  Run the project
 
 ```bash

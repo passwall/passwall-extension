@@ -2,16 +2,15 @@
   <div class="text-area-wrapper">
     <div class="d-flex">
       <label v-if="label" class="title">{{ label }}</label>
-            <!-- Copy button goes here -->
-            <ClipboardButton :copy="value"></ClipboardButton>
-            <!-- Show/Hide button goes here -->
             <button
               type="button"
               @click="showNote = !showNote"
-              class="detail-page-header-icon ml-2"
+              class="detail-page-header-icon mr-2"
               v-tooltip="$t(showNote ? 'Hide' : 'Show')">
               <VIcon :name="showNote ? 'eye-off' : 'eye'" size="20px" />
             </button>
+            
+            <ClipboardButton :copy="value"></ClipboardButton>
     </div>
     <textarea
       :value="showNote || isEditable ? value : '●●●●●●'"

@@ -43,12 +43,10 @@ export default {
   },
   methods: {
     switchTabs(name) {
-      if (!this.hasProPlan) {
-        if (name === "Logins") {
+      if (this.hasProPlan) {
         this.$router.replace({ name })
-        }
       } else {
-        this.$router.replace({ name })
+        if (name === "Logins") {this.$router.replace({ name })}
       }
     },
     getColor(name) {

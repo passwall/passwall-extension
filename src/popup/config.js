@@ -34,7 +34,9 @@ Vue.use(vOutsideEvents)
 
 import Notifications from 'vue-notification'
 Vue.use(Notifications, { duration: 2500 })
-Vue.prototype.$notifyError = text => Vue.prototype.$notify({ type: 'error', text })
+Vue.prototype.$notifyError    = text => Vue.prototype.$notify({ type: 'error', duration: 5000, text })
+Vue.prototype.$notifyWarn     = text => Vue.prototype.$notify({ type: 'warn', duration: 5000, text })
+Vue.prototype.$notifySuccess  = text => Vue.prototype.$notify({ type: 'success', duration: 5000, text })
 
 window.wait = new VueWait({
   registerComponent: false,

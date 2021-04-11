@@ -9,10 +9,6 @@
           </div>
           <span class="fw-bold h5 ml-2">New</span>
         </div>
-        <div>
-          <VIcon class="c-pointer trash" name="trash" />
-          <VIcon class="c-pointer ml-3" name="cogs" />
-        </div>
       </template>
     </Header>
     <div class="scroll">
@@ -53,8 +49,9 @@
             />
             <div class="d-flex flex-items-center mr-3">
               <GeneratePassword v-model="form.password" />
-              <ClipboardButton :copy="form.password" />
+              <CheckPassword :password="form.password" />
               <ShowPassButton @click="showPass = $event" />
+              <ClipboardButton :copy="form.password" />
             </div>
           </div>
         </div>      
@@ -103,10 +100,6 @@ export default {
 </script>
 
 <style lang="scss">
-.trash {
-  color: $color-danger;
-}
-
 .new-logo {
   background-color: $color-gray-400;
   border-radius: 8px;
