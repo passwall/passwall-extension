@@ -1,3 +1,8 @@
+.vue-notification-group {
+  top: 10px !important;
+  border-radius: 4px;
+}
+
 .vue-notification {
   padding: 10px 10px 10px 35px;
   margin-top: 10px;
@@ -10,21 +15,44 @@
   background: #151c27;
   border-radius: 8px;
 
+  // color: #ffffff;
+  // background: #44A4FC;
+  // border-left: 5px solid #187FE7;
+  // border-radius: 8px;
+
   &.warn {
-    background: #151c27;
-    border-left-color: #151c27;
+    background: #ffb648;
+    border-left-color: #f48a06;
   }
-
+ 
   &.error {
-    background: #151c27;
-    border-left-color: #151c27;
-    background-image: url(/static/img/error-notify.png);
-    background-repeat: no-repeat;
-    background-position: 5px center;
+    background: #E54D42;
+    border-left-color: #B82E24;
+    // background-image: url("/img/error-notify.png");
+    // background-repeat: no-repeat;
+    // background-position: 5px center;
+  }
+ 
+  &.success {
+    background: #68CD86;
+    border-left-color: #42A85F;
   }
 
-  &.success {
-    background: #151c27;
-    border-left-color: #151c27;
-  }
+  // &.warn {
+  //   background: #151c27;
+  //   border-left-color: #151c27;
+  // }
+
+  // &.error {
+  //   background: #151c27;
+  //   border-left-color: #151c27;
+  //   background-image: url(/static/img/error-notifyError.png);
+  //   background-repeat: no-repeat;
+  //   background-position: 5px center;
+  // }
+
+  // &.success {
+  //   background: #68CD86;
+  //   border-left-color: #42A85F;
+  // }
 }

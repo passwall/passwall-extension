@@ -49,8 +49,9 @@
             />
             <div class="d-flex flex-items-center mr-3">
               <GeneratePassword v-model="form.password" />
-              <ClipboardButton :copy="form.password" />
+              <CheckPassword :password="form.password" />
               <ShowPassButton @click="showPass = $event" />
+              <ClipboardButton :copy="form.password" />
             </div>
           </div>
         </div>      
