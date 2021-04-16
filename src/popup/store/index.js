@@ -44,6 +44,29 @@ export default new Vuex.Store({
       state.master_hash = await Storage.getItem('master_hash')
     },
 
+    async RefreshToken({ state }, payload) {
+
+      var token = await Storage.getItem('refresh_token')
+      const { data } = await AuthService.Refresh({refresh_token:token})
+      
+      state.user = data
+      state.access_token = data.access_token
+      state.refresh_token = data.refresh_token
+      state.transmission_key = data.transmission_key.substr(0, 32)
+      CryptoUtils.transmissionKey = state.transmission_key
+
+      // TODO : Because we don't a payload, we didn't update the master hash
+      
+      await Promise.all([
+        Storage.setItem('access_token', data.access_token),
+        Storage.setItem('refresh_token', data.refresh_token),
+        Storage.setItem('user', data),
+        Storage.setItem('transmission_key', state.transmission_key)
+      ])
+
+      HTTPClient.setHeader('Authorization', `Bearer ${state.access_token}`)
+    },
+
     async Login({ state }, payload) {
       payload.master_password = CryptoUtils.sha256Encrypt(payload.master_password)
 
@@ -72,6 +95,7 @@ export default new Vuex.Store({
 
     async Logout({ state }) {
       const email = await Storage.getItem('email')
+      const server = await Storage.getItem('server')
       await Storage.clear()
       state.access_token = null
       state.refresh_token = null
@@ -79,6 +103,7 @@ export default new Vuex.Store({
       state.master_hash = null
       state.user = null
       await Storage.setItem('email', email)
+      await Storage.setItem('server', server)
     },
     async loadStore({ state }) {
       state.user = await Storage.getItem('user')
