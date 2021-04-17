@@ -16,7 +16,8 @@
         <div class="form-row">
           <label v-text="'Title'" />
           <VFormText
-            name="Title"
+            name="title"
+            v-on:change="saveForm"
             v-model="form.title"
             v-validate="'required'"
             :placeholder="$t('ClickToFill')"
@@ -28,6 +29,7 @@
           <label v-text="'Account Name'" />
           <VFormText
             name="account name"
+            v-on:change="saveForm"
             v-model="form.account_name"
             v-validate="'required'"
             :placeholder="$t('ClickToFill')"
@@ -39,6 +41,7 @@
           <label v-text="'Account Number'" />
           <VFormText
             name="account number"
+            v-on:change="saveForm"
             v-model="form.account_number"
             v-validate="'required'"
             :placeholder="$t('ClickToFill')"
@@ -50,6 +53,7 @@
           <label v-text="'IBAN'" />
           <VFormText
             name="iban"
+            v-on:change="saveForm"
             v-model="form.iban"
             v-validate="'required'"
             :placeholder="$t('ClickToFill')"
@@ -61,6 +65,7 @@
           <label v-text="'Currency'" />
           <VFormText
             name="currency"
+            v-on:change="saveForm"
             v-model="form.currency"
             v-validate="'required'"
             :placeholder="$t('ClickToFill')"
@@ -73,6 +78,7 @@
           <div class="d-flex flex-justify-between ">
             <VFormText
               name="Password"
+              v-on:change="saveForm"
               class="flex-auto"
               v-model="form.password"
               v-validate="'required'"
@@ -103,6 +109,7 @@
 
 <script>
 import { mapActions } from 'vuex'
+import Storage from '@/utils/storage'
 
 export default {
   data() {
@@ -118,6 +125,12 @@ export default {
       }
     }
   },
+  async created() {
+    const storageFormData = await Storage.getItem('create_form')
+    if (storageFormData !== null) {
+      this.form = storageFormData
+    }
+  },
   methods: {
     ...mapActions('BankAccounts', ['Create']),
     async onSubmit() {
@@ -127,6 +140,10 @@ export default {
         this.$router.push({ name: 'BankAccounts' })
       }
       this.$request(onSuccess, this.$waiters.BankAccounts.Create)
+    },
+    
+    saveForm: function (event) {
+      Storage.setItem('create_form', this.form)
     }
   }
 }

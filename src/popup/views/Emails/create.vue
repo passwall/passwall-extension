@@ -17,6 +17,7 @@
           <label v-text="'Title'" />
           <VFormText
             name="Title"
+            v-on:change="saveForm"
             v-model="form.title"
             v-validate="'required'"
             :placeholder="$t('ClickToFill')"
@@ -28,6 +29,7 @@
           <label v-text="'Email'" />
           <VFormText
             name="Email"
+            v-on:change="saveForm"
             v-model="form.email"
             v-validate="'required'"
             :placeholder="$t('ClickToFill')"
@@ -40,6 +42,7 @@
           <div class="d-flex flex-justify-between ">
             <VFormText
               name="Password"
+              v-on:change="saveForm"
               class="flex-auto"
               v-model="form.password"
               v-validate="'required'"
@@ -73,6 +76,7 @@
 
 <script>
 import { mapActions } from 'vuex'
+import Storage from '@/utils/storage'
 
 export default {
   data() {
@@ -85,6 +89,12 @@ export default {
       }
     }
   },
+  async created() {
+    const storageFormData = await Storage.getItem('create_form')
+    if (storageFormData !== null) {
+      this.form = storageFormData
+    }
+  },
   methods: {
     ...mapActions('Emails', ['Create']),
     async onSubmit() {
@@ -94,6 +104,10 @@ export default {
         this.$router.push({ name: 'Emails' })
       }
       this.$request(onSuccess, this.$waiters.Emails.Create)
+    },
+    
+    saveForm: function (event) {
+      Storage.setItem('create_form', this.form)
     }
   }
 }

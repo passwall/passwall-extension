@@ -49,18 +49,16 @@ export default new Vuex.Store({
       var token = await Storage.getItem('refresh_token')
       const { data } = await AuthService.Refresh({refresh_token:token})
       
-      state.user = data
       state.access_token = data.access_token
       state.refresh_token = data.refresh_token
       state.transmission_key = data.transmission_key.substr(0, 32)
       CryptoUtils.transmissionKey = state.transmission_key
 
-      // TODO : Because we don't a payload, we didn't update the master hash
+      // P.S.: Because we don't have a payload, we didn't update the master hash
       
       await Promise.all([
         Storage.setItem('access_token', data.access_token),
         Storage.setItem('refresh_token', data.refresh_token),
-        Storage.setItem('user', data),
         Storage.setItem('transmission_key', state.transmission_key)
       ])
 
