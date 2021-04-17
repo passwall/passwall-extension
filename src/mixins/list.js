@@ -3,9 +3,7 @@ import { mapState } from 'vuex'
 export default {
   beforeRouteEnter(to, from, next) {
     next(vm => {
-      if (!to.params.cache) {
         vm.fetchAll()
-      }
     })
   },
   methods: {

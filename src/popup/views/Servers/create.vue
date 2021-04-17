@@ -17,6 +17,7 @@
           <label v-text="'Title'" />
           <VFormText
             name="Title"
+            v-on:change="saveForm"
             v-model="form.title"
             v-validate="'required'"
             :placeholder="$t('ClickToFill')"
@@ -28,6 +29,7 @@
           <label v-text="'IP Address'" />
           <VFormText
             name="IP Address"
+            v-on:change="saveForm"
             v-model="form.ip"
             v-validate="'required'"
             :placeholder="$t('ClickToFill')"
@@ -39,6 +41,7 @@
           <label v-text="'Username'" />
           <VFormText
             name="Username"
+            v-on:change="saveForm"
             v-model="form.username"
             v-validate="'required'"
             :placeholder="$t('ClickToFill')"
@@ -51,6 +54,7 @@
           <div class="d-flex flex-justify-between ">
             <VFormText
               name="Password"
+              v-on:change="saveForm"
               class="flex-auto"
               v-model="form.password"
               v-validate="'required'"
@@ -72,6 +76,7 @@
           <div class="d-flex flex-justify-between">
             <VFormText
               name="Web Site"
+              v-on:change="saveForm"
               class="flex-auto"
               v-model="form.url"
               v-validate="'required'"
@@ -87,6 +92,7 @@
           <div class="d-flex flex-justify-between">
             <VFormText
               name="Hosting Username"
+              v-on:change="saveForm"
               class="flex-auto"
               v-model="form.hosting_username"
               v-validate="'required'"
@@ -101,6 +107,7 @@
           <div class="d-flex flex-justify-between ">
             <VFormText
               name="Hosting Password"
+              v-on:change="saveForm"
               class="flex-auto"
               v-model="form.hosting_password"
               v-validate="'required'"
@@ -122,6 +129,7 @@
           <div class="d-flex flex-justify-between">
             <VFormText
               name="Admin Username"
+              v-on:change="saveForm"
               class="flex-auto"
               v-model="form.admin_username"
               v-validate="'required'"
@@ -136,6 +144,7 @@
           <div class="d-flex flex-justify-between ">
             <VFormText
               name="Admin Password"
+              v-on:change="saveForm"
               class="flex-auto"
               v-model="form.admin_password"
               v-validate="'required'"
@@ -154,10 +163,11 @@
 
         <div>
           <VTextArea 
+            name="extra"
+            v-on:change="saveForm"
             :placeholder="$t('ClickToFill')" 
             v-model="form.extra" 
             label="Extra" 
-            name="extra"
             isEditable
           />
         </div>
@@ -179,6 +189,7 @@
 
 <script>
 import { mapActions } from 'vuex'
+import Storage from '@/utils/storage'
 
 export default {
   data() {
@@ -199,6 +210,12 @@ export default {
       }
     }
   },
+  async created() {
+    const storageFormData = await Storage.getItem('create_form')
+    if (storageFormData !== null) {
+      this.form = storageFormData
+    }
+  },
   methods: {
     ...mapActions('Servers', ['Create']),
     async onSubmit() {
@@ -208,6 +225,10 @@ export default {
         this.$router.push({ name: 'Servers' })
       }
       this.$request(onSuccess, this.$waiters.Servers.Create)
+    },
+    
+    saveForm: function (event) {
+      Storage.setItem('create_form', this.form)
     }
   }
 }

@@ -17,6 +17,7 @@
           <label v-text="'Title'" />
           <VFormText
             name="Title"
+            v-on:change="saveForm"
             v-model="form.title"
             v-validate="'required'"
             :placeholder="$t('ClickToFill')"
@@ -28,6 +29,7 @@
           <label v-text="'Username'" />
           <VFormText
             name="Username"
+            v-on:change="saveForm"
             v-model="form.username"
             v-validate="'required'"
             :placeholder="$t('ClickToFill')"
@@ -41,6 +43,7 @@
             <VFormText
               name="Password"
               class="flex-auto"
+              v-on:change="saveForm"
               v-model="form.password"
               v-validate="'required'"
               :placeholder="$t('ClickToFill')"
@@ -62,6 +65,7 @@
             <VFormText
               name="Web Site"
               class="flex-auto"
+              v-on:change="saveForm"
               v-model="form.url"
               v-validate="'required'"
               :placeholder="$t('ClickToFill')"
@@ -74,6 +78,7 @@
         <div>
           <VTextArea 
             :placeholder="$t('ClickToFill')" 
+            v-on:change="saveForm"
             v-model="form.extra" 
             label="Extra" 
             name="extra" 
@@ -98,6 +103,7 @@
 <script>
 import CheckPassword from '@/components/CheckPassword.vue';
 import { mapActions } from 'vuex'
+import Storage from '@/utils/storage'
 
 export default {
   components: { CheckPassword },
@@ -113,11 +119,16 @@ export default {
       }
     }
   },
-  created() {
-    this.$browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
-      this.form.title = tabs[0].title
-      this.form.url   = tabs[0].url
-    });
+  async created() {
+    const storageFormData = await Storage.getItem('create_form')
+    if (storageFormData === null) {
+      this.$browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
+        this.form.title = tabs[0].title
+        this.form.url   = tabs[0].url
+      })
+    } else {
+      this.form = storageFormData
+    }
   },
   methods: {
     ...mapActions('Logins', ['Create']),
@@ -128,6 +139,10 @@ export default {
         this.$router.push({ name: 'Logins' })
       }
       this.$request(onSuccess, this.$waiters.Logins.Create)
+    },
+    
+    saveForm: function (event) {
+      Storage.setItem('create_form', this.form)
     }
   }
 }

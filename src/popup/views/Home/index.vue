@@ -74,9 +74,6 @@ export default {
       showSettings: false
     }
   },
-  created() {
-    console.log(this.hasProPlan)
-  },
   computed: {
     ...mapState(['searchQuery', 'user']),
     ...mapGetters(['hasProPlan'])
@@ -93,7 +90,7 @@ export default {
 
     goUpgrade() {
       this.$browser.tabs.create({
-        url: 'https://signup.passwall.io/pro'
+        url: 'https://signup.passwall.io/upgrade'
       })
     },
 

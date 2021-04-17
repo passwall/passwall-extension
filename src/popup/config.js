@@ -33,10 +33,10 @@ import vOutsideEvents from 'vue-outside-events'
 Vue.use(vOutsideEvents)
 
 import Notifications from 'vue-notification'
-Vue.use(Notifications, { duration: 2500 })
-Vue.prototype.$notifyError    = text => Vue.prototype.$notify({ type: 'error', duration: 5000, text })
-Vue.prototype.$notifyWarn     = text => Vue.prototype.$notify({ type: 'warn', duration: 5000, text })
-Vue.prototype.$notifySuccess  = text => Vue.prototype.$notify({ type: 'success', duration: 5000, text })
+Vue.use(Notifications, { duration: 3000 })
+Vue.prototype.$notifyError = text => Vue.prototype.$notify({ type: 'error', text })
+Vue.prototype.$notifyWarn = text => Vue.prototype.$notify({ type: 'warn', text })
+Vue.prototype.$notifySuccess = text => Vue.prototype.$notify({ type: 'success', text })
 
 window.wait = new VueWait({
   registerComponent: false,
@@ -44,8 +44,8 @@ window.wait = new VueWait({
 })
 
 Vue.directive('click-outside', {
-  bind: function(el, binding, vnode) {
-    el.clickOutsideEvent = function(event) {
+  bind: function (el, binding, vnode) {
+    el.clickOutsideEvent = function (event) {
       // here I check that click was outside the el and his children
       if (!(el == event.target || el.contains(event.target))) {
         // and if it did, call method provided in attribute value
@@ -54,7 +54,7 @@ Vue.directive('click-outside', {
     }
     document.body.addEventListener('click', el.clickOutsideEvent)
   },
-  unbind: function(el) {
+  unbind: function (el) {
     document.body.removeEventListener('click', el.clickOutsideEvent)
   }
 })
@@ -65,28 +65,42 @@ requireComponent.keys().forEach(fileName => {
   Vue.component(componentConfig.default.name, componentConfig.default)
 })
 
-Vue.prototype.$request = async (callback, waitKey, errorCallback = null) => {
-  try {
-    window.wait.start(waitKey)
+Vue.prototype.$request = async (callback, waitKey, errorCallback = null, retry = false) => {
+  window.wait.start(waitKey)
+  
+  try {  
     await callback()
   } catch (error) {
-    console.log(error)
+    console.error(error)
 
-    if (error.response) {
-      if (error.response.status === 401 && !router.app._route.meta.auth) {
+    // No connection
+    if (!error.response) {
+      Vue.prototype.$notifyError('Network Error !')
+      Vue.prototype.$wait.end(waitKey)
+      return
+    }
+
+    if (error.response.status === 401 && !router.app._route.meta.auth && !retry) {
+      // Refresh token
+      try {
+        await store.dispatch('RefreshToken')
+        // Retry the connection
+        return Vue.prototype.$request(callback, waitKey, errorCallback, true)
+      } catch (refreshError) {
+        Vue.prototype.$notifyError('Authorization expired.')
+
+        // Reset all tokens
         await store.dispatch('Logout')
         return router.push({ name: 'Login' })
       }
+    }
 
-      if (errorCallback) {
-        errorCallback(error)
-      } else if (error.response.status >= 500) {
-        Vue.prototype.$notifyError(i18n.t('API500ErrorMessage'))
-      } else if (error.response.data.Message && error.response.status != 401) {
-        Vue.prototype.$notifyError(error.response.data.Message)
-      }
-    } else {
-      Vue.prototype.$notifyError('Network Error !')
+    if (errorCallback) {
+      errorCallback(error)
+    } else if (error.response.status >= 500) {
+      Vue.prototype.$notifyError(i18n.t('API500ErrorMessage'))
+    } else if (error.response.data.Message && error.response.status != 401) {
+      Vue.prototype.$notifyError(error.response.data.Message)
     }
   } finally {
     window.wait.end(waitKey)
@@ -100,7 +114,7 @@ if (
   window.screenLeft > window.screen.width ||
   window.screenTop > window.screen.height
 ) {
-  chrome.runtime.getPlatformInfo(function(info) {
+  chrome.runtime.getPlatformInfo(function (info) {
     if (info.os === 'mac') {
       const fontFaceSheet = new CSSStyleSheet()
       fontFaceSheet.insertRule(`

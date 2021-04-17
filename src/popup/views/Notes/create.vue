@@ -17,6 +17,7 @@
           <label v-text="'Title'" />
           <VFormText
             name="Title"
+            v-on:change="saveForm"
             v-model="form.title"
             v-validate="'required'"
             :placeholder="$t('ClickToFill')"
@@ -26,10 +27,11 @@
 
         <div>
           <VTextArea
+            name="note"
+            v-on:change="saveForm"
             :placeholder="$t('ClickToFill')"
             v-model="form.note"
             label="Note"
-            name="note"
             isEditable
           />
         </div>
@@ -50,6 +52,7 @@
 
 <script>
 import { mapActions } from 'vuex'
+import Storage from '@/utils/storage'
 
 export default {
   data() {
@@ -61,6 +64,12 @@ export default {
       }
     }
   },
+  async created() {
+    const storageFormData = await Storage.getItem('create_form')
+    if (storageFormData !== null) {
+      this.form = storageFormData
+    }
+  },
   methods: {
     ...mapActions('Notes', ['Create']),
     async onSubmit() {
@@ -70,6 +79,10 @@ export default {
         this.$router.push({ name: 'Notes' })
       }
       this.$request(onSuccess, this.$waiters.Notes.Create)
+    },
+    
+    saveForm: function (event) {
+      Storage.setItem('create_form', this.form)
     }
   }
 }

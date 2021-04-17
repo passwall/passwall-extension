@@ -2,6 +2,7 @@ import Vue from 'vue'
 import Router from 'vue-router'
 import AuthCheck from './auth-check'
 import ClearSearch from '@p/router/clear-search'
+import Storage from '@/utils/storage'
 
 Vue.use(Router)
 
@@ -120,12 +121,41 @@ const router = new Router({
 })
 
 router.afterEach((to, from) => {
+  Storage.setItem('latest_route', to.name)
+  Storage.setItem('latest_route_param_detail', to.params.detail)
+  Storage.setItem('create_form', null)
+})
+
+router.afterEach((to, from) => {
   const toDepth = to.path.split('/').length
   const fromDepth = from.path.split('/').length
   to.meta.transitionName = toDepth < fromDepth ? 'slide-right' : 'slide-left'
 })
+
 router.afterEach(ClearSearch)
 
 router.beforeEach(AuthCheck)
+
+let isFirstTransition = true;
+router.beforeEach(async (to, from, next) => {
+  const lastRouteName = await Storage.getItem('latest_route')
+  const detail = await Storage.getItem('latest_route_param_detail')
+  const shouldRedirect = Boolean(
+    to.name === "Logins" && lastRouteName && isFirstTransition
+  )
+
+  if (shouldRedirect) {
+    if (lastRouteName.search("Detail") > -1) {
+      next({ name: lastRouteName, params: { detail, id: detail.id } })
+    } else {
+      next({ name: lastRouteName })
+    }
+  } else {
+    next()
+  }
+
+  isFirstTransition = false
+
+})
 
 export default router
