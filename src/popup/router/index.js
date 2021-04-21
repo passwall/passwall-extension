@@ -54,9 +54,13 @@ const router = new Router({
         }
       ]
     },
-
     {
-      path: 'logins/create',
+      path: '/change-master-password',
+      name: 'ChangeMasterPassword',
+      component: require('@p/views/ChangeMasterPassword').default
+    },
+    {
+      path: '/logins/create',
       name: 'LoginCreate',
       component: require('@p/views/Logins/create').default
     },

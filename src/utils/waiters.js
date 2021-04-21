@@ -2,6 +2,10 @@ export const Auth = {
   Login: 'Auth_Login'
 }
 
+export const ChangeMasterPassword = {
+  Update: 'change_master_password_update'
+}
+
 export const Logins = {
   All:    'logins_all',
   Create: 'logins_create',

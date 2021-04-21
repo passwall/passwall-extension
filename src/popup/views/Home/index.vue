@@ -27,6 +27,15 @@
           <VIcon name="cross" size="16px" class="mr-2" />
           <span class="fs-big">Cancel Subscription</span>
         </div>
+        <!-- <div class="bg-black w-100" style="height: 1px" />
+        <div
+          class="c-pointer my-2 d-flex flex-items-center mt-4"
+          @click="changeMasterPassword"
+        >
+          <VIcon name="cogs" size="20px" class="mr-2" />
+          <span class="fs-big">Change Master Password</span>
+        </div> -->
+
         <div class="bg-black w-100" style="height: 1px" />
         <div
           class="c-pointer my-2 d-flex flex-items-center mt-4"
@@ -104,6 +113,10 @@ export default {
       this.$browser.tabs.create({
         url: this.user.update_url
       })
+    },
+
+    changeMasterPassword: function () {
+      this.$router.push({ name: 'ChangeMasterPassword' })
     },
 
     logout() {
