@@ -4,7 +4,16 @@
     <div v-if="showSettings" ref="overlay" class="d-flex flex-column px-3 overlay">
       <div class="menu flex-self-center p-4" v-click-outside="closeSettings">
         <div
-          class="c-pointer my-2 d-flex flex-items-center mb-4"
+          class="c-pointer my-2 d-flex flex-items-center mb-3"
+          data-testid="password-generator-btn"
+          @click="passwordGenerator"
+        >
+          <VIcon name="lock" size="24px" class="mr-2" />
+          <span class="fs-big">Password Generator</span>
+        </div>
+        <div class="bg-black w-100" style="height: 1px" />
+        <div
+          class="c-pointer my-2 d-flex flex-items-center mb-3 mt-3"
           v-if="!hasProPlan"
           @click="goUpgrade"
         >
@@ -12,15 +21,15 @@
           <span class="fs-big">Upgrade Subscription</span>
         </div>
         <div
-          class="c-pointer my-2 d-flex flex-items-center mb-4"
+          class="c-pointer my-2 d-flex flex-items-center mb-3 mt-3"
           v-if="hasProPlan"
           @click="goUpdate"
         >
           <VIcon name="refresh" size="16px" class="mr-2" />
           <span class="fs-big">Update Subscription</span>
         </div>
-        <div 
-          class="c-pointer my-2 d-flex flex-items-center mb-4" 
+        <div
+          class="c-pointer my-2 d-flex flex-items-center mb-3 mt-3"
           v-if="hasProPlan"
           @click="goCancel"
         >
@@ -38,7 +47,7 @@
 
         <div class="bg-black w-100" style="height: 1px" />
         <div
-          class="c-pointer my-2 d-flex flex-items-center mt-4"
+          class="c-pointer my-2 d-flex flex-items-center mt-3"
           data-testid="logout-btn"
           @click="logout"
         >
@@ -121,7 +130,11 @@ export default {
 
     logout() {
       this.Logout().then(() => this.$router.push('Login'))
-    }
+    },
+
+    passwordGenerator() {
+      this.$router.push({ name: 'Generator' })
+    },
   }
 }
 </script>

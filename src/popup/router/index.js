@@ -119,6 +119,11 @@ const router = new Router({
       name: 'ServerDetail',
       component: require('@p/views/Servers/detail').default
     },
+    {
+      path: '/password-generator',
+      name: 'Generator',
+      component: require('@p/views/Generator').default
+    },
 
     { path: '*', redirect: '/login' }
   ]
