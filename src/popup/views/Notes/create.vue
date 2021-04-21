@@ -33,6 +33,7 @@
             v-model="form.note"
             label="Note"
             isEditable
+            minheight=220
           />
         </div>
 

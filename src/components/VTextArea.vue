@@ -19,6 +19,7 @@
       spellcheck="false"
       v-on="inputListeners"
       v-bind="$attrs"
+      :style="cssVars"
     />
     <!-- Error -->
     <p class="error" v-if="getError" v-text="getError" />
@@ -35,6 +36,10 @@ export default {
     label: {
       type: String,
       default: ''
+    },
+    minheight: {
+      type: Number,
+      default: 150
     }
   },
   data() {
@@ -54,6 +59,11 @@ export default {
       return Object.assign({}, this.$listeners, {
         input: event => this.$emit('input', event.target.value)
       })
+    },
+    cssVars() {
+      return {
+        'min-height': this.minheight + 'px'
+      }
     }
   }
 }
@@ -75,10 +85,9 @@ export default {
   textarea {
     width: 100%;
     resize: none;
-    color: $color-gray-300;
+    color: $color-white;
     border-radius: 12px;
     padding: $spacer-2;
-    min-height: 150px;
     background-color: $color-gray-600;
     border: solid 1px $color-gray-700;
     font-size: $font-size-medium;

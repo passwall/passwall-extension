@@ -42,6 +42,7 @@
             name="note"
             :placeholder="$t(isEditMode ? 'ClickToFill' : 'ContentHidden')"
             :disabled="!isEditMode"
+            minheight=270
           />
         </div>
 
