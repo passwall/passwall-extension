@@ -3,7 +3,7 @@
     type="button"
     @click="checkPassword"
     class="password-check-btn"
-    v-tooltip="$t('Check if password has been exposed.')"
+    v-tooltip="$t('CheckIfExposed')"
   >
     <VIcon name="check" size="20px" />
   </button>

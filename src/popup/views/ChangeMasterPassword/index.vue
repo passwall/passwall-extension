@@ -36,6 +36,7 @@
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showCurrent ? 'text' : 'password'"
+              ref="current_master_password"
             />
             <div class="d-flex flex-items-center mr-3">
               <CheckPassword :password="form.current" />
@@ -103,6 +104,7 @@
 import CheckPassword from '@/components/CheckPassword.vue';
 import { mapActions } from 'vuex'
 import Storage from '@/utils/storage'
+import store from '@p/store'
 
 export default {
   components: { CheckPassword },
@@ -112,27 +114,69 @@ export default {
       showNew: false,
       showNewConfirm: false,
       form: {
-        email: 'test@passwall.io',
-        current: '123456',
-        new: '123456',
-        newConfirm: '123456',
+        email: '',
+        current: '',
+        new: '',
+        newConfirm: '',
       }
     }
   },
   methods: {
-    ...mapActions('ChangeMasterPassword', ['CheckCredentials','GenerateNewMasterHash','FetchAllLogins','ChangeMasterPassword']),
+    ...mapActions('ChangeMasterPassword', 
+    [
+      'CheckCredentials',
+      'GenerateNewMasterHash',
+      'FetchAllBankAccounts',
+      'UpdateAllBankAccounts',
+      'FetchAllCreditCards',
+      'UpdateAllCreditCards',
+      'FetchAllEmails',
+      'UpdateAllEmails',
+      'FetchAllLogins',
+      'UpdateAllLogins',
+      'FetchAllNotes',
+      'UpdateAllNotes',
+      'FetchAllServers',
+      'UpdateAllServers',
+      'ChangeMasterPassword'
+    ]),
     async onSubmit() {
       if (!(await this.$validator.validateAll())) return
+      if (this.form.new === this.form.current) {
+        const text = this.$t(`New master password can not be same with current master password.`)
+        this.$notifyError(text) 
+        return
+      }
       const onSuccess = async () => {
         
-        // await this.CheckCredentials({ ...this.form })
-        // await this.GenerateNewMasterHash({ ...this.form })
-        // await this.FetchAllLogins()
-        // await this.ChangeMasterPassword({ ...this.form })
-        // this.$router.push({ name: 'Logins' })
+        await this.CheckCredentials(this.form )
+        await this.GenerateNewMasterHash(this.form)
+        
+        await this.FetchAllBankAccounts()
+        await this.UpdateAllBankAccounts()
+
+        await this.FetchAllCreditCards()
+        await this.UpdateAllCreditCards()
+
+        await this.FetchAllEmails()
+        await this.UpdateAllEmails()
+
+        await this.FetchAllLogins()
+        await this.UpdateAllLogins()
+
+        await this.FetchAllNotes()
+        await this.UpdateAllNotes()
+
+        await this.FetchAllServers()
+        await this.UpdateAllServers()
+
+        await this.ChangeMasterPassword(this.form)
+        
+        // Reset all tokens and logout
+        await store.dispatch('Logout')
+        this.$router.push({ name: 'Login' })
       }
-      onSuccess()
-      // this.$request(onSuccess, this.$waiters.Logins.Create)
+      this.$request(onSuccess, this.$waiters.ChangeMasterPassword.Update)
     },
 
 

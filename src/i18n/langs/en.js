@@ -36,6 +36,7 @@ export default {
   ClickToFill: "Click to fill",
   Copy: "Copy",
   Edit: "Edit",
+  Fill: "Fill",
   Username: "Username",
   YourUsername: "Your username",
   URL: "URL",
@@ -45,5 +46,7 @@ export default {
   ContentHidden: "This content is hidden",
   API500ErrorMessage:
     'An unexpected error seems to have occured. Or you can contact us if the problem persists.',
-  OpenLink: 'Go to link'
+  OpenLink: 'Go to link',
+  CheckIfExposed: 'Check if password has been exposed.',
+  Generate: 'Generate'
 }

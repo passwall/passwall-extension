@@ -20,4 +20,8 @@ export default class BankAccountsService {
   static async Delete(id) {
     return HTTPClient.delete(`/api/bank-accounts/${id}`)
   }
+
+  static async BulkUpdate(payload) {
+    return HTTPClient.put(`/api/bank-accounts/bulk-update`, payload)
+  }
 }

@@ -38,8 +38,8 @@ export default {
       default: ''
     },
     minheight: {
-      type: Number,
-      default: 150
+      type: String,
+      default: '150'
     }
   },
   data() {

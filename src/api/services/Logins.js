@@ -20,4 +20,8 @@ export default class LoginsService {
   static async Delete(id) {
     return HTTPClient.delete(`/api/logins/${id}`)
   }
+
+  static async BulkUpdate(payload) {
+    return HTTPClient.put(`/api/logins/bulk-update`, payload)
+  }
 }
