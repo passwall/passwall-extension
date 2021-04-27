@@ -70,7 +70,6 @@ export default {
         .reduce((acc, current) => {
           return acc + current.value
         }, '')
-        console.log(this.complexities)
 
       let generatedPassword = ''
       for (let i = 0; i < this.passwordLength; i++) {
@@ -80,7 +79,6 @@ export default {
       Storage.setItem('generatedPassword', this.password)
       Storage.setItem('complexities', this.complexities)
       Storage.setItem('passwordLength', this.passwordLength)
-      
     }
   },
   async created() {
