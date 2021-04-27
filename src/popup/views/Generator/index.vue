@@ -70,6 +70,7 @@ export default {
         .reduce((acc, current) => {
           return acc + current.value
         }, '')
+        console.log(this.complexities)
 
       let generatedPassword = ''
       for (let i = 0; i < this.passwordLength; i++) {
@@ -77,9 +78,22 @@ export default {
       }
       this.password = generatedPassword
       Storage.setItem('generatedPassword', this.password)
+      Storage.setItem('complexities', this.complexities)
+      Storage.setItem('passwordLength', this.passwordLength)
+      
     }
   },
   async created() {
+    const passwordLength = await Storage.getItem('passwordLength')
+    if (passwordLength !== null) {
+      this.passwordLength = passwordLength
+    }
+
+    const complexities = await Storage.getItem('complexities')
+    if (complexities !== null) {
+      this.complexities = complexities
+    }
+
     const generatedPassword = await Storage.getItem('generatedPassword')
     if (generatedPassword === null) {
       this.onGenerate()
@@ -100,7 +114,7 @@ export default {
     padding: 15px 10px;
     border: 0;
     color: $color-white;
-    font-size: 13px;
+    font-size: 16px;
     letter-spacing: 1px;
     border-radius: 10px;
     width: 100%;
