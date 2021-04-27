@@ -27,7 +27,7 @@
       <div class="d-flex flex-column">
         <div class="mb-4 password-input">
           <input type="text" :value="password" placeholder="Generate a new Password..." disabled />
-          <span class="password-input-button"><ClipboardButton :copy="password"/></span>
+          <span class="password-copy-button"><ClipboardButton :copy="password"/></span>
         </div>
         <button @click="onGenerate" class="password-generate-button">Generate</button>
       </div>
@@ -36,6 +36,8 @@
 </template>
 
 <script>
+import Storage from '@/utils/storage'
+
 const chars = {
   alphabet: 'abcdefghijklmnopqrstuvwxyz',
   numeric: '0123456789',
@@ -74,10 +76,16 @@ export default {
         generatedPassword += charSet.charAt(Math.floor(Math.random() * charSet.length))
       }
       this.password = generatedPassword
+      Storage.setItem('generatedPassword', this.password)
     }
   },
-  created() {
-    this.onGenerate()
+  async created() {
+    const generatedPassword = await Storage.getItem('generatedPassword')
+    if (generatedPassword === null) {
+      this.onGenerate()
+    } else {
+      this.password = generatedPassword
+    }
   }
 }
 </script>
@@ -99,9 +107,18 @@ export default {
     text-align: center;
   }
 
-  span.password-input-button {
+  span.password-copy-button {
     position: absolute;
     transform: translate(-30px, 50%);
+
+    button {
+      background-color: transparent;
+    }
+  }
+
+  span.password-check-button {
+    position: absolute;
+    transform: translate(-55px, 50%);
 
     button {
       background-color: transparent;
