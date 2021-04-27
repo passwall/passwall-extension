@@ -8,36 +8,28 @@
         </div>
       </template>
     </Header>
-    <div class="mx-3 my-3">
-      <div class="d-flex flex-column">
-        <div class="d-flex flex-row flex-items-center">
-          <input
-            type="text"
-            :value="password"
-            class="password-input flex-1"
-            placeholder="Generate a new Password..."
-            disabled
-          />
-          <ClipboardButton :copy="password" />
+    <div class="mx-4 mt-5">
+      <div class="password-length mb-4">
+        <div class="d-flex flex-row flex-justify-between mb-2">
+          <span>Length</span>
+          <input type="text" v-model="passwordLength" class="password-length-input" disabled />
         </div>
-        <button @click="onGenerate" class="password-button">Generate</button>
-      </div>
-      <div class="d-flex flex-row flex-justify-center mt-3">
         <input type="range" min="6" max="24" v-model="passwordLength" />
-        <input type="text" v-model="passwordLength" class="password-length-input" disabled />
       </div>
-      <div class="d-flex flex-row flex-justify-between mt-3">
-        <div
-          class="password-options"
-          v-for="type in complexities"
-          :key="type.name"
-          v-tooltip="$t(type.tooltip)"
-        >
+      <div class="d-flex flex-row flex-justify-between mb-5">
+        <div class="password-options" v-for="type in getComplexities" :key="type.name">
           <label class="d-flex flex-items-center">
             <input type="checkbox" :checked="type.checked" @click="type.checked = !type.checked" />
             <span>{{ type.name }}</span>
           </label>
         </div>
+      </div>
+      <div class="d-flex flex-column">
+        <div class="mb-4 password-input">
+          <input type="text" :value="password" placeholder="Generate a new Password..." disabled />
+          <span class="password-input-button"><ClipboardButton :copy="password"/></span>
+        </div>
+        <button @click="onGenerate" class="password-generate-button">Generate</button>
       </div>
     </div>
   </div>
@@ -45,23 +37,28 @@
 
 <script>
 const chars = {
-  alphabet: "abcdefghijklmnopqrstuvwxyz",
-  numeric: "0123456789",
-  special: "_-+=)/(*&^%$#@%!?~"
+  alphabet: 'abcdefghijklmnopqrstuvwxyz',
+  numeric: '0123456789',
+  special: '_-+=)/(*&^%$#@%!?~'
 }
 
 export default {
-  name: "Generator",
+  name: 'Generator',
   data: function() {
     return {
       complexities: [
-        { name: "abc", value: chars.alphabet, checked: true, tooltip: "Lowercase" },
-        { name: "ABC", value: chars.alphabet.toUpperCase(), checked: true, tooltip: "Uppercase" },
-        { name: "123", value: chars.numeric, checked: true, tooltip: "Numeric" },
-        { name: "*?!%&", value: chars.special, checked: false, tooltip: "Special Chars" }
+        { name: 'abc', value: chars.alphabet, checked: true, visible: false },
+        { name: 'Numbers', value: chars.numeric, checked: true },
+        { name: 'Symbols', value: chars.special, checked: false },
+        { name: 'Capital Letters', value: chars.alphabet.toUpperCase(), checked: true }
       ],
-      password: "",
-      passwordLength: 8
+      password: '',
+      passwordLength: 10
+    }
+  },
+  computed: {
+    getComplexities: function() {
+      return this.complexities.filter(item => item.visible !== false)
     }
   },
   methods: {
@@ -70,52 +67,83 @@ export default {
         .filter(item => item.checked)
         .reduce((acc, current) => {
           return acc + current.value
-        }, "")
+        }, '')
 
-      let generatedPassword = ""
+      let generatedPassword = ''
       for (let i = 0; i < this.passwordLength; i++) {
         generatedPassword += charSet.charAt(Math.floor(Math.random() * charSet.length))
       }
       this.password = generatedPassword
     }
+  },
+  created() {
+    this.onGenerate()
   }
 }
 </script>
 
 <style lang="scss">
 .password-input {
-  background-color: $color-black-400;
-  height: $input-height;
-  padding-top: 5px;
-  padding-bottom: 5px;
-  margin-right: 5px;
-  border: 0;
-  color: $color-white;
-  font-size: 15px;
-  text-align: center;
+  position: relative;
+
+  input {
+    background-color: $color-black-400;
+    height: $input-height;
+    padding: 15px 10px;
+    border: 0;
+    color: $color-white;
+    font-size: 13px;
+    letter-spacing: 1px;
+    border-radius: 10px;
+    width: 100%;
+    text-align: center;
+  }
+
+  span.password-input-button {
+    position: absolute;
+    transform: translate(-30px, 50%);
+
+    button {
+      background-color: transparent;
+    }
+  }
 }
 
-.password-button {
+.password-generate-button {
   height: $button-height-small;
-  padding-top: 5px;
-  padding-bottom: 5px;
+  padding-top: 7px;
+  padding-bottom: 7px;
   color: $color-white;
-  font-size: 17px;
+  font-size: 13px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
   background-color: $color-primary;
+  border-radius: 7px;
 }
 
-.password-length-input {
-  width: 24px;
-  height: 24px;
-  font-size: 13px;
-  font-weight: 500;
-  text-align: center;
-  color: $color-white;
-  background-color: $color-primary;
-  border-width: 0;
-  border-radius: 28px;
-  margin-left: 10px;
+.password-length {
+  font-size: 12px;
+
+  span {
+    color: #aaa;
+    text-transform: uppercase;
+    font-size: inherit;
+  }
+
+  input[type='text'] {
+    width: 20px;
+    height: 13px;
+    font-size: inherit;
+    text-align: center;
+    color: #aaa;
+    border-width: 0;
+    background-color: transparent;
+  }
+
+  input[type='range'] {
+    width: 100%;
+  }
 }
 
 .password-options {
@@ -123,13 +151,15 @@ export default {
     cursor: pointer;
   }
 
-  input {
+  input[type='checkbox'] {
     margin-right: 7px;
     cursor: pointer;
+    width: 15px;
+    height: 15px;
   }
 
   span {
-    font-size: 14px;
+    font-size: 13px;
   }
 }
 </style>
