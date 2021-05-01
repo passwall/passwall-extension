@@ -3,10 +3,7 @@
     <Header class="bg-black-400">
       <template v-slot:content>
         <VIcon class="c-pointer" name="arrow-left" @click="$router.back()" />
-        <div class="d-flex flex-auto flex-items-center ml-4">
-          <div class="new-logo">
-            <VIcon name="logo-simple" height="40px" width="40px" />
-          </div>
+        <div class="d-flex flex-auto ml-2">
           <span class="fw-bold h5 ml-2">Change Master Password</span>
         </div>
       </template>
@@ -147,9 +144,19 @@ export default {
         this.$notifyError(text) 
         return
       }
+      const onError = async () => {
+        const text = this.$t(`Failed to change master password. Please contact with "hello@passwall.io".`)
+        this.$notifyError(text) 
+      }
       const onSuccess = async () => {
+        try {
+          await this.CheckCredentials(this.form )
+        } catch (error) {
+          const text = this.$t(`Email address or master password is wrong.`)
+          this.$notifyError(text) 
+          return
+        }
         
-        await this.CheckCredentials(this.form )
         await this.GenerateNewMasterHash(this.form)
         
         await this.FetchAllBankAccounts()
@@ -176,7 +183,7 @@ export default {
         await store.dispatch('Logout')
         this.$router.push({ name: 'Login' })
       }
-      this.$request(onSuccess, this.$waiters.ChangeMasterPassword.Update)
+      this.$request(onSuccess, this.$waiters.ChangeMasterPassword.Update, onError)
     },
 
 

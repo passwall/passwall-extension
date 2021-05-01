@@ -7,12 +7,8 @@ export default {
     })
   },
   methods: {
-    async fetchAll() {
-      try {
-        await this.$request(this.FetchAll, this.$waiters[this.$options.name].All)
-      } catch (error) {
-        console.log(error)
-      }
+    fetchAll() {
+      return this.$request(this.FetchAll, this.$waiters[this.$options.name].All)
     }
   },
 

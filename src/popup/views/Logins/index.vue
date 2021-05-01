@@ -45,10 +45,29 @@ export default {
     ...mapMutations(['onInputSearchQuery']),
     clickItem(detail) {
       this.$router.push({ name: 'LoginDetail', params: { detail, id: detail.id } })
+    },
+    sendLogins() {
+      console.log(this.ItemList)
+      this.$browser.runtime
+        .sendMessage({
+          source: 'popup',
+          loginList: this.ItemList
+        })
+        .then(() => {
+          console.log('Form data sent successfully')
+        })
+        .catch((error) => {
+          console.error('Can not send logins to background script Error: ', error)
+        })
     }
   },
   computed: {
     ...mapState('Logins', ['ItemList'])
+  },
+  created: function() {
+    // this.fetchAll().then(
+    //   () => this.sendLogins()
+    // )
   }
 }
 </script>

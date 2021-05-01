@@ -1,35 +1,56 @@
 const browser = require('webextension-polyfill')
 
-/* // Login Hashmap
+// Login Hashmap
 let loginHashmap = new Map()
 
 // Listener
 browser.runtime.onMessage.addListener(handleMessage);
 
+function fillHashmapFromPopup(item, index) {
+  console.log(loginHashmap)
+  let url = domainFromUrl(item.url)
+  let key = url + ":" + item.username;
+  if (!loginHashmap.has(key)) {
+    loginHashmap.set(key, {
+      title: item.title,
+      url: item.url,
+      username: item.username,
+      password: item.password,
+    });
+  }
+}
+
 // Handler
 function handleMessage(request, sender, sendResponse) {
-  let status = "No new record"
-
-  // Create new record  
-  if ((typeof request.username !== 'undefined') && (typeof request.password !== 'undefined')) {
-
-    let url = domainFromUrl(sender.tab.url);
-    let key = url + ":" + request.username;
-
-    if (!loginHashmap.has(key)) {
-      loginHashmap.set(key, {
-        title: sender.tab.title,
-        url: url,
-        username: request.username,
-        password: request.password,
-      });
-      status = "New record added";
+  if (request.source === 'popup') {
+    if (request.loginList.length !== 0) {
+      request.loginList.forEach(fillHashmapFromPopup);
     }
   }
 
-  sendResponse({
-    response: status,
-  });
+
+  //let status = "No new record"
+
+  // Create new record  
+  // if ((typeof request.username !== 'undefined') && (typeof request.password !== 'undefined')) {
+
+  //   let url = domainFromUrl(sender.tab.url);
+  //   let key = url + ":" + request.username;
+
+  //   if (!loginHashmap.has(key)) {
+  //     loginHashmap.set(key, {
+  //       title: sender.tab.title,
+  //       url: url,
+  //       username: request.username,
+  //       password: request.password,
+  //     });
+  //     status = "New record added";
+  //   }
+  // }
+
+  // sendResponse({
+  //   response: status,
+  // });
 }
 
 //onUpdated listener fired when a tab URL is changed
@@ -63,5 +84,5 @@ function handleUpdated(tabId, changeInfo, tabInfo) {
 function domainFromUrl(url) {
   const matches = url.match(/^(?:https?:)?(?:\/\/)?([^\/\?]+)/i)
   return matches ? matches[1] : 'NONE'
-} */
+}
 
