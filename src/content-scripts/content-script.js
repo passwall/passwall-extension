@@ -22,18 +22,21 @@ for (i = 0; i < inputs.length; ++i) {
 }
 
 // Listen and send data to fill hashmap in the background
-/* if (password !== "" && username !== "") {
-    password.addEventListener('blur', function () {
-        let login = browser.runtime.sendMessage({
-            username: username.value,
-            password: password.value,
-        });
-        login.then(handleResponse, handleError);
-    });
-}
+// TODO : This empty check is not right I guess
+// if (password !== "" && username !== "") {
+//     password.addEventListener('blur', function () {
+//         let login = browser.runtime.sendMessage({
+//             source: "content",
+//             action: "fill",
+//             username: username.value,
+//             password: password.value,
+//         });
+//         login.then(handleResponse, handleError);
+//     });
+// }
 
-function handleResponse(message) { console.log(`Response: ${message.response}`); }
-function handleError(error) { console.log(`Error: ${error}`); } */
+// function handleResponse(message) { console.log(`Response: ${message.response}`); }
+// function handleError(error) { console.log(`Error: ${error}`); }
 
 // FILLER
 // Sender is in /src/popup/views/Logins/detail.vue

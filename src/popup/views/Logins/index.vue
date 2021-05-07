@@ -47,7 +47,9 @@ export default {
       this.$router.push({ name: 'LoginDetail', params: { detail, id: detail.id } })
     },
     sendLogins() {
-      console.log(this.ItemList)
+      if (this.ItemList.length === 0) {
+        return
+      } 
       this.$browser.runtime
         .sendMessage({
           source: 'popup',
@@ -57,7 +59,7 @@ export default {
           console.log('Form data sent successfully')
         })
         .catch((error) => {
-          console.error('Can not send logins to background script Error: ', error)
+          console.error('Can not send data to background script Error: ', error)
         })
     }
   },
