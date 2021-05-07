@@ -7,7 +7,7 @@
           <div class="new-logo">
             <VIcon name="logo-simple" height="40px" width="40px" />
           </div>
-          <span class="fw-bold h5 ml-2">New</span>
+          <span class="fw-bold h5 ml-2">New Bank Account</span>
         </div>
       </template>
     </Header>
@@ -31,7 +31,6 @@
             name="account name"
             v-on:change="saveForm"
             v-model="form.account_name"
-            v-validate="'required'"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
@@ -43,7 +42,6 @@
             name="account number"
             v-on:change="saveForm"
             v-model="form.account_number"
-            v-validate="'required'"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
@@ -55,7 +53,6 @@
             name="iban"
             v-on:change="saveForm"
             v-model="form.iban"
-            v-validate="'required'"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
@@ -67,7 +64,6 @@
             name="currency"
             v-on:change="saveForm"
             v-model="form.currency"
-            v-validate="'required'"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
@@ -81,7 +77,6 @@
               v-on:change="saveForm"
               class="flex-auto"
               v-model="form.password"
-              v-validate="'required'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showPass ? 'text' : 'password'"

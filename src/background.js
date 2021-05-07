@@ -1,5 +1,6 @@
 const browser = require('webextension-polyfill')
 
+/*
 // Login Hashmap
 let loginHashmap = new Map()
 
@@ -143,3 +144,4 @@ function getDomainFromURL(url) {
   return matches ? matches[1] : 'NONE'
 }
 
+*/

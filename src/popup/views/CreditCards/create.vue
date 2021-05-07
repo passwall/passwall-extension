@@ -7,7 +7,7 @@
           <div class="new-logo">
             <VIcon name="logo-simple" height="40px" width="40px" />
           </div>
-          <span class="fw-bold h5 ml-2">New</span>
+          <span class="fw-bold h5 ml-2">New Credit Card</span>
         </div>
       </template>
     </Header>
@@ -31,7 +31,6 @@
             name="Card Holder Name"
             v-on:change="saveForm"
             v-model="form.cardholder_name"
-            v-validate="'required'"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
@@ -43,7 +42,6 @@
             name="Type"
             v-on:change="saveForm"
             v-model="form.type"
-            v-validate="'required'"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
@@ -55,7 +53,6 @@
             name="Number"
             v-on:change="saveForm"
             v-model="form.number"
-            v-validate="'required'"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
@@ -67,7 +64,6 @@
             name="Expiration Date"
             v-on:change="saveForm"
             v-model="form.expiry_date"
-            v-validate="'required'"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
@@ -80,7 +76,6 @@
               v-on:change="saveForm"
               class="flex-auto"
               v-model="form.verification_number"
-              v-validate="'required'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showPass ? 'text' : 'password'"

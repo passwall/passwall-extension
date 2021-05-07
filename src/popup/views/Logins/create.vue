@@ -7,7 +7,7 @@
           <div class="new-logo">
             <VIcon name="logo-simple" height="40px" width="40px" />
           </div>
-          <span class="fw-bold h5 ml-2">New</span>
+          <span class="fw-bold h5 ml-2">New Login</span>
         </div>
       </template>
     </Header>
@@ -31,7 +31,6 @@
             name="Username"
             v-on:change="saveForm"
             v-model="form.username"
-            v-validate="'required'"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
@@ -45,7 +44,6 @@
               class="flex-auto"
               v-on:change="saveForm"
               v-model="form.password"
-              v-validate="'required'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showPass ? 'text' : 'password'"
@@ -67,7 +65,7 @@
               class="flex-auto"
               v-on:change="saveForm"
               v-model="form.url"
-              v-validate="'required'"
+              v-validate="'url'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
             />
