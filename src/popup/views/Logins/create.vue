@@ -99,12 +99,10 @@
 </template>
 
 <script>
-import CheckPassword from '@/components/CheckPassword.vue';
 import { mapActions } from 'vuex'
 import Storage from '@/utils/storage'
 
 export default {
-  components: { CheckPassword },
   data() {
     return {
       showPass: false,

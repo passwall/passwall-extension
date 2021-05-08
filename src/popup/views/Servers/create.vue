@@ -196,6 +196,7 @@ export default {
         ip: '',
         username: '',
         password: '',
+        url: '',
         hosting_username: '',
         hosting_password: '',
         admin_username: '',
@@ -206,7 +207,12 @@ export default {
   },
   async created() {
     const storageFormData = await Storage.getItem('create_form')
-    if (storageFormData !== null) {
+    if (storageFormData === null) {
+      this.$browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
+        this.form.title = tabs[0].title
+        this.form.url   = tabs[0].url
+      })
+    } else {
       this.form = storageFormData
     }
   },
