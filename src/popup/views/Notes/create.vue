@@ -7,7 +7,7 @@
           <div class="new-logo">
             <VIcon name="logo-simple" height="40px" width="40px" />
           </div>
-          <span class="fw-bold h5 ml-2">New</span>
+          <span class="fw-bold h5 ml-2">New Note</span>
         </div>
       </template>
     </Header>
@@ -33,6 +33,7 @@
             v-model="form.note"
             label="Note"
             isEditable
+            minheight=220
           />
         </div>
 

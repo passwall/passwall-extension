@@ -20,4 +20,8 @@ export default class CreditCardsService {
   static async Delete(id) {
     return HTTPClient.delete(`/api/credit-cards/${id}`)
   }
+
+  static async BulkUpdate(payload) {
+    return HTTPClient.put(`/api/credit-cards/bulk-update`, payload)
+  }
 }

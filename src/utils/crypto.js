@@ -76,9 +76,11 @@ export default class CryptoUtils {
     return CryptoJS.AES.decrypt(value, key).toString(CryptoJS.enc.Utf8)
   }
 
-  static encryptFields(data, encryptKey = this.encryptKey) {
+  static encryptFields(data, keyList, encryptKey = this.encryptKey) {
     Object.keys(data).forEach(key => {
-      data[key] = this.encrypt(data[key], encryptKey)
+      if (data[key] && keyList.includes(key)) {
+        data[key] = this.encrypt(data[key], encryptKey)
+      }
     })
   }
 
@@ -90,9 +92,15 @@ export default class CryptoUtils {
     })
   }
 
+  static encryptItemPayload(data, transmissionKey = this.transmissionKey) {
+    return {
+      data: this.aesEncrypt(JSON.stringify(data), transmissionKey)
+    }
+  }
+
   static encryptPayload(
     data,
-    keyList,
+    keyList = [],
     encryptKey = this.encryptKey,
     transmissionKey = this.transmissionKey
   ) {
@@ -106,4 +114,6 @@ export default class CryptoUtils {
       data: this.aesEncrypt(JSON.stringify(data), transmissionKey)
     }
   }
+
+  
 }

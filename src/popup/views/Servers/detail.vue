@@ -24,10 +24,18 @@
     </Header>
     <div class="scroll detail">
       <form class="form" @submit.stop.prevent="onClickUpdate">
-        <FormRowText v-model="form.title" title="title" :edit-mode="isEditMode" :show-icons="false">
+        <FormRowText 
+          v-model="form.title" 
+          title="title" 
+          :edit-mode="isEditMode" 
+          :show-icons="false">
           <template v-slot:second-icon> <div /> </template>
         </FormRowText>
-        <FormRowText v-model="form.ip" title="ip" :edit-mode="isEditMode" :show-icons="true">
+        <FormRowText 
+          v-model="form.ip" 
+          title="ip" 
+          :edit-mode="isEditMode" 
+          :show-icons="true">
           <template v-slot:second-icon> <div /> </template>
         </FormRowText>
         <FormRowText

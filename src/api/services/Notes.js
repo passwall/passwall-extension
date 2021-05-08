@@ -20,4 +20,8 @@ export default class NotesService {
   static async Delete(id) {
     return HTTPClient.delete(`/api/notes/${id}`)
   }
+
+  static async BulkUpdate(payload) {
+    return HTTPClient.put(`/api/notes/bulk-update`, payload)
+  }
 }

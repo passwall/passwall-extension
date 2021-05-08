@@ -62,11 +62,12 @@
             name="extra"
             :placeholder="$t(isEditMode ? 'ClickToFill' : 'ContentHidden')"
             :disabled="!isEditMode"
+            minheight=110
           />
         </div>
 
         <!-- Save & Cancel -->
-        <div class="d-flex m-3" v-if="isEditMode">
+        <div class="d-flex m-2" v-if="isEditMode">
           <VButton class="flex-1" theme="text" :disabled="loading" @click="isEditMode = false">
             {{ $t('Cancel') }}
           </VButton>

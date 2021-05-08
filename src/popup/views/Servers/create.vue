@@ -7,7 +7,7 @@
           <div class="new-logo">
             <VIcon name="logo-simple" height="40px" width="40px" />
           </div>
-          <span class="fw-bold h5 ml-2">New</span>
+          <span class="fw-bold h5 ml-2">New Server</span>
         </div>
       </template>
     </Header>
@@ -31,7 +31,7 @@
             name="IP Address"
             v-on:change="saveForm"
             v-model="form.ip"
-            v-validate="'required'"
+            v-validate="'ip'"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
@@ -43,7 +43,6 @@
             name="Username"
             v-on:change="saveForm"
             v-model="form.username"
-            v-validate="'required'"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
@@ -57,7 +56,6 @@
               v-on:change="saveForm"
               class="flex-auto"
               v-model="form.password"
-              v-validate="'required'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showPass ? 'text' : 'password'"
@@ -79,7 +77,7 @@
               v-on:change="saveForm"
               class="flex-auto"
               v-model="form.url"
-              v-validate="'required'"
+              v-validate="'url'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
             />
@@ -95,7 +93,6 @@
               v-on:change="saveForm"
               class="flex-auto"
               v-model="form.hosting_username"
-              v-validate="'required'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
             />
@@ -110,7 +107,6 @@
               v-on:change="saveForm"
               class="flex-auto"
               v-model="form.hosting_password"
-              v-validate="'required'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showHostingPass ? 'text' : 'password'"
@@ -132,7 +128,6 @@
               v-on:change="saveForm"
               class="flex-auto"
               v-model="form.admin_username"
-              v-validate="'required'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
             />
@@ -147,7 +142,6 @@
               v-on:change="saveForm"
               class="flex-auto"
               v-model="form.admin_password"
-              v-validate="'required'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showAdminPass ? 'text' : 'password'"
@@ -202,6 +196,7 @@ export default {
         ip: '',
         username: '',
         password: '',
+        url: '',
         hosting_username: '',
         hosting_password: '',
         admin_username: '',
@@ -212,7 +207,12 @@ export default {
   },
   async created() {
     const storageFormData = await Storage.getItem('create_form')
-    if (storageFormData !== null) {
+    if (storageFormData === null) {
+      this.$browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
+        this.form.title = tabs[0].title
+        this.form.url   = tabs[0].url
+      })
+    } else {
       this.form = storageFormData
     }
   },

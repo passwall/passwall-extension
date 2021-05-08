@@ -6,7 +6,7 @@ module.exports = {
       title: 'Popup'
     },
     options: {
-      template: 'public/options-page.htm',
+      template: 'public/options-page.html',
       entry: 'src/options/main.js',
       title: 'Passwall Extension Options'
     }

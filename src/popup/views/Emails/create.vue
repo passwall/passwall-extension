@@ -31,7 +31,7 @@
             name="Email"
             v-on:change="saveForm"
             v-model="form.email"
-            v-validate="'required'"
+            v-validate="'required|email'"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />

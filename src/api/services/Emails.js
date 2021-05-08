@@ -20,4 +20,8 @@ export default class EmailsService {
   static async Delete(id) {
     return HTTPClient.delete(`/api/emails/${id}`)
   }
+
+  static async BulkUpdate(payload) {
+    return HTTPClient.put(`/api/emails/bulk-update`, payload)
+  }
 }

@@ -14,6 +14,7 @@ import Emails from '@p/views/Emails/store'
 import BankAccounts from '@p/views/BankAccounts/store'
 import Notes from '@p/views/Notes/store'
 import Servers from '@p/views/Servers/store'
+import ChangeMasterPassword from '@p/views/ChangeMasterPassword/store'
 
 export default new Vuex.Store({
   state() {
@@ -119,6 +120,7 @@ export default new Vuex.Store({
     Emails,
     BankAccounts,
     Notes,
-    Servers
+    Servers,
+    ChangeMasterPassword,
   }
 })
