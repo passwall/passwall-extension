@@ -119,8 +119,10 @@ export default {
     const storageFormData = await Storage.getItem('create_form')
     if (storageFormData === null) {
       this.$browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
-        this.form.title = tabs[0].title
-        this.form.url   = tabs[0].url
+        if (tabs[0].url !== 'chrome://newtab/') {
+          this.form.title = tabs[0].title
+          this.form.url   = tabs[0].url
+        }
       })
     } else {
       this.form = storageFormData

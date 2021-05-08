@@ -1,5 +1,46 @@
 import browser from 'webextension-polyfill'
 import { BROWSER_URL_PATTERNS } from './constants'
+import Storage from '@/utils/storage'
+
+export async function generatePassword() {
+  const chars = {
+    alphabet: 'abcdefghijklmnopqrstuvwxyz',
+    numeric: '0123456789',
+    special: '_-+=)/(*&^%$#@%!?~'
+  }
+
+  let complexities = [
+    { name: 'abc', value: chars.alphabet, checked: true, visible: false },
+    { name: 'Numbers', value: chars.numeric, checked: true },
+    { name: 'Symbols', value: chars.special, checked: false },
+    { name: 'Capital Letters', value: chars.alphabet.toUpperCase(), checked: true }
+  ]
+
+  let passwordLength = 10
+
+  const storagePasswordLength = await Storage.getItem('passwordLength')
+  if (storagePasswordLength !== null) {
+    passwordLength = storagePasswordLength
+  }
+
+  const storageComplexities = await Storage.getItem('complexities')
+  if (storageComplexities !== null) {
+    complexities = storageComplexities
+  }
+
+  const charSet = complexities
+        .filter(item => item.checked)
+        .reduce((acc, current) => {
+          return acc + current.value
+        }, '')
+
+  let generatedPassword = ''
+  for (let i = 0; i < passwordLength; i++) {
+    generatedPassword += charSet.charAt(Math.floor(Math.random() * charSet.length))
+  }
+    
+  return generatedPassword
+}
 
 export function isValidHttpUrl(string) {
   let url
