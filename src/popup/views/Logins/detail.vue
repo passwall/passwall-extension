@@ -139,14 +139,12 @@ export default {
     fillForm() {
       this.$browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
         this.$browser.tabs
-          .sendMessage(tabs[0].id, { 
-            msg: {
-              username: this.form.username,
-              password: this.form.password,
-              } 
+          .sendMessage(tabs[0].id, {
+              message: "fill-form",
+              data:{username: this.form.username, password: this.form.password}
             })
           .then(() => {
-            // console.log("Form data sent successfully")
+            console.log("Form data sent successfully")
           })
           .catch((error) => {
             console.error('Can not send form data Error: ', error);

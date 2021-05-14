@@ -9,6 +9,11 @@ module.exports = {
       template: 'public/options-page.html',
       entry: 'src/options/main.js',
       title: 'Passwall Extension Options'
+    },
+    savePassword: {
+      // template: 'public/save-password.html',
+      entry: 'src/save-password/main.js',
+      title: 'Passwall Extension Save Password'
     }
   },
   css: {
@@ -22,7 +27,7 @@ module.exports = {
     browserExtension: {
       componentOptions: {
         background: {
-          entry: 'src/background.js'
+          entry: 'src/background-scripts/background-script.js'
         },
         contentScripts: {
           entries: {
