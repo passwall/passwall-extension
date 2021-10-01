@@ -24,13 +24,14 @@ export default new Vuex.Store({
       transmission_key: '',
       master_hash: '',
       searchQuery: '',
+      pro: false,
 
       user: {}
     }
   },
   getters: {
     hasProPlan(state) {
-      return state.user.type == 'pro'
+      return state.pro
     }
   },
 
@@ -43,6 +44,8 @@ export default new Vuex.Store({
       state.refresh_token = await Storage.getItem('refresh_token')
       state.transmission_key = await Storage.getItem('transmission_key')
       state.master_hash = await Storage.getItem('master_hash')
+      state.user = await Storage.getItem('user')
+      state.pro = state.user.type == 'pro'
     },
 
     async RefreshToken({ state }, payload) {
@@ -78,6 +81,7 @@ export default new Vuex.Store({
       CryptoUtils.encryptKey = state.master_hash
       CryptoUtils.transmissionKey = state.transmission_key
       state.user = data
+      state.pro = state.user.type == 'pro'
 
       await Promise.all([
         Storage.setItem('email', payload.email),

@@ -68,7 +68,7 @@ export default {
   },
   created: function() {
     this.fetchAll().then(
-      () => this.sendLogins()
+      // () => this.sendLogins()
     )
   }
 }

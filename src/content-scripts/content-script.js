@@ -27,7 +27,7 @@ var Inject = (function (){
 		_container = $('<div />', {id:ID.CONTAINER});
 		// _container.appendTo(document.body);
 		
-		// add the "heart" and "comment" iframes
+		// add iframe
 		getView('savePassword', _container);
 		// getView('comment', _container);
 
@@ -106,13 +106,13 @@ var Inject = (function (){
 		if (!request.message) return;
         console.log('content scripte gelen: ',request.message);
 		switch (request.message){
-			case 'close-iframe': _container.detach(); break;
+			//case 'close-iframe': _container.detach(); break;
 			case 'fill-form': message_onFillForm(request.data); break;
-			case 'create-login': message_onCreateLogin(request.data); break;
-			case 'update-login': message_onUpdateLogin(request.data); break;
-			case 'iframe-loaded': message_onIframeLoaded(request.data); break;
-			case 'heart-clicked': message_onHeartClicked(request.data); break;
-			case 'save-iheart': message_onSaved(request.data); break;
+			//case 'create-login': message_onCreateLogin(request.data); break;
+			//case 'update-login': message_onUpdateLogin(request.data); break;
+			//case 'iframe-loaded': message_onIframeLoaded(request.data); break;
+			//case 'heart-clicked': message_onHeartClicked(request.data); break;
+			//case 'save-iheart': message_onSaved(request.data); break;
 		}
 	};
 	
