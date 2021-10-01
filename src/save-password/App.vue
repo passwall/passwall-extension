@@ -1,16 +1,10 @@
 <template>
   <div>
-    <Header class="bg-black-400">
-      <template v-slot:content>
-        <VIcon class="c-pointer" name="arrow-left" @click="$router.back()" />
-        <div class="d-flex flex-auto flex-items-center ml-4">
-          <div class="new-logo">
-            <VIcon name="logo-simple" height="40px" width="40px" />
-          </div>
-          <span class="fw-bold h5 ml-2">New Login</span>
-        </div>
-      </template>
-    </Header>
+    <div class="d-flex flex-auto flex-items-center mt-2 ml-2">
+      <span class="fw-bold h5 ml-2">New Login</span>
+    </div>
+    
+    
     <div class="scroll">
       <form @submit.prevent="onSubmit" class="create-form">
         <div class="form-row">
@@ -73,26 +67,15 @@
           </div>
         </div>
 
-        <div>
-          <VTextArea 
-            :placeholder="$t('ClickToFill')" 
-            v-on:change="saveForm"
-            v-model="form.extra" 
-            label="Extra" 
-            name="extra" 
-            isEditable
-          />
+         <!-- Save & Cancel -->
+        <div class="d-flex m-2">
+          <VButton class="flex-1" theme="text" @click="cancel">
+            {{ $t('Cancel') }}
+          </VButton>
+          <VButton class="flex-1" type="submit">
+            {{ $t('Save') }}
+          </VButton>
         </div>
-
-        <VButton
-          class="mx-2 my-2"
-          size="medium"
-          type="submit"
-          style="letter-spacing: 2px"
-          :loading="$wait.is($waiters.Logins.Create)"
-        >
-          Save
-        </VButton>
       </form>
     </div>
   </div>
@@ -112,43 +95,87 @@ export default {
         password: '',
         url: '',
         extra: ''
-      }
+      },
+      action: '',
+		  view	: null,
+		  listener	: null
     }
   },
+
   async created() {
+    console.log("Passwall save password iframe initialized successfully.");
+
     const storageFormData = await Storage.getItem('create_form')
     if (storageFormData === null) {
       this.$browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
-        if (tabs[0].url !== 'chrome://newtab/') {
-          this.form.title = tabs[0].title
-          this.form.url   = tabs[0].url
-        }
+        this.form.title = tabs[0].title
+        this.form.url   = tabs[0].url
       })
     } else {
       this.form = storageFormData
     }
-  },
+
+    // Get iframe query parameters
+    this.view = window.location.href.match(/view\=([^&]+)/)[1];
+
+    // Report iframe loaded
+    this.tell('iframe-loaded');
+
+    // Listen incoming messages
+    this.$browser.runtime.onMessage.addListener(this.background_onMessage);	
+    
+  }, 
   methods: {
     ...mapActions('Logins', ['Create']),
     async onSubmit() {
       if (!(await this.$validator.validateAll())) return
       const onSuccess = async () => {
         await this.Create({ ...this.form })
-        this.$router.push({ name: 'Logins' })
+        this.tell('close-iframe');
       }
       this.$request(onSuccess, this.$waiters.Logins.Create)
     },
-    
+
     saveForm: function (event) {
       Storage.setItem('create_form', this.form)
+    },
+
+    cancel: function () {
+      this.tell('close-iframe');
+    },
+
+    background_onMessage: function (request, sender, sendResponse){
+      // make sure the message was for this view (you can use the "*" wildcard to target all views)
+      // if (!request.message || !request.data.view || (request.data.view != this.view && request.data.view != '*')) return;
+      
+      console.log("iframe'e gelen:" + request.message)
+
+      this.processMessage(request.data);
+	  },
+
+	  processMessage : function (data){
+      this.form.username = data.username;
+      this.form.password = data.password;
+    },
+
+    tell : function (message, data){
+      var data = data || {};
+      
+      data.source = this.view;
+      
+      window.parent.postMessage({
+        message	: message,
+        data	: data
+      }, '*');
     }
-  }
+  },
 }
 </script>
 
 <style lang="scss">
-.new-logo {
-  background-color: $color-gray-400;
-  border-radius: 8px;
+html,
+body {
+  background-color: $color-gray-500;
+  scrollbar-width: none; /* Firefox */
 }
 </style>

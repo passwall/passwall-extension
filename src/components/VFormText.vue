@@ -39,8 +39,11 @@ export default {
     },
 
     getError() {
-      const error = this.errors.items.find(e => e.field == this.name)
-      return error ? error.msg : ''
+      if (this.errors !== undefined) {
+        const error = this.errors.items.find(e => e.field == this.name)
+        return error ? error.msg : ''
+      }
+      return ''
     },
 
     inputListeners() {

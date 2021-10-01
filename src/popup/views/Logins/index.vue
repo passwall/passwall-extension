@@ -52,8 +52,8 @@ export default {
       } 
       this.$browser.runtime
         .sendMessage({
-          source: 'popup',
-          loginList: this.ItemList
+          message: 'fill-hashmap-from-popup',
+          data: this.ItemList
         })
         .then(() => {
           console.log('Form data sent successfully')
@@ -67,9 +67,9 @@ export default {
     ...mapState('Logins', ['ItemList'])
   },
   created: function() {
-    // this.fetchAll().then(
-    //   () => this.sendLogins()
-    // )
+    this.fetchAll().then(
+      // () => this.sendLogins()
+    )
   }
 }
 </script>

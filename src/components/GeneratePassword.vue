@@ -48,12 +48,7 @@ export default {
     },
 
     async onClickGenerate() {
-      try {
-        const { data } = await SystemService.GeneratePassword()
-        this.password = data.message
-      } catch (err) {
-        console.log(err)
-      }
+      this.password = await this.$helpers.generatePassword()
     }
   }
 }
