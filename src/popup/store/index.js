@@ -45,7 +45,10 @@ export default new Vuex.Store({
       state.transmission_key = await Storage.getItem('transmission_key')
       state.master_hash = await Storage.getItem('master_hash')
       state.user = await Storage.getItem('user')
-      state.pro = state.user.type == 'pro'
+      
+      if (state.user !== null) {
+        state.pro = state.user.type == 'pro'
+      }
     },
 
     async RefreshToken({ state }, payload) {
