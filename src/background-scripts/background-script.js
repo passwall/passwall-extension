@@ -30,10 +30,10 @@ var Background = (function (){
 		if (!request.message) return;
     
 		// if it has a "view", it resends the message to all the frames in the current tab
-		// if (request.data.view){
-		// 	_this.tell(request.message, request.data);
-		// 	return;
-		// }
+		if (request.data.view){
+			_this.tell(request.message, request.data);
+			return;
+		}
 		
 		processMessage(request);
 	};

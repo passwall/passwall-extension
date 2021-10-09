@@ -17,14 +17,14 @@ var Inject = (function() {
   // initialize ---------------------------------------------------------------
   _this.init = function() {
     console.log('Passwall content script initialized successfully.')
-    ;[_username, _password] = detectFormFields()
+    [_username, _password] = detectFormFields()
     if (_username && _password) {
       _password.addEventListener('blur', passwordListener)
     }
 
     // create the main container
     _container = $('<div />', { id: ID.CONTAINER })
-    // _container.appendTo(document.body);
+    _container.appendTo(document.body);
 
     // add iframe
     getView('savePassword', _container)
@@ -39,8 +39,7 @@ var Inject = (function() {
 
   // private functions --------------------------------------------------------
   function detectFormFields() {
-    var inputs = document.querySelectorAll('input'),
-      i
+    var inputs = document.querySelectorAll('input'),i
     var user, pass
 
     for (i = 0; i < inputs.length; ++i) {
