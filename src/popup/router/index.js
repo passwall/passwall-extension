@@ -17,6 +17,11 @@ const router = new Router({
       }
     },
     {
+      path: '/savePassword',
+      name: 'SavePassword',
+      component: require('@p/views/SavePassword').default
+    },
+    {
       path: '/home',
       name: 'Home',
       redirect: '/logins',
@@ -145,16 +150,14 @@ router.afterEach(ClearSearch)
 
 router.beforeEach(AuthCheck)
 
-let isFirstTransition = true;
+let isFirstTransition = true
 router.beforeEach(async (to, from, next) => {
   const lastRouteName = await Storage.getItem('latest_route')
   const detail = await Storage.getItem('latest_route_param_detail')
-  const shouldRedirect = Boolean(
-    to.name === "Logins" && lastRouteName && isFirstTransition
-  )
+  const shouldRedirect = Boolean(to.name === 'Logins' && lastRouteName && isFirstTransition)
 
   if (shouldRedirect) {
-    if (lastRouteName.search("Detail") > -1) {
+    if (lastRouteName.search('Detail') > -1) {
       next({ name: lastRouteName, params: { detail, id: detail.id } })
     } else {
       next({ name: lastRouteName })
@@ -164,7 +167,6 @@ router.beforeEach(async (to, from, next) => {
   }
 
   isFirstTransition = false
-
 })
 
 export default router
