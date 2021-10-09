@@ -3,7 +3,7 @@
     <img
       v-if="logoAvailable && check"
       class="logo"
-      :src="`http://logo.clearbit.com/${domain}?size=40?format=png`"
+      :src="`https://logo.clearbit.com/${domain}?size=40?format=png`"
       alt="logo"
       height="40"
       width="40"
@@ -45,7 +45,7 @@ export default {
     domain() {
       return this.domainFromUrl(this.url)
     }
-  }
+  },
 }
 </script>
 
