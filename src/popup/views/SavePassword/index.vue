@@ -1,10 +1,9 @@
 <template>
   <div>
     <div class="d-flex flex-auto flex-items-center mt-2 ml-2">
-      <span class="fw-bold h5 ml-2">New Login</span>
+      <span class="fw-bold h5 ml-2">New Logins</span>
     </div>
-    
-    
+
     <div class="scroll">
       <form @submit.prevent="onSubmit" class="create-form">
         <div class="form-row">
@@ -32,7 +31,7 @@
 
         <div class="form-row">
           <label v-text="'Password'" />
-          <div class="d-flex flex-justify-between ">
+          <div class="d-flex flex-justify-between">
             <VFormText
               name="Password"
               class="flex-auto"
@@ -50,7 +49,7 @@
             </div>
           </div>
         </div>
-        
+
         <div class="form-row">
           <label v-text="'Website'" />
           <div class="d-flex flex-justify-between">
@@ -67,7 +66,7 @@
           </div>
         </div>
 
-         <!-- Save & Cancel -->
+        <!-- Save & Cancel -->
         <div class="d-flex m-2">
           <VButton class="flex-1" theme="text" @click="cancel">
             {{ $t('Cancel') }}
@@ -81,7 +80,7 @@
   </div>
 </template>
 
-<script>
+<script> 
 import { mapActions } from 'vuex'
 import Storage from '@/utils/storage'
 
@@ -97,41 +96,36 @@ export default {
         extra: ''
       },
       action: '',
-		  view	: null,
-		  listener	: null
+      listener: null
     }
   },
 
   async created() {
-    console.log("Passwall save password iframe initialized successfully.");
+    console.log('Passwall save password iframe initialized successfully.')
 
     const storageFormData = await Storage.getItem('create_form')
     if (storageFormData === null) {
-      this.$browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
+      this.$browser.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
         this.form.title = tabs[0].title
-        this.form.url   = tabs[0].url
+        this.form.url = tabs[0].url
       })
     } else {
       this.form = storageFormData
     }
 
-    // Get iframe query parameters
-    this.view = window.location.href.match(/view\=([^&]+)/)[1];
-
     // Report iframe loaded
-    this.tell('iframe-loaded');
+    //this.tell('iframe-loaded')
 
     // Listen incoming messages
-    this.$browser.runtime.onMessage.addListener(this.background_onMessage);	
-    
-  }, 
+    this.$browser.runtime.onMessage.addListener(this.background_onMessage)
+  },
   methods: {
     ...mapActions('Logins', ['Create']),
     async onSubmit() {
       if (!(await this.$validator.validateAll())) return
       const onSuccess = async () => {
         await this.Create({ ...this.form })
-        this.tell('close-iframe');
+        this.tell('close-iframe')
       }
       this.$request(onSuccess, this.$waiters.Logins.Create)
     },
@@ -141,34 +135,35 @@ export default {
     },
 
     cancel: function () {
-      this.tell('close-iframe');
+      this.tell('close-iframe')
     },
 
-    background_onMessage: function (request, sender, sendResponse){
+    background_onMessage: function (request, sender, sendResponse) {
       // make sure the message was for this view (you can use the "*" wildcard to target all views)
       // if (!request.message || !request.data.view || (request.data.view != this.view && request.data.view != '*')) return;
-      
+
       console.log("iframe'e gelen:" + request.message)
 
-      this.processMessage(request.data);
-	  },
-
-	  processMessage : function (data){
-      this.form.username = data.username;
-      this.form.password = data.password;
+      this.processMessage(request.data)
     },
 
-    tell : function (message, data){
-      var data = data || {};
-      
-      data.source = this.view;
-      
-      window.parent.postMessage({
-        message	: message,
-        data	: data
-      }, '*');
+    processMessage: function (data) {
+      this.form.username = data.username
+      this.form.password = data.password
+    },
+
+    tell: function (message, data) {
+      var data = data || {}
+
+      window.parent.postMessage(
+        {
+          message: message,
+          data: data
+        },
+        '*'
+      )
     }
-  },
+  }
 }
 </script>
 
