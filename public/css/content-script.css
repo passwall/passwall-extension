@@ -14,7 +14,12 @@
   display: block;
   width: 350px;
   height: auto;
-  background: #0A0F17;
+  background: #0a0f17;
   border-style: none;
   border-radius: 16px;
+}
+
+#passwall-input-dialog {
+  position: absolute;
+  cursor: pointer;
 }

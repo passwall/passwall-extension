@@ -1,6 +1,75 @@
-const browser = require('webextension-polyfill')
+import browser from 'webextension-polyfill'
+import { EVENT_TYPES } from '@/utils/constants'
+import LoginsService from '@/api/services/Logins'
+import Storage from '@/utils/storage'
+import HTTPClient from '@/api/HTTPClient'
+import CryptoUtils from '@/utils/crypto'
 
-var Background = (function (){
+const EncryptedFields = ['username', 'password', 'extra']
+
+class Agent {
+  constructor() {
+    console.log('Background initalize')
+    this.init()
+  }
+
+  async init() {
+    const token = await Storage.getItem('access_token')
+    if (!token) {
+      return
+    }
+    HTTPClient.setHeader('Authorization', `Bearer ${token}`)
+
+    CryptoUtils.encryptKey = await Storage.getItem('master_hash')
+    CryptoUtils.transmissionKey = await Storage.getItem('transmission_key')
+
+    browser.runtime.onMessage.addListener(this.handleMessage.bind(this))
+    browser.tabs.onUpdated.addListener((tabId, changeInfo, tabInfo) => {
+      browser.tabs.sendMessage(tabId, { type: EVENT_TYPES.TAB_UPDATE, payload: {} })
+    })
+  }
+
+  /**
+   *
+   * @param {import('@/content-scripts/content-script').RuntimeRequest} request
+   */
+  async handleMessage(request, sender, sendResponse) {
+    switch (request.type) {
+      case 'REQUEST_LOGINS':
+        const logins = await this.requestLogins(request.payload)
+        return Promise.resolve(logins)
+    }
+  }
+
+  /**
+   *
+   * @param {string} domain
+   * @returns {Promise<Array>}
+   */
+  async requestLogins(domain) {
+    const { data } = await LoginsService.FetchAll()
+    const itemList = JSON.parse(CryptoUtils.aesDecrypt(data.data))
+    itemList.forEach(element => {
+      CryptoUtils.decryptFields(element, EncryptedFields)
+    })
+
+    const filteredItems = itemList.filter(item =>
+      Object.values(item).some(value =>
+        (value || '')
+          .toString()
+          .toLowerCase()
+          .includes(domain.toLowerCase())
+      )
+    )
+    return filteredItems
+  }
+}
+
+window.addEventListener('load', () => {
+  new Agent()
+})
+
+/* var Background = (function (){
 	// variables ----------------------------------------------------------------
 	var _this 		= {},
 		_websites	= [];
@@ -187,7 +256,7 @@ var Background = (function (){
 	return _this;
 }());
 
-window.addEventListener("load", function() { Background.init(); }, false);
+window.addEventListener("load", function() { Background.init(); }, false); */
 
 /*
 

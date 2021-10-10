@@ -1,6 +1,155 @@
 const browser = require('webextension-polyfill')
+import { EVENT_TYPES, PASSWALL_ICON_BS64 } from '@/utils/constants'
+import { getDomain } from '@/utils/helpers'
 
-var Inject = (function() {
+/**
+ * @typedef {Object} PForm
+ * @property {HTMLElement} form
+ * @property {HTMLElement[]} inputs
+ */
+
+/**
+ * @typedef {Object} RuntimeRequest
+ * @property {EVENT_TYPES} type
+ * @property {*} payload
+ */
+
+class PFormParseError extends Error {
+  /**
+   *
+   * @param {string} message
+   * @param {('NO_PASSWORD_FIELD')} type
+   */
+  constructor(message, type) {
+    super(message)
+    this.name = 'PFormParseError'
+    this.type = type
+  }
+}
+
+function getOffset(el) {
+  const rect = el.getBoundingClientRect()
+
+  return {
+    left: rect.left + window.scrollX,
+    top: rect.top + window.scrollY,
+    width: rect.width,
+    height: rect.height
+  }
+}
+
+class Injector {
+  /**
+   * @type PForm[]
+   */
+  forms
+  /**
+   * @type string
+   */
+  domain
+
+  constructor() {
+    console.log('Passwall content-script initliaze')
+    browser.runtime.onMessage.addListener(this.messageHandler.bind(this))
+  }
+
+  /**
+   *
+   * @param {RuntimeRequest} request
+   * @param {*} sender
+   * @param {*} sendResponse
+   */
+  messageHandler(request, sender, sendResponse) {
+    this.domain = getDomain(window.location.href)
+    switch (request.type) {
+      case 'TAB_UPDATE':
+        try {
+          this.forms = this.findFormAndFields()
+          if (this.forms.length > 0) {
+            // document has a login or register form
+            console.log(this.forms)
+            this.sendPayload({ type: 'REQUEST_LOGINS', payload: this.domain }).then(logins => {
+              console.log(logins)
+              if (logins) this.injectPasswallLogo(this.forms[0])
+            })
+          }
+        } catch (error) {
+          if (error instanceof PFormParseError) {
+            if (error.type === 'NO_PASSWORD_FIELD') {
+              // Do nothing
+            }
+          } else console.error(error)
+        }
+        break
+    }
+  }
+
+  /**
+   *
+   * @param {RuntimeRequest} data
+   * @returns {Promise<any>}
+   */
+  sendPayload(data) {
+    return browser.runtime.sendMessage(data)
+  }
+
+  /**
+   * Parse inputs
+   * @returns {PForm[]}
+   */
+  findFormAndFields() {
+    const formArray = []
+    const forms = document.querySelectorAll('form')
+    const hasPasswordInput = Boolean(document.querySelector("input[type='password']"))
+    if (!hasPasswordInput) throw new PFormParseError('No password field', 'NO_PASSWORD_FIELD')
+    forms.forEach(form => {
+      /**
+       * @type {Array<HTMLElement>}
+       */
+      const inputs = [...form.querySelectorAll('input')].filter(
+        node => ['text', 'email', 'password'].includes(node.type) && !node.hidden
+      )
+      formArray.push({
+        form,
+        inputs
+      })
+    })
+    return formArray
+  }
+
+  /**
+   *
+   * @param {PForm} form
+   */
+  injectPasswallLogo(form) {
+    form.inputs.forEach(input => {
+      const image = document.createElement('img')
+      const { top, left, height, width } = getOffset(input)
+      const SIZE = height * 0.7
+
+      image.setAttribute('id', 'passwall-input-dialog')
+      image.setAttribute(
+        'style',
+        `
+      top: ${top + (height * (1 - SIZE / height)) / 2}px;
+      left: ${left + width - SIZE - 5}px;
+      height: ${SIZE}px;
+      width: ${SIZE}px;
+      `
+      )
+      image.alt = 'Passwall'
+      image.src = PASSWALL_ICON_BS64
+
+      document.body.appendChild(image)
+    })
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  new Injector()
+})
+
+/* var Inject = (function() {
   // constants ----------------------------------------------------------------
   var ID = {
     CONTAINER: 'passwall-dialog',
@@ -240,3 +389,4 @@ document.addEventListener(
   },
   false
 )
+ */
