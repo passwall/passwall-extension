@@ -45,24 +45,23 @@ export default new Vuex.Store({
       state.transmission_key = await Storage.getItem('transmission_key')
       state.master_hash = await Storage.getItem('master_hash')
       state.user = await Storage.getItem('user')
-      
+
       if (state.user !== null) {
         state.pro = state.user.type == 'pro'
       }
     },
 
     async RefreshToken({ state }, payload) {
-
       var token = await Storage.getItem('refresh_token')
-      const { data } = await AuthService.Refresh({refresh_token:token})
-      
+      const { data } = await AuthService.Refresh({ refresh_token: token })
+
       state.access_token = data.access_token
       state.refresh_token = data.refresh_token
       state.transmission_key = data.transmission_key.substr(0, 32)
       CryptoUtils.transmissionKey = state.transmission_key
 
       // P.S.: Because we don't have a payload, we didn't update the master hash
-      
+
       await Promise.all([
         Storage.setItem('access_token', data.access_token),
         Storage.setItem('refresh_token', data.refresh_token),
@@ -128,6 +127,6 @@ export default new Vuex.Store({
     BankAccounts,
     Notes,
     Servers,
-    ChangeMasterPassword,
+    ChangeMasterPassword
   }
 })

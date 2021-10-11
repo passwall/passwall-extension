@@ -1,6 +1,7 @@
 import Vue from 'vue'
 import store from '@p/store'
 import router from '@p/router'
+import '@/mixins/global'
 
 import browser from 'webextension-polyfill'
 Vue.prototype.$browser = browser

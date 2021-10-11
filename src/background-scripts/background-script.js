@@ -4,33 +4,38 @@ import LoginsService from '@/api/services/Logins'
 import Storage from '@/utils/storage'
 import HTTPClient from '@/api/HTTPClient'
 import CryptoUtils from '@/utils/crypto'
+import { RequestError } from '@/utils/helpers'
 
 const EncryptedFields = ['username', 'password', 'extra']
 
 class Agent {
+  isAuthenticated = false
   constructor() {
     console.log('Background initalize')
     this.init()
   }
 
   async init() {
+    await this.fetchTokens()
+    browser.runtime.onMessage.addListener(this.handleMessage.bind(this)) // for content-scirpt/popup events events
+
+    browser.tabs.onUpdated.addListener((tabId, changeInfo, tabInfo) => {
+      browser.tabs.sendMessage(tabId, { type: EVENT_TYPES.TAB_UPDATE, payload: {} })
+    })
+  }
+
+  async fetchTokens() {
     const token = await Storage.getItem('access_token')
     if (!token) {
       console.warn('Login first!!')
+      this.isAuthenticated = false
       return
     }
     HTTPClient.setHeader('Authorization', `Bearer ${token}`)
 
     CryptoUtils.encryptKey = await Storage.getItem('master_hash')
     CryptoUtils.transmissionKey = await Storage.getItem('transmission_key')
-
-    browser.runtime.onMessage.addListener(this.handleMessage.bind(this))
-    browser.tabs.onUpdated.addListener((tabId, changeInfo, tabInfo) => {
-      browser.tabs.sendMessage(tabId, { type: EVENT_TYPES.TAB_UPDATE, payload: {} })
-    }),
-      window.addEventListener('storage', function(e) {
-        console.log(e)
-      })
+    this.isAuthenticated = true
   }
 
   /**
@@ -38,10 +43,26 @@ class Agent {
    * @param {import('@/content-scripts/content-script').RuntimeRequest} request
    */
   async handleMessage(request, sender, sendResponse) {
-    switch (request.type) {
-      case 'REQUEST_LOGINS':
-        const logins = await this.requestLogins(request.payload)
-        return Promise.resolve(logins)
+    console.log(request)
+    if (request.who === 'popup') {
+      // popup
+      switch (request.type) {
+        case 'REFRESH_TOKENS':
+          this.fetchTokens()
+      }
+    }
+    if (request.who === 'content-script') {
+      // content-script
+      switch (request.type) {
+        case 'REQUEST_LOGINS':
+          try {
+            const logins = await this.requestLogins(request.payload)
+            return Promise.resolve(logins)
+          } catch (error) {
+            console.error(error)
+            return Promise.reject(error)
+          }
+      }
     }
   }
 
@@ -51,6 +72,7 @@ class Agent {
    * @returns {Promise<Array>}
    */
   async requestLogins(domain) {
+    if (!this.isAuthenticated) throw new RequestError('No token found!', 'NO_AUTH')
     const { data } = await LoginsService.FetchAll()
     const itemList = JSON.parse(CryptoUtils.aesDecrypt(data.data))
     itemList.forEach(element => {
@@ -65,6 +87,7 @@ class Agent {
           .includes(domain.toLowerCase())
       )
     )
+    if (filteredItems.length === 0) throw new RequestError('No logins found', 'NO_LOGINS')
     return filteredItems
   }
 }

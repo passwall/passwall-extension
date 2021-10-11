@@ -1,6 +1,6 @@
 const browser = require('webextension-polyfill')
 import { EVENT_TYPES, PASSWALL_ICON_BS64 } from '@/utils/constants'
-import { getDomain, getOffset } from '@/utils/helpers'
+import { getDomain, getOffset, PFormParseError, RequestError } from '@/utils/helpers'
 
 /**
  * @typedef {Object} PForm
@@ -12,20 +12,8 @@ import { getDomain, getOffset } from '@/utils/helpers'
  * @typedef {Object} RuntimeRequest
  * @property {EVENT_TYPES} type
  * @property {*} payload
+ *
  */
-
-class PFormParseError extends Error {
-  /**
-   *
-   * @param {string} message
-   * @param {('NO_PASSWORD_FIELD')} type
-   */
-  constructor(message, type) {
-    super(message)
-    this.name = 'PFormParseError'
-    this.type = type
-  }
-}
 
 class Injector {
   /**
@@ -48,7 +36,7 @@ class Injector {
    * @param {*} sender
    * @param {*} sendResponse
    */
-  messageHandler(request, sender, sendResponse) {
+  async messageHandler(request, sender, sendResponse) {
     this.domain = getDomain(window.location.href)
     switch (request.type) {
       case 'TAB_UPDATE':
@@ -57,9 +45,13 @@ class Injector {
           if (this.forms.length > 0) {
             // document has a login or register form
             console.log(this.forms)
-            this.sendPayload({ type: 'REQUEST_LOGINS', payload: this.domain }).then(logins => {
+            this.sendPayload({
+              type: 'REQUEST_LOGINS',
+              payload: this.domain
+            }).then(logins => {
               console.log(logins)
-              if (logins) this.injectPasswallLogo(this.forms[0])
+              this.injectPasswallLogo(this.forms[0])
+              this.sendPayload({ type: 'REQUEST_LOGINS', payload: this.domain })
             })
           }
         } catch (error) {
@@ -79,7 +71,7 @@ class Injector {
    * @returns {Promise<any>}
    */
   sendPayload(data) {
-    return browser.runtime.sendMessage(data)
+    return browser.runtime.sendMessage({ ...data, who: 'content-script' })
   }
 
   /**
@@ -116,7 +108,7 @@ class Injector {
       const { top, left, height, width } = getOffset(input)
       const SIZE = height * 0.7
 
-      image.setAttribute('id', 'passwall-input-dialog')
+      image.setAttribute('id', 'passwall-input-icon')
       image.setAttribute(
         'style',
         `
@@ -128,9 +120,42 @@ class Injector {
       )
       image.alt = 'Passwall'
       image.src = PASSWALL_ICON_BS64
+      image.onclick = e => this.injectLoginAsPopup(e, input)
 
       document.body.appendChild(image)
     })
+  }
+
+  /**
+   *
+   * @param {MouseEvent} e
+   * @param {HTMLElement} input
+   */
+  injectLoginAsPopup(e, input) {
+    const { top, left, height, width } = getOffset(input)
+    const iframe = document.createElement('iframe')
+    const iframeProps = {
+      width: 350,
+      height: 206
+    }
+
+    iframe.setAttribute('id', 'passwall-input-dialog')
+    iframe.setAttribute('src', browser.runtime.getURL('popup.html#/savePassword'))
+    iframe.setAttribute('scrolling', 'no')
+    iframe.setAttribute(
+      'style',
+      `
+    top: ${top + height + 1}px;
+    left: ${left}px;
+    width: ${iframeProps.width}px;
+    height: ${iframeProps.height}px;
+    border: 1px solid #8b93a1;
+    border-radius: 16px;
+    `
+    )
+    console.log(this)
+
+    document.body.appendChild(iframe)
   }
 }
 

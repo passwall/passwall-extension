@@ -128,3 +128,28 @@ export function getOffset(el) {
     height: rect.height
   }
 }
+
+export class PFormParseError extends Error {
+  /**
+   *
+   * @param {string} message
+   * @param {('NO_PASSWORD_FIELD')} type
+   */
+  constructor(message, type) {
+    super(message)
+    this.name = 'PFormParseError'
+    this.type = type
+  }
+}
+
+export class RequestError extends Error {
+  /**
+   *
+   * @param {string} message
+   * @param {('NO_AUTH' | 'NO_LOGINS')} type
+   */
+  constructor(message, type) {
+    super(message)
+    this.type = type
+  }
+}

@@ -19,7 +19,12 @@
   border-radius: 16px;
 }
 
-#passwall-input-dialog {
+#passwall-input-icon {
   position: absolute;
   cursor: pointer;
+}
+
+#passwall-input-dialog {
+  position: absolute;
+  z-index: 999999;
 }
