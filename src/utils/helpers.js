@@ -29,16 +29,16 @@ export async function generatePassword() {
   }
 
   const charSet = complexities
-        .filter(item => item.checked)
-        .reduce((acc, current) => {
-          return acc + current.value
-        }, '')
+    .filter(item => item.checked)
+    .reduce((acc, current) => {
+      return acc + current.value
+    }, '')
 
   let generatedPassword = ''
   for (let i = 0; i < passwordLength; i++) {
     generatedPassword += charSet.charAt(Math.floor(Math.random() * charSet.length))
   }
-    
+
   return generatedPassword
 }
 
@@ -85,7 +85,7 @@ export function getHostName(url) {
   }
 }
 
-export function getDomain(url = "") {
+export function getDomain(url = '') {
   var hostName = getHostName(url)
   var domain = hostName
 
@@ -111,4 +111,20 @@ export async function getCurrentTab() {
     }
     return null
   })
+}
+
+/**
+ *
+ * @param {HTMLElement} el
+ *
+ */
+export function getOffset(el) {
+  const rect = el.getBoundingClientRect()
+
+  return {
+    left: rect.left + window.scrollX,
+    top: rect.top + window.scrollY,
+    width: rect.width,
+    height: rect.height
+  }
 }

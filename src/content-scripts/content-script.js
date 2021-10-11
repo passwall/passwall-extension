@@ -1,6 +1,6 @@
 const browser = require('webextension-polyfill')
 import { EVENT_TYPES, PASSWALL_ICON_BS64 } from '@/utils/constants'
-import { getDomain } from '@/utils/helpers'
+import { getDomain, getOffset } from '@/utils/helpers'
 
 /**
  * @typedef {Object} PForm
@@ -24,17 +24,6 @@ class PFormParseError extends Error {
     super(message)
     this.name = 'PFormParseError'
     this.type = type
-  }
-}
-
-function getOffset(el) {
-  const rect = el.getBoundingClientRect()
-
-  return {
-    left: rect.left + window.scrollX,
-    top: rect.top + window.scrollY,
-    width: rect.width,
-    height: rect.height
   }
 }
 

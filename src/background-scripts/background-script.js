@@ -16,6 +16,7 @@ class Agent {
   async init() {
     const token = await Storage.getItem('access_token')
     if (!token) {
+      console.warn('Login first!!')
       return
     }
     HTTPClient.setHeader('Authorization', `Bearer ${token}`)
@@ -26,7 +27,10 @@ class Agent {
     browser.runtime.onMessage.addListener(this.handleMessage.bind(this))
     browser.tabs.onUpdated.addListener((tabId, changeInfo, tabInfo) => {
       browser.tabs.sendMessage(tabId, { type: EVENT_TYPES.TAB_UPDATE, payload: {} })
-    })
+    }),
+      window.addEventListener('storage', function(e) {
+        console.log(e)
+      })
   }
 
   /**
