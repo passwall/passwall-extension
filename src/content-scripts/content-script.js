@@ -76,7 +76,13 @@ var Inject = (function() {
 
     // iframe initial details
     var src = browser.runtime.getURL('popup.html#/savePassword')
-    iframe = $('<iframe />', { id: ID.IFRAME_PREFIX + id, src: src, scrolling: 'no' })
+    const iframeId = ID.IFRAME_PREFIX + id
+
+    const iframe = $('<iframe />', {
+      id: iframeId,
+      src: src,
+      scrolling: 'no'
+    })
 
     // view
     _views[id] = {
@@ -100,6 +106,10 @@ var Inject = (function() {
     })
   }
 
+  function resizeIframe(height) {
+    document.getElementById('passwall-savePassword').style.height = height + 'px'
+  }
+
   function processMessage(request) {
     if (!request.message) return
     console.log('content scripte gelen: ', request.message)
@@ -118,6 +128,9 @@ var Inject = (function() {
         break
       case 'iframe-loaded':
         message_onIframeLoaded(request.data)
+        break
+      case 'iframe-resize':
+        resizeIframe(request.data.height)
         break
       //case 'heart-clicked': message_onHeartClicked(request.data); break;
       //case 'save-iheart': message_onSaved(request.data); break;
