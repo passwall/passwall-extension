@@ -21,7 +21,6 @@ export default {
   },
   created() {
     this.messageToBackground({ type: 'POPUP_INITAL' })
-    console.log('gitti')
     this.loadStore()
   }
 }

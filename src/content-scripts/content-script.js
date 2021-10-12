@@ -1,6 +1,7 @@
 const browser = require('webextension-polyfill')
 import { EVENT_TYPES, PASSWALL_ICON_BS64 } from '@/utils/constants'
 import { getDomain, getOffset, PFormParseError, RequestError } from '@/utils/helpers'
+import { LoginAsPopup } from './LoginAsPopup'
 
 /**
  * @typedef {Object} PForm
@@ -25,9 +26,14 @@ class Injector {
    */
   domain
 
+  /**
+   * @type {Array<Function>} listeners
+   */
+  listeners
   constructor() {
     console.log('Passwall content-script initliaze')
     browser.runtime.onMessage.addListener(this.messageHandler.bind(this))
+    this.listeners = []
   }
 
   /**
@@ -61,6 +67,9 @@ class Injector {
             }
           } else console.error(error)
         }
+        break
+      default:
+        this.listeners.forEach(listener => listener(request, sender, sendResponse))
         break
     }
   }
@@ -132,30 +141,10 @@ class Injector {
    * @param {HTMLElement} input
    */
   injectLoginAsPopup(e, input) {
-    const { top, left, height, width } = getOffset(input)
-    const iframe = document.createElement('iframe')
-    const iframeProps = {
-      width: 350,
-      height: 206
-    }
-
-    iframe.setAttribute('id', 'passwall-input-dialog')
-    iframe.setAttribute('src', browser.runtime.getURL('popup.html#/savePassword'))
-    iframe.setAttribute('scrolling', 'no')
-    iframe.setAttribute(
-      'style',
-      `
-    top: ${top + height + 1}px;
-    left: ${left}px;
-    width: ${iframeProps.width}px;
-    height: ${iframeProps.height}px;
-    border: 1px solid #8b93a1;
-    border-radius: 16px;
-    `
-    )
-    console.log(this)
-
-    document.body.appendChild(iframe)
+    // TODO: Simgeye çoklu tılama olunca iframi sürekli açma
+    const popup = new LoginAsPopup(input)
+    this.listeners.push(popup.messageHandler.bind(popup))
+    popup.render()
   }
 }
 

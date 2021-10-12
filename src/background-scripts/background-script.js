@@ -43,12 +43,16 @@ class Agent {
    * @param {import('@/content-scripts/content-script').RuntimeRequest} request
    */
   async handleMessage(request, sender, sendResponse) {
-    console.log(request)
     if (request.who === 'popup') {
       // popup
       switch (request.type) {
         case 'REFRESH_TOKENS':
           this.fetchTokens()
+
+        case 'LOGIN_AS_POPUP_RESIZE':
+        case 'LOGIN_AS_POPUP_CLOSE':
+          // direct connection between popup and content-scirpt
+          this.sendResponseToContentScirpt(request)
       }
     }
     if (request.who === 'content-script') {
@@ -89,6 +93,14 @@ class Agent {
     )
     if (filteredItems.length === 0) throw new RequestError('No logins found', 'NO_LOGINS')
     return filteredItems
+  }
+
+  async sendResponseToContentScirpt(data = {}) {
+    // find the current tab and send a message to "content-script.js" and all the iframes
+    browser.tabs.query({ active: true, lastFocusedWindow: true }).then(tabs => {
+      if (!tabs[0]) return
+      browser.tabs.sendMessage(tabs[0].id, data)
+    })
   }
 }
 
