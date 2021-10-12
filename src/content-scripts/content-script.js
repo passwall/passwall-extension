@@ -1,6 +1,158 @@
 const browser = require('webextension-polyfill')
+import { EVENT_TYPES, PASSWALL_ICON_BS64 } from '@/utils/constants'
+import { getDomain, getOffset, PFormParseError, RequestError } from '@/utils/helpers'
+import { LoginAsPopup } from './LoginAsPopup'
 
-var Inject = (function() {
+/**
+ * @typedef {Object} PForm
+ * @property {HTMLElement} form
+ * @property {HTMLElement[]} inputs
+ */
+
+/**
+ * @typedef {Object} RuntimeRequest
+ * @property {EVENT_TYPES} type
+ * @property {*} payload
+ *
+ */
+
+class Injector {
+  /**
+   * @type PForm[]
+   */
+  forms
+  /**
+   * @type string
+   */
+  domain
+
+  /**
+   * @type {Array<Function>} listeners
+   */
+  listeners
+  constructor() {
+    console.log('Passwall content-script initliaze')
+    browser.runtime.onMessage.addListener(this.messageHandler.bind(this))
+    this.listeners = []
+  }
+
+  /**
+   *
+   * @param {RuntimeRequest} request
+   * @param {*} sender
+   * @param {*} sendResponse
+   */
+  async messageHandler(request, sender, sendResponse) {
+    this.domain = getDomain(window.location.href)
+    switch (request.type) {
+      case 'TAB_UPDATE':
+        try {
+          this.forms = this.findFormAndFields()
+          if (this.forms.length > 0) {
+            // document has a login or register form
+            console.log(this.forms)
+            this.sendPayload({
+              type: 'REQUEST_LOGINS',
+              payload: this.domain
+            }).then(logins => {
+              console.log(logins)
+              this.injectPasswallLogo(this.forms[0])
+              this.sendPayload({ type: 'REQUEST_LOGINS', payload: this.domain })
+            })
+          }
+        } catch (error) {
+          if (error instanceof PFormParseError) {
+            if (error.type === 'NO_PASSWORD_FIELD') {
+              // Do nothing
+            }
+          } else console.error(error)
+        }
+        break
+      default:
+        this.listeners.forEach(listener => listener(request, sender, sendResponse))
+        break
+    }
+  }
+
+  /**
+   *
+   * @param {RuntimeRequest} data
+   * @returns {Promise<any>}
+   */
+  sendPayload(data) {
+    return browser.runtime.sendMessage({ ...data, who: 'content-script' })
+  }
+
+  /**
+   * Parse inputs
+   * @returns {PForm[]}
+   */
+  findFormAndFields() {
+    const formArray = []
+    const forms = document.querySelectorAll('form')
+    const hasPasswordInput = Boolean(document.querySelector("input[type='password']"))
+    if (!hasPasswordInput) throw new PFormParseError('No password field', 'NO_PASSWORD_FIELD')
+    forms.forEach(form => {
+      /**
+       * @type {Array<HTMLElement>}
+       */
+      const inputs = [...form.querySelectorAll('input')].filter(
+        node => ['text', 'email', 'password'].includes(node.type) && !node.hidden
+      )
+      formArray.push({
+        form,
+        inputs
+      })
+    })
+    return formArray
+  }
+
+  /**
+   *
+   * @param {PForm} form
+   */
+  injectPasswallLogo(form) {
+    form.inputs.forEach(input => {
+      const image = document.createElement('img')
+      const { top, left, height, width } = getOffset(input)
+      const SIZE = height * 0.7
+
+      image.setAttribute('id', 'passwall-input-icon')
+      image.setAttribute(
+        'style',
+        `
+      top: ${top + (height * (1 - SIZE / height)) / 2}px;
+      left: ${left + width - SIZE - 5}px;
+      height: ${SIZE}px;
+      width: ${SIZE}px;
+      `
+      )
+      image.alt = 'Passwall'
+      image.src = PASSWALL_ICON_BS64
+      image.onclick = e => this.injectLoginAsPopup(e, input)
+
+      document.body.appendChild(image)
+    })
+  }
+
+  /**
+   *
+   * @param {MouseEvent} e
+   * @param {HTMLElement} input
+   */
+  injectLoginAsPopup(e, input) {
+    // TODO: Simgeye çoklu tılama olunca iframi sürekli açma
+    const popup = new LoginAsPopup(input)
+    this.listeners.push(popup.messageHandler.bind(popup))
+    popup.render()
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  new Injector()
+})
+
+/* var Inject = (function() {
   // constants ----------------------------------------------------------------
   var ID = {
     CONTAINER: 'passwall-dialog',
@@ -239,3 +391,4 @@ document.addEventListener(
   },
   false
 )
+ */

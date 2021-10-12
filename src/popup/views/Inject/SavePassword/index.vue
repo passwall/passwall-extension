@@ -1,5 +1,5 @@
 <template>
-  <div ref="window" class="px-3 py-4">
+  <div ref="window" class="px-3 py-4 window">
     <header class="d-flex flex-items-center flex-justify-between">
       <div class="d-flex flex-row flex-items-center">
         <VIcon name="passwall-logo" size="32px" />

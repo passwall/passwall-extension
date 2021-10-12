@@ -18,8 +18,8 @@
           :placeholder="$t('ServerURL')"
           data-testid="server"
         />
-        
-        <label v-text="$t('EMailAddress')" class="mb-2 mt-4"  />
+
+        <label v-text="$t('EMailAddress')" class="mb-2 mt-4" />
         <VFormText
           v-model="LoginForm.email"
           size="medium"
@@ -84,17 +84,17 @@ export default {
     this.$storage.getItem('email').then(e => {
       if (e) this.LoginForm.email = e
     }),
-    this.$storage.getItem('server').then(e => {
-      if (e) this.LoginForm.server = e
-    })
+      this.$storage.getItem('server').then(e => {
+        if (e) this.LoginForm.server = e
+      })
   },
   methods: {
     ...mapActions(['Login']),
     async onLogin() {
       if (!(await this.$validator.validateAll())) return
-      
+
       HTTPClient.setBaseURL(this.LoginForm.server)
-      
+
       const onError = error => {
         let text = this.$t('Ooops! Something went wrong!')
         if (error.response.status == 401) {
@@ -102,12 +102,13 @@ export default {
         }
         this.$notifyError(text)
       }
-      
+
       const onSuccess = async () => {
         await this.Login({ ...this.LoginForm })
+        this.messageToBackground({ type: 'REFRESH_TOKENS' })
         this.$router.replace({ name: 'Home' })
       }
-      
+
       this.$request(onSuccess, this.$waiters.Auth.Login, onError)
     },
 

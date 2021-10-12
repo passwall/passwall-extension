@@ -1,6 +1,7 @@
 import Vue from 'vue'
 import store from '@p/store'
 import router from '@p/router'
+import '@/mixins/global'
 
 import browser from 'webextension-polyfill'
 Vue.prototype.$browser = browser
@@ -10,7 +11,6 @@ Vue.prototype.$waiters = Waiters
 
 import * as Constants from '@/utils/constants'
 Vue.prototype.$c = Constants
-
 
 import storage from '@/utils/storage'
 Vue.prototype.$storage = storage
@@ -45,8 +45,8 @@ window.wait = new VueWait({
 })
 
 Vue.directive('click-outside', {
-  bind: function (el, binding, vnode) {
-    el.clickOutsideEvent = function (event) {
+  bind: function(el, binding, vnode) {
+    el.clickOutsideEvent = function(event) {
       // here I check that click was outside the el and his children
       if (!(el == event.target || el.contains(event.target))) {
         // and if it did, call method provided in attribute value
@@ -55,7 +55,7 @@ Vue.directive('click-outside', {
     }
     document.body.addEventListener('click', el.clickOutsideEvent)
   },
-  unbind: function (el) {
+  unbind: function(el) {
     document.body.removeEventListener('click', el.clickOutsideEvent)
   }
 })
@@ -68,8 +68,8 @@ requireComponent.keys().forEach(fileName => {
 
 Vue.prototype.$request = async (callback, waitKey, errorCallback = null, retry = false) => {
   window.wait.start(waitKey)
-  
-  try {  
+
+  try {
     await callback()
   } catch (error) {
     console.error(error)
@@ -115,7 +115,7 @@ if (
   window.screenLeft > window.screen.width ||
   window.screenTop > window.screen.height
 ) {
-  chrome.runtime.getPlatformInfo(function (info) {
+  chrome.runtime.getPlatformInfo(function(info) {
     if (info.os === 'mac') {
       const fontFaceSheet = new CSSStyleSheet()
       fontFaceSheet.insertRule(`

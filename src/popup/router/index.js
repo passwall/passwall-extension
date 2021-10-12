@@ -126,9 +126,14 @@ const router = new Router({
       component: require('@p/views/Generator').default
     },
     {
-      path: '/savePassword',
+      path: '/Inject/savePassword',
       name: 'SavePassword',
-      component: require('@p/views/SavePassword').default
+      component: require('@p/views/Inject/SavePassword').default
+    },
+    {
+      path: '/Inject/loginAsPopup',
+      name: 'LoginAsPopup',
+      component: require('@p/views/Inject/LoginAs').default
     },
 
     { path: '*', redirect: '/login' }
@@ -156,7 +161,11 @@ router.beforeEach(async (to, from, next) => {
   const lastRouteName = await Storage.getItem('latest_route')
   const detail = await Storage.getItem('latest_route_param_detail')
   const shouldRedirect = Boolean(
-    to.name === 'Logins' && lastRouteName && isFirstTransition && lastRouteName !== 'SavePassword'
+    to.name === 'Logins' &&
+      lastRouteName &&
+      isFirstTransition &&
+      lastRouteName !== 'SavePassword' &&
+      lastRouteName !== 'LoginAsPopup'
   )
 
   if (shouldRedirect) {
