@@ -1,10 +1,11 @@
 import Vue from 'vue'
 import store from '@p/store'
 import router from '@p/router'
-import '@/mixins/global'
 
 import browser from 'webextension-polyfill'
 Vue.prototype.$browser = browser
+
+import '@/mixins/global'
 
 import * as Waiters from '@/utils/waiters'
 Vue.prototype.$waiters = Waiters

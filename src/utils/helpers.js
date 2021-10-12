@@ -153,3 +153,12 @@ export class RequestError extends Error {
     this.type = type
   }
 }
+
+/**
+ *
+ * @param {RuntimeRequest} data
+ * @returns {Promise<any>}
+ */
+export function sendPayload(data) {
+  return browser.runtime.sendMessage({ ...data, who: 'content-script' })
+}

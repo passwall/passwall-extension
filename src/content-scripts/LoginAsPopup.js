@@ -1,4 +1,4 @@
-import { getOffset } from '@/utils/helpers'
+import { getOffset, sendPayload } from '@/utils/helpers'
 
 export class LoginAsPopup {
   /**
@@ -14,9 +14,13 @@ export class LoginAsPopup {
   /**
    *
    * @param {HTMLElement} target
+   * @param {Array<unknown>} logins
+   * @param {import('./content-script').PForm} forms
    */
-  constructor(target) {
+  constructor(target, logins, forms) {
     this.target = target
+    this.logins = logins
+    this.forms = forms
     this.WIDTH = 350
     this.height = 206 // this will change
     this.className = `passwall-login-as-popup-${Math.floor(Math.random() * 9999)}`
@@ -29,13 +33,42 @@ export class LoginAsPopup {
    * @param {*} sendResponse
    */
   async messageHandler(request, sender, sendResponse) {
-    switch (request.type) {
+    let parsedRequest
+    try {
+      parsedRequest = JSON.parse(request)
+    } catch (error) {
+      return
+    }
+
+    switch (parsedRequest.type) {
       case 'LOGIN_AS_POPUP_RESIZE':
-        this.height = request.payload.height // resize dynamic height
+        this.height = parsedRequest.payload.height // resize dynamic height
         this.update()
         this.canDestroy = true
         break
+      case 'LOGIN_AS_POPUP_FETCH':
+        sendPayload({ type: 'LOGIN_AS_POPUP_FETCH', payload: this.logins }) // send logins to popup
+        break
+      case 'LOGIN_AS_POPUP_FILL_FORM':
+        this.fillForm(parsedRequest.payload)
+        break
+      case 'LOGIN_AS_POPUP_CLOSE':
+        this.destroy()
+        break
     }
+  }
+
+  /**
+   *
+   * @param {string} username
+   * @param {string} password
+   */
+  fillForm({ username, password }) {
+    this.forms[0].inputs.forEach(input => {
+      if (input.type === 'password') input.value = password
+      if (['text', 'email'].includes(input.type)) input.value = username
+    })
+    this.destroy()
   }
 
   onClickOutside(e) {
