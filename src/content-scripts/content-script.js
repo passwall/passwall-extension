@@ -31,7 +31,7 @@ class Injector {
    */
   listeners
   constructor() {
-    console.log('Passwall content-script initliaze')
+    console.log('Passwall content-script initialize')
     browser.runtime.onMessage.addListener(this.messageHandler.bind(this)) // for background
     window.addEventListener('message', this.messageHandlerPopup.bind(this)) // for popup
     this.listeners = []
@@ -56,7 +56,6 @@ class Injector {
               type: 'REQUEST_LOGINS',
               payload: this.domain
             }).then(logins => {
-              console.log(logins)
               this.injectPasswallLogo(this.forms[0], logins)
             })
           }

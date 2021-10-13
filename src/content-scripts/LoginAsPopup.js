@@ -60,7 +60,7 @@ export class LoginAsPopup {
 
   /**
    *
-   * @param {string} username
+   * @param {string} username 
    * @param {string} password
    */
   fillForm({ username, password }) {

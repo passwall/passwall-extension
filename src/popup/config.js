@@ -86,6 +86,7 @@ Vue.prototype.$request = async (callback, waitKey, errorCallback = null, retry =
       // Refresh token
       try {
         await store.dispatch('RefreshToken')
+        this.messageToBackground({ type: 'REFRESH_TOKENS' })
         // Retry the connection
         return Vue.prototype.$request(callback, waitKey, errorCallback, true)
       } catch (refreshError) {
