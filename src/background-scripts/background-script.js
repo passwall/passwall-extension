@@ -48,11 +48,7 @@ class Agent {
       switch (request.type) {
         case 'REFRESH_TOKENS':
           this.fetchTokens()
-
-        case 'LOGIN_AS_POPUP_RESIZE':
-        case 'LOGIN_AS_POPUP_CLOSE':
-          // direct connection between popup and content-scirpt
-          this.sendResponseToContentScirpt(request)
+          break
       }
     }
     if (request.who === 'content-script') {

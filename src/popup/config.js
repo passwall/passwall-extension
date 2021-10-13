@@ -1,10 +1,11 @@
 import Vue from 'vue'
 import store from '@p/store'
 import router from '@p/router'
-import '@/mixins/global'
 
 import browser from 'webextension-polyfill'
 Vue.prototype.$browser = browser
+
+import '@/mixins/global'
 
 import * as Waiters from '@/utils/waiters'
 Vue.prototype.$waiters = Waiters
@@ -85,6 +86,7 @@ Vue.prototype.$request = async (callback, waitKey, errorCallback = null, retry =
       // Refresh token
       try {
         await store.dispatch('RefreshToken')
+        this.messageToBackground({ type: 'REFRESH_TOKENS' })
         // Retry the connection
         return Vue.prototype.$request(callback, waitKey, errorCallback, true)
       } catch (refreshError) {
