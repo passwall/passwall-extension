@@ -60,11 +60,12 @@ export class LoginAsPopup {
 
   /**
    *
-   * @param {string} username 
+   * @param {string} username
    * @param {string} password
    */
   fillForm({ username, password }) {
     this.forms[0].inputs.forEach(input => {
+      input.focus()
       if (input.type === 'password') input.value = password
       if (['text', 'email'].includes(input.type)) input.value = username
     })
