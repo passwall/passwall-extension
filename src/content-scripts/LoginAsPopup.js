@@ -90,7 +90,7 @@ export class LoginAsPopup {
   }
 
   update() {
-    const { top, left, height, width } = getOffset(this.target)
+    const { top, left, height } = getOffset(this.target)
     this.iframe.setAttribute(
       'style',
       `

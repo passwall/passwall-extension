@@ -1,7 +1,8 @@
 const browser = require('webextension-polyfill')
 import { EVENT_TYPES, PASSWALL_ICON_BS64 } from '@/utils/constants'
-import { getDomain, getOffset, PFormParseError, RequestError, sendPayload } from '@/utils/helpers'
+import { getDomain, PFormParseError, RequestError, sendPayload } from '@/utils/helpers'
 import { LoginAsPopup } from './LoginAsPopup'
+import { PasswallLogo } from './PasswallLogo'
 
 /**
  * @typedef {Object} PForm
@@ -15,6 +16,14 @@ import { LoginAsPopup } from './LoginAsPopup'
  * @property {*} payload
  *
  */
+
+/* capture olayı
+
+eğer login formu varsa bunu tut (isForm)
+eğer inputa veri girişi olmuşsa bunu da tut (isTyped)
+eğer sayfa değiştikliği oluysa ve isForm ve isTyped ve aynı domaindeyse yeni input popupını göster
+
+*/
 
 class Injector {
   /**
@@ -30,11 +39,36 @@ class Injector {
    * @type {Array<Function>} listeners
    */
   listeners
+
+  /**
+   * @type {Array<unknown>} logins
+   */
+  logins
+
+  /**
+   * @type {Array<PasswallLogo>} logos
+   */
+  logos
   constructor() {
     console.log('Passwall content-script initialize')
     browser.runtime.onMessage.addListener(this.messageHandler.bind(this)) // for background
     window.addEventListener('message', this.messageHandlerPopup.bind(this)) // for popup
+
+    window.addEventListener('resize', () => {
+      if (this.hasLogins) {
+        this.logos.forEach(logo => {
+          logo.destroy()
+          logo.render()
+        })
+      }
+    })
     this.listeners = []
+    this.logins = []
+    this.logos = []
+  }
+
+  get hasLogins() {
+    return this.forms.length > 0
   }
 
   /**
@@ -56,7 +90,8 @@ class Injector {
               type: 'REQUEST_LOGINS',
               payload: this.domain
             }).then(logins => {
-              this.injectPasswallLogo(this.forms[0], logins)
+              this.logins = logins
+              this.injectPasswallLogo()
             })
           }
         } catch (error) {
@@ -106,29 +141,12 @@ class Injector {
    * @param {PForm} form
    * @param {Array<unknown>} logins
    */
-  injectPasswallLogo(form, logins) {
-    for (const input of form.inputs) {
+  injectPasswallLogo() {
+    for (const input of this.forms[0].inputs) {
       if (['text', 'email'].includes(input.type)) {
-        const image = document.createElement('img')
-        const { top, left, height, width } = getOffset(input)
-        const SIZE = height * 0.7
-
-        image.setAttribute('id', 'passwall-input-icon')
-        image.setAttribute(
-          'style',
-          `
-        top: ${top + (height * (1 - SIZE / height)) / 2}px;
-        left: ${left + width - SIZE - 5}px;
-        height: ${SIZE}px;
-        width: ${SIZE}px;
-        z-index: 99999;
-        `
-        )
-        image.alt = 'Passwall'
-        image.src = PASSWALL_ICON_BS64
-        image.onclick = e => this.injectLoginAsPopup(e, input, logins)
-
-        document.body.appendChild(image)
+        const logo = new PasswallLogo(input, () => this.injectLoginAsPopup(input))
+        logo.render()
+        this.logos.push(logo)
         return
       }
     }
@@ -140,9 +158,9 @@ class Injector {
    * @param {HTMLElement} input
    * @param {Array<unknown>} logins
    */
-  injectLoginAsPopup(e, input, logins) {
+  injectLoginAsPopup(input) {
     // TODO: Simgeye çoklu tıkama olunca iframi sürekli açma
-    const popup = new LoginAsPopup(input, logins, this.forms)
+    const popup = new LoginAsPopup(input, this.logins, this.forms)
     this.listeners.push(popup.messageHandler.bind(popup))
     popup.render()
   }
