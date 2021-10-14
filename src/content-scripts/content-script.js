@@ -107,28 +107,31 @@ class Injector {
    * @param {Array<unknown>} logins
    */
   injectPasswallLogo(form, logins) {
-    form.inputs.forEach(input => {
-      const image = document.createElement('img')
-      const { top, left, height, width } = getOffset(input)
-      const SIZE = height * 0.7
+    for (const input of form.inputs) {
+      if (['text', 'email'].includes(input.type)) {
+        const image = document.createElement('img')
+        const { top, left, height, width } = getOffset(input)
+        const SIZE = height * 0.7
 
-      image.setAttribute('id', 'passwall-input-icon')
-      image.setAttribute(
-        'style',
+        image.setAttribute('id', 'passwall-input-icon')
+        image.setAttribute(
+          'style',
+          `
+        top: ${top + (height * (1 - SIZE / height)) / 2}px;
+        left: ${left + width - SIZE - 5}px;
+        height: ${SIZE}px;
+        width: ${SIZE}px;
+        z-index: 99999;
         `
-      top: ${top + (height * (1 - SIZE / height)) / 2}px;
-      left: ${left + width - SIZE - 5}px;
-      height: ${SIZE}px;
-      width: ${SIZE}px;
-      z-index: 99999;
-      `
-      )
-      image.alt = 'Passwall'
-      image.src = PASSWALL_ICON_BS64
-      image.onclick = e => this.injectLoginAsPopup(e, input, logins)
+        )
+        image.alt = 'Passwall'
+        image.src = PASSWALL_ICON_BS64
+        image.onclick = e => this.injectLoginAsPopup(e, input, logins)
 
-      document.body.appendChild(image)
-    })
+        document.body.appendChild(image)
+        return
+      }
+    }
   }
 
   /**
