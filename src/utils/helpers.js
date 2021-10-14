@@ -85,23 +85,13 @@ export function getHostName(url) {
   }
 }
 
-export function getDomain(url = '') {
-  var hostName = getHostName(url)
-  var domain = hostName
+export function getDomain(url) {
+  const urlParts = new URL(url).hostname.split('.')
 
-  if (hostName != null) {
-    var parts = hostName.split('.').reverse()
-
-    if (parts != null && parts.length > 1) {
-      domain = parts[1] + '.' + parts[0]
-
-      if (hostName.toLowerCase().indexOf('.co.uk') != -1 && parts.length > 2) {
-        domain = parts[2] + '.' + domain
-      }
-    }
-  }
-
-  return domain
+  return urlParts
+    .slice(0)
+    .slice(-(urlParts.length === 4 ? 3 : 2))
+    .join('.')
 }
 
 export async function getCurrentTab() {
