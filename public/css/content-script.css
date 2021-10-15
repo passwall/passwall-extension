@@ -2,19 +2,29 @@
 /* Passwall ////////////////////////////////////////////////////////////////////////////////////*/
 /*//////////////////////////////////////////////////////////////////////////////////////////////*/
 
-#passwall-dialog{
-    border:10px solig blue;
-    position:fixed;
-    z-index:999999;
-    top:20px;
-    right:20px;
+#passwall-dialog {
+  border: 10px solig blue;
+  position: fixed;
+  z-index: 999999;
+  top: 20px;
+  right: 20px;
 }
 
-#passwall-dialog iframe{
-    display:block;
-    width:350px;
-    height: 360px;
-    background: #0A0F17;
-    border-style:none;
-    border-radius: 16px;
+#passwall-dialog iframe {
+  display: block;
+  width: 350px;
+  height: auto;
+  background: #0a0f17;
+  border-style: none;
+  border-radius: 16px;
+}
+
+#passwall-input-icon {
+  position: absolute;
+  cursor: pointer;
+}
+
+#passwall-input-dialog {
+  position: absolute;
+  z-index: 999999;
 }

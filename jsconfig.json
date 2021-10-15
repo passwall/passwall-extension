@@ -6,5 +6,6 @@
       "@/*": ["src/*"],
       "@p/*": ["src/popup/*"]
     }
-  }
+  },
+  "exclude": ["node_modules"]
 }

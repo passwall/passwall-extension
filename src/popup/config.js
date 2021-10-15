@@ -5,6 +5,8 @@ import router from '@p/router'
 import browser from 'webextension-polyfill'
 Vue.prototype.$browser = browser
 
+import '@/mixins/global'
+
 import * as Waiters from '@/utils/waiters'
 Vue.prototype.$waiters = Waiters
 
@@ -44,8 +46,8 @@ window.wait = new VueWait({
 })
 
 Vue.directive('click-outside', {
-  bind: function (el, binding, vnode) {
-    el.clickOutsideEvent = function (event) {
+  bind: function(el, binding, vnode) {
+    el.clickOutsideEvent = function(event) {
       // here I check that click was outside the el and his children
       if (!(el == event.target || el.contains(event.target))) {
         // and if it did, call method provided in attribute value
@@ -54,7 +56,7 @@ Vue.directive('click-outside', {
     }
     document.body.addEventListener('click', el.clickOutsideEvent)
   },
-  unbind: function (el) {
+  unbind: function(el) {
     document.body.removeEventListener('click', el.clickOutsideEvent)
   }
 })
@@ -67,8 +69,8 @@ requireComponent.keys().forEach(fileName => {
 
 Vue.prototype.$request = async (callback, waitKey, errorCallback = null, retry = false) => {
   window.wait.start(waitKey)
-  
-  try {  
+
+  try {
     await callback()
   } catch (error) {
     console.error(error)
@@ -84,6 +86,7 @@ Vue.prototype.$request = async (callback, waitKey, errorCallback = null, retry =
       // Refresh token
       try {
         await store.dispatch('RefreshToken')
+        this.messageToBackground({ type: 'REFRESH_TOKENS' })
         // Retry the connection
         return Vue.prototype.$request(callback, waitKey, errorCallback, true)
       } catch (refreshError) {
@@ -114,7 +117,7 @@ if (
   window.screenLeft > window.screen.width ||
   window.screenTop > window.screen.height
 ) {
-  chrome.runtime.getPlatformInfo(function (info) {
+  chrome.runtime.getPlatformInfo(function(info) {
     if (info.os === 'mac') {
       const fontFaceSheet = new CSSStyleSheet()
       fontFaceSheet.insertRule(`

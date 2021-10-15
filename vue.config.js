@@ -9,11 +9,6 @@ module.exports = {
       template: 'public/options-page.html',
       entry: 'src/options/main.js',
       title: 'Passwall Extension Options'
-    },
-    savePassword: {
-      // template: 'public/save-password.html',
-      entry: 'src/save-password/main.js',
-      title: 'Passwall Extension Save Password'
     }
   },
   css: {

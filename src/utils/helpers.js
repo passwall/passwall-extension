@@ -29,16 +29,16 @@ export async function generatePassword() {
   }
 
   const charSet = complexities
-        .filter(item => item.checked)
-        .reduce((acc, current) => {
-          return acc + current.value
-        }, '')
+    .filter(item => item.checked)
+    .reduce((acc, current) => {
+      return acc + current.value
+    }, '')
 
   let generatedPassword = ''
   for (let i = 0; i < passwordLength; i++) {
     generatedPassword += charSet.charAt(Math.floor(Math.random() * charSet.length))
   }
-    
+
   return generatedPassword
 }
 
@@ -85,23 +85,13 @@ export function getHostName(url) {
   }
 }
 
-export function getDomain(url = "") {
-  var hostName = getHostName(url)
-  var domain = hostName
+export function getDomain(url) {
+  const urlParts = new URL(url).hostname.split('.')
 
-  if (hostName != null) {
-    var parts = hostName.split('.').reverse()
-
-    if (parts != null && parts.length > 1) {
-      domain = parts[1] + '.' + parts[0]
-
-      if (hostName.toLowerCase().indexOf('.co.uk') != -1 && parts.length > 2) {
-        domain = parts[2] + '.' + domain
-      }
-    }
-  }
-
-  return domain
+  return urlParts
+    .slice(0)
+    .slice(-(urlParts.length === 4 ? 3 : 2))
+    .join('.')
 }
 
 export async function getCurrentTab() {
@@ -111,4 +101,54 @@ export async function getCurrentTab() {
     }
     return null
   })
+}
+
+/**
+ *
+ * @param {HTMLElement} el
+ *
+ */
+export function getOffset(el) {
+  const rect = el.getBoundingClientRect()
+
+  return {
+    left: rect.left + window.scrollX,
+    top: rect.top + window.scrollY,
+    width: rect.width,
+    height: rect.height
+  }
+}
+
+export class PFormParseError extends Error {
+  /**
+   *
+   * @param {string} message
+   * @param {('NO_PASSWORD_FIELD')} type
+   */
+  constructor(message, type) {
+    super(message)
+    this.name = 'PFormParseError'
+    this.type = type
+  }
+}
+
+export class RequestError extends Error {
+  /**
+   *
+   * @param {string} message
+   * @param {('NO_AUTH' | 'NO_LOGINS')} type
+   */
+  constructor(message, type) {
+    super(message)
+    this.type = type
+  }
+}
+
+/**
+ *
+ * @param {RuntimeRequest} data
+ * @returns {Promise<any>}
+ */
+export function sendPayload(data) {
+  return browser.runtime.sendMessage({ ...data, who: 'content-script' })
 }

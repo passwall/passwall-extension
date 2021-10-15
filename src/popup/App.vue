@@ -20,6 +20,7 @@ export default {
     ...mapActions(['loadStore'])
   },
   created() {
+    this.messageToBackground({ type: 'POPUP_INITAL' })
     this.loadStore()
   }
 }
