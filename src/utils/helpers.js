@@ -103,6 +103,10 @@ export async function getCurrentTab() {
   })
 }
 
+export function messageToBackground(data = {}) {
+  browser.runtime.sendMessage({ ...data, who: 'popup' })
+}
+
 /**
  *
  * @param {HTMLElement} el
