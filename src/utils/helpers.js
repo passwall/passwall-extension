@@ -86,6 +86,10 @@ export function getHostName(url) {
 }
 
 export function getDomain(url) {
+  if (url === undefined) {
+    return
+  }
+  
   const urlParts = new URL(url).hostname.split('.')
 
   return urlParts
