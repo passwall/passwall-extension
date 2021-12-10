@@ -86,6 +86,10 @@ export function getHostName(url) {
 }
 
 export function getDomain(url) {
+  if (url === undefined) {
+    return
+  }
+  
   const urlParts = new URL(url).hostname.split('.')
 
   return urlParts
@@ -101,6 +105,10 @@ export async function getCurrentTab() {
     }
     return null
   })
+}
+
+export function messageToBackground(data = {}) {
+  browser.runtime.sendMessage({ ...data, who: 'popup' })
 }
 
 /**

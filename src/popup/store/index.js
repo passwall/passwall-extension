@@ -46,6 +46,9 @@ export default new Vuex.Store({
       state.master_hash = await Storage.getItem('master_hash')
       state.user = await Storage.getItem('user')
 
+      const server = await Storage.getItem('server')
+      HTTPClient.setBaseURL(server)
+
       if (state.user !== null) {
         state.pro = state.user.type == 'pro'
       }
