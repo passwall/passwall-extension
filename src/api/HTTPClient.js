@@ -10,6 +10,11 @@ const client = Axios.create({
   }
 })
 
+// client.interceptors.request.use(request => {
+//   console.log('Starting Request', JSON.stringify(request, null, 2))
+//   return request
+// })
+
 export default class HTTPClient {
   static async head(path) {
     return client.head(path)
