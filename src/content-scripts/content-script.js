@@ -81,16 +81,18 @@ class Injector {
   async messageHandler(request, sender, sendResponse) {
     this.domain = getHostName(window.location.href)
     switch (request.type) {
-      case 'TAB_UPDATE':
+      case EVENT_TYPES.REFRESH_TOKENS:
+      case EVENT_TYPES.TAB_UPDATE:
         try {
           this.forms = this.findFormAndFields()
           if (this.forms.length > 0) {
             // document has a login or register form
-            console.log('Passwall detected forms', this.forms)
+            console.log('Passwall detected login form')
             sendPayload({
-              type: 'REQUEST_LOGINS',
+              type: EVENT_TYPES.REQUEST_LOGINS,
               payload: this.domain
             }).then(logins => {
+              console.log(`Found (${logins.length}) logins for '${this.domain}'`)
               this.logins = logins
               this.injectPasswallLogo()
             })
@@ -102,6 +104,11 @@ class Injector {
             }
           } else console.error(error)
         }
+        break
+      case EVENT_TYPES.LOGOUT:
+        this.logos.forEach(logo => logo.destroy())
+        this.logos = []
+        this.logins = []
         break
       default:
         break

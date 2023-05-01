@@ -105,7 +105,6 @@ export default {
 
       const onSuccess = async () => {
         await this.Login({ ...this.LoginForm })
-        this.messageToBackground({ type: 'REFRESH_TOKENS' })
         this.$router.replace({ name: 'Home' })
       }
 

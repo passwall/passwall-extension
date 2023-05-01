@@ -27,7 +27,7 @@ class Agent {
   async fetchTokens() {
     const token = await Storage.getItem('access_token')
     if (!token) {
-      console.warn('Login first!!')
+      console.warn('Login first!')
       this.isAuthenticated = false
       return
     }
@@ -44,17 +44,36 @@ class Agent {
    */
   async handleMessage(request, sender, sendResponse) {
     if (request.who === 'popup') {
-      // popup
+      // Message from popup
       switch (request.type) {
-        case 'REFRESH_TOKENS':
-          this.fetchTokens()
+        case EVENT_TYPES.LOGIN:
+        case EVENT_TYPES.REFRESH_TOKENS:
+          this.fetchTokens().then(() => {
+            // Send REFRESH_TOKENS message to active tab's content script
+            browser.tabs.query({ active: true, currentWindow: true })
+            .then(tabs => {
+              const activeTab = tabs[0];
+              browser.tabs.sendMessage(activeTab.id, { type: EVENT_TYPES.REFRESH_TOKENS, payload: {} });
+            })
+            .catch(error => console.error(error));
+          });
+          break
+        case EVENT_TYPES.LOGOUT:
+          this.isAuthenticated = false
+          // Send REFRESH_TOKENS message to active tab's content script
+          browser.tabs.query({ active: true, currentWindow: true })
+          .then(tabs => {  
+            const activeTab = tabs[0];
+            browser.tabs.sendMessage(activeTab.id, { type: EVENT_TYPES.LOGOUT, payload: {} });
+          })
+          .catch(error => console.error(error));
           break
       }
     }
     if (request.who === 'content-script') {
-      // content-script
+      // Message from content-script
       switch (request.type) {
-        case 'REQUEST_LOGINS':
+        case EVENT_TYPES.REQUEST_LOGINS:
           try {
             const logins = await this.requestLogins(request.payload)
             return Promise.resolve(logins)
@@ -72,7 +91,7 @@ class Agent {
    * @returns {Promise<Array>}
    */
   async requestLogins(domain) {
-    if (!this.isAuthenticated) throw new RequestError('No token found!', 'NO_AUTH')
+    if (!this.isAuthenticated) throw new RequestError('Passwall authentication is needed!', 'NO_AUTH')
     const { data } = await LoginsService.FetchAll()
     const itemList = JSON.parse(CryptoUtils.aesDecrypt(data.data))
     itemList.forEach(element => {

@@ -15,6 +15,8 @@ import BankAccounts from '@p/views/BankAccounts/store'
 import Notes from '@p/views/Notes/store'
 import Servers from '@p/views/Servers/store'
 import ChangeMasterPassword from '@p/views/ChangeMasterPassword/store'
+import * as Helpers from '@/utils/helpers'
+import { EVENT_TYPES } from '@/utils/constants'
 
 export default new Vuex.Store({
   state() {
@@ -72,6 +74,7 @@ export default new Vuex.Store({
       ])
 
       HTTPClient.setHeader('Authorization', `Bearer ${state.access_token}`)
+      Helpers.messageToBackground({ type: EVENT_TYPES.REFRESH_TOKENS })
     },
 
     async Login({ state }, payload) {
@@ -99,6 +102,7 @@ export default new Vuex.Store({
       ])
 
       HTTPClient.setHeader('Authorization', `Bearer ${state.access_token}`)
+      Helpers.messageToBackground({ type: EVENT_TYPES.LOGIN })
     },
 
     async Logout({ state }) {
@@ -112,6 +116,7 @@ export default new Vuex.Store({
       state.user = null
       await Storage.setItem('email', email)
       await Storage.setItem('server', server)
+      Helpers.messageToBackground({ type: EVENT_TYPES.LOGOUT })
     },
     async loadStore({ state }) {
       state.user = await Storage.getItem('user')
