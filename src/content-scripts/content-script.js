@@ -68,6 +68,7 @@ class Injector {
   }
 
   get hasLogins() {
+    if (!this.forms) return false
     return this.forms.length > 0
   }
 
