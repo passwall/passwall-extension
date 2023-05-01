@@ -1,6 +1,6 @@
 const browser = require('webextension-polyfill')
 import { EVENT_TYPES, PASSWALL_ICON_BS64 } from '@/utils/constants'
-import { getDomain, PFormParseError, RequestError, sendPayload } from '@/utils/helpers'
+import { getHostName, PFormParseError, RequestError, sendPayload } from '@/utils/helpers'
 import { LoginAsPopup } from './LoginAsPopup'
 import { PasswallLogo } from './PasswallLogo'
 
@@ -78,14 +78,14 @@ class Injector {
    * @param {*} sendResponse
    */
   async messageHandler(request, sender, sendResponse) {
-    this.domain = getDomain(window.location.href)
+    this.domain = getHostName(window.location.href)
     switch (request.type) {
       case 'TAB_UPDATE':
         try {
           this.forms = this.findFormAndFields()
           if (this.forms.length > 0) {
             // document has a login or register form
-            console.log('forms detected', this.forms)
+            console.log('Passwall detected forms', this.forms)
             sendPayload({
               type: 'REQUEST_LOGINS',
               payload: this.domain

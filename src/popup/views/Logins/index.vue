@@ -25,7 +25,7 @@
 import { mapActions, mapState, mapMutations } from 'vuex'
 import ListMixin from '@/mixins/list'
 
-import { getCurrentTab, getDomain } from '@/utils/helpers'
+import { getCurrentTab, getHostName } from '@/utils/helpers'
 
 export default {
   mixins: [ListMixin],
@@ -35,7 +35,7 @@ export default {
       if (from.path === '/')
         getCurrentTab().then(tab => {
           if (tab) {
-            vm.onInputSearchQuery({ target: { value: getDomain(tab.url) } })
+            vm.onInputSearchQuery({ target: { value: getHostName(tab.url) } })
           }
         })
     })

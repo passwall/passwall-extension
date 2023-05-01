@@ -85,19 +85,6 @@ export function getHostName(url) {
   }
 }
 
-export function getDomain(url) {
-  if (url === undefined) {
-    return
-  }
-  
-  const urlParts = new URL(url).hostname.split('.')
-
-  return urlParts
-    .slice(0)
-    .slice(-(urlParts.length === 4 ? 3 : 2))
-    .join('.')
-}
-
 export async function getCurrentTab() {
   return browser.tabs.query({ currentWindow: true, active: true }).then(([tab]) => {
     if (!BROWSER_URL_PATTERNS.some(pattern => pattern.test(tab.url))) {

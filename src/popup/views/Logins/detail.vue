@@ -7,7 +7,7 @@
           <div class="d-flex flex-auto flex-items-center ml-3">
             <CompanyLogo :url="form.url" />
             <span class="title fw-bold h5 ml-2">{{
-              form.title || $helpers.getDomain(form.url)
+              form.title || $helpers.getHostName(form.url)
             }}</span>
           </div>
           <div class="d-flex">
