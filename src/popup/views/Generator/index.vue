@@ -51,7 +51,7 @@ export default {
       complexities: [
         { name: 'abc', value: chars.alphabet, checked: true, visible: false },
         { name: 'Numbers', value: chars.numeric, checked: true },
-        { name: 'Symbols', value: chars.special, checked: false },
+        { name: 'Symbols', value: chars.special, checked: true },
         { name: 'Capital Letters', value: chars.alphabet.toUpperCase(), checked: true }
       ],
       password: '',
