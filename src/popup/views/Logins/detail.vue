@@ -20,11 +20,6 @@
             <button v-if="!isEditMode" v-tooltip="$t('Edit')" @click="isEditMode = true">
               <VIcon class="c-pointer ml-2 cogs" name="cogs" />
             </button>
-
-            <!-- Fill Btn -->
-            <button v-if="!isEditMode" v-tooltip="$t('Fill')" @click="fillForm">
-              <VIcon class="c-pointer ml-2 plus" name="plus" />
-            </button>
           </div>
         </div>
       </template>
@@ -134,22 +129,6 @@ export default {
 
       await this.$request(onSuccess, this.$waiters.Logins.Update)
       this.isEditMode = false
-    },
-
-    fillForm() {
-      this.$browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
-        this.$browser.tabs
-          .sendMessage(tabs[0].id, {
-              message: "fill-form",
-              data:{username: this.form.username, password: this.form.password}
-            })
-          .then(() => {
-            console.log("Form data sent successfully")
-          })
-          .catch((error) => {
-            console.error('Can not send form data Error: ', error);
-          });
-      });
     }
   },
   computed: {
