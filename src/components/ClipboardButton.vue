@@ -32,4 +32,7 @@ export default {
   background-color: $color-gray-500;
   color: $color-gray-300;
 }
+.clipboard-btn:hover {
+  color: $color-secondary;
+}
 </style>

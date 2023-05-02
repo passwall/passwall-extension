@@ -13,12 +13,8 @@
       <span v-text="show ? value : '●●●●●●'" class="fw-medium h6 w-80 mr-2 p-1 field" />
       <div class="d-flex flex-items-center" v-if="showIcons">
         <slot name="second-icon">
-          <VIcon
-            class="c-pointer"
-            :name="show ? 'eye-off' : 'eye'"
-            size="20"
-            @click="show = !show"
-          />
+          
+          <ShowPassButton @click="show = $event" />
         </slot>
         <ClipboardButton class="ml-2" v-if="value" :copy="value" />
       </div>

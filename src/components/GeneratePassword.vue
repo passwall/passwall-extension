@@ -63,6 +63,9 @@ export default {
   margin-left: $spacer-2;
   color: $color-gray-300;
 }
+.btn-generate-pass:hover {
+  color: $color-secondary;
+}
 
 .generate-password {
   text-align: center;

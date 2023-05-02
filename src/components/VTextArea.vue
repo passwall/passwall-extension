@@ -2,14 +2,7 @@
   <div class="text-area-wrapper">
     <div class="d-flex">
       <label v-if="label" class="title">{{ label }}</label>
-            <button
-              type="button"
-              @click="showNote = !showNote"
-              class="detail-page-header-icon mr-2"
-              v-tooltip="$t(showNote ? 'Hide' : 'Show')">
-              <VIcon :name="showNote ? 'eye-off' : 'eye'" size="20px" />
-            </button>
-            
+            <ShowPassButton @click="showNote = !showNote" />
             <ClipboardButton :copy="value"></ClipboardButton>
     </div>
     <textarea
