@@ -45,31 +45,10 @@ export default {
     ...mapMutations(['onInputSearchQuery']),
     clickItem(detail) {
       this.$router.push({ name: 'LoginDetail', params: { detail, id: detail.id } })
-    },
-    sendLogins() {
-      if (this.ItemList.length === 0) {
-        return
-      } 
-      this.$browser.runtime
-        .sendMessage({
-          message: 'fill-hashmap-from-popup',
-          data: this.ItemList
-        })
-        .then(() => {
-          console.log('Form data sent successfully')
-        })
-        .catch((error) => {
-          console.error('Can not send data to background script Error: ', error)
-        })
     }
   },
   computed: {
     ...mapState('Logins', ['ItemList'])
-  },
-  created: function() {
-    this.fetchAll().then(
-       () => this.sendLogins()
-    )
   }
 }
 </script>
