@@ -30,8 +30,8 @@
     ]
   },
   "dependencies": {
-    "axios": "^0.22.0",
-    "core-js": "^3.18.1",
+    "axios": "^1.4.0",
+    "core-js": "^3.30.1",
     "crypto-js": "^4.1.1",
     "localforage": "^1.10.0",
     "puppeteer-core": "https://github.com/seanaye/puppeteer/releases/download/v5.5.0-apple-silicon/puppeteer-core-5.5.0-post.tgz",
