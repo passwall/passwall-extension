@@ -16,6 +16,7 @@ export default {
   actions: {
     async FetchAll({ state }, query) {
       const { data } = await LoginsService.FetchAll(query)
+      console.log(data)
 
       const itemList = JSON.parse(CryptoUtils.aesDecrypt(data.data))
 

@@ -22,6 +22,14 @@ export default {
   created() {
     this.messageToBackground({ type: 'POPUP_INITAL' })
     this.loadStore()
+  },
+  watch: {
+    items: {
+      handler(val, oldVal) {
+        console.log(oldVal + ' --> ' + val)
+      },
+      deep: true
+    }
   }
 }
 </script>

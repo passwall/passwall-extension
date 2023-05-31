@@ -3,7 +3,7 @@
     :width="width || size"
     :height="height || size"
     :transform="`rotate(${rotation} 0 0)`"
-    v-on="$listeners"
+    v-on="$attrs"
     class="v-icon no-select"
   >
     <use :xlink:href="`#${name}`" />

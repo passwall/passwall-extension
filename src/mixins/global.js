@@ -1,7 +1,7 @@
 import Vue from 'vue'
 import browser from 'webextension-polyfill'
 
-Vue.mixin({
+const mixin = {
   data() {
     return {
       listeners: {}
@@ -24,4 +24,6 @@ Vue.mixin({
       this.listeners[event] = func
     }
   }
-})
+}
+
+export default mixin

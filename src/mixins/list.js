@@ -2,8 +2,9 @@ import { mapState } from 'vuex'
 
 export default {
   beforeRouteEnter(to, from, next) {
+    console.log('beforeRouteEnter')
     next(vm => {
-        vm.fetchAll()
+      vm.fetchAll()
     })
   },
   methods: {

@@ -1,15 +1,15 @@
 <template>
   <div class="form-text-wrapper">
     <input
+      v-bind="$attrs"
       :type="$attrs.type || 'text'"
-      :value="value"
+      :value="modelValue"
       :class="clazz"
       class="form-text"
       autocorrect="off"
       autocomplete="off"
       spellcheck="false"
-      v-on="inputListeners"
-      v-bind="$attrs"
+      @input="updateModelValue"
     />
     <!-- Error -->
     <p class="error" v-if="getError" v-text="getError" />
@@ -17,12 +17,14 @@
 </template>
 
 <script>
+import { computed } from 'vue';
+
 export default {
   name: 'VFormText',
 
   props: {
     name: String,
-    value: String,
+    modelValue: String,
     theme: {
       type: String,
       default: 'default'
@@ -32,24 +34,30 @@ export default {
       default: 'small'
     }
   },
+  
+  emits: ['update:modelValue'],
+  
+  setup(props, { emit }) {
+    const clazz = computed(() => {
+      return [`--${props.size}`, `--${props.theme}`, { '--error': getError.value }]
+    })
 
-  computed: {
-    clazz() {
-      return [`--${this.size}`, `--${this.theme}`, { '--error': this.getError }]
-    },
-
-    getError() {
-      if (this.errors !== undefined) {
-        const error = this.errors.items.find(e => e.field == this.name)
+    const getError = computed(() => {
+      if (props.errors !== undefined) {
+        const error = props.errors.items.find(e => e.field == props.name)
         return error ? error.msg : ''
       }
       return ''
-    },
+    })
 
-    inputListeners() {
-      return Object.assign({}, this.$listeners, {
-        input: event => this.$emit('input', event.target.value)
-      })
+    const updateModelValue = event => {
+      emit('update:modelValue', event.target.value);
+    }
+
+    return {
+      clazz,
+      getError,
+      updateModelValue
     }
   }
 }

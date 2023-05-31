@@ -1,10 +1,10 @@
 <template>
   <button
+    v-bind="$attrs"
     :type="$attrs.type || 'button'"
     :disabled="$attrs.disabled || loading"
     :class="clazz"
     class="btn"
-    v-bind="$attrs"
     v-on="inputListeners"
   >
     <slot />

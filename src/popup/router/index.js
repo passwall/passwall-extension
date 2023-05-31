@@ -1,12 +1,10 @@
-import Vue from 'vue'
-import Router from 'vue-router'
 import AuthCheck from './auth-check'
 import ClearSearch from '@p/router/clear-search'
 import Storage from '@/utils/storage'
 
-Vue.use(Router)
-
-const router = new Router({
+import { createRouter, createWebHistory } from 'vue-router';
+const router = createRouter({
+  history: createWebHistory(),
   routes: [
     {
       path: '/login',
@@ -135,8 +133,7 @@ const router = new Router({
       name: 'LoginAsPopup',
       component: require('@p/views/Inject/LoginAs').default
     },
-
-    { path: '*', redirect: '/login' }
+    { path: '/:catchAll(.*)', redirect: '/login' }
   ]
 })
 
@@ -162,10 +159,10 @@ router.beforeEach(async (to, from, next) => {
   const detail = await Storage.getItem('latest_route_param_detail')
   const shouldRedirect = Boolean(
     to.name === 'Logins' &&
-      lastRouteName &&
-      isFirstTransition &&
-      lastRouteName !== 'SavePassword' &&
-      lastRouteName !== 'LoginAsPopup'
+    lastRouteName &&
+    isFirstTransition &&
+    lastRouteName !== 'SavePassword' &&
+    lastRouteName !== 'LoginAsPopup'
   )
 
   if (shouldRedirect) {

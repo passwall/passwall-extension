@@ -6,12 +6,12 @@
             <ClipboardButton :copy="value"></ClipboardButton>
     </div>
     <textarea
+      v-bind="$attrs"
       :value="showNote || isEditable ? value : '●●●●●●'"
       autocorrect="off"
       autocomplete="off"
       spellcheck="false"
       v-on="inputListeners"
-      v-bind="$attrs"
       :style="cssVars"
     />
     <!-- Error -->

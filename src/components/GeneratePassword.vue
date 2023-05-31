@@ -1,29 +1,30 @@
 <template>
   <v-popover offset="16">
-    <button 
-      type="button" 
-      @click="onClickGenerate" 
+    <button
+      type="button"
+      @click="onClickGenerate"
       class="btn-generate-pass"
-      v-tooltip="$t('Generate')">
+      v-tooltip="$t('Generate')"
+    >
       <VIcon name="refresh" size="20px" />
     </button>
 
     <!-- Popover -->
-    <template slot="popover">
-      <div class="generate-password">
-        <span v-text="password" />
-        <hr />
-        <VButton size="mini" v-close-popover @click="onClickUseThis">
-          {{ $t('UseThis') }}
-        </VButton>
-      </div>
-    </template>
+    <!-- <template>
+        <slot name="popover">
+          <div class="generate-password">
+            <span v-text="password" />
+            <hr />
+            <VButton size="mini" v-close-popover @click="onClickUseThis">
+              {{ $t('UseThis') }}
+            </VButton>
+          </div>
+      </slot>
+    </template> -->
   </v-popover>
 </template>
 
 <script>
-import SystemService from '@/api/services/System'
-
 export default {
   name: 'GeneratePassword',
 

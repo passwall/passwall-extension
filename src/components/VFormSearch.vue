@@ -1,6 +1,7 @@
 <template>
   <div class="form-text-wrapper">
     <input
+      v-bind="$attrs"
       :type="$attrs.type || 'text'"
       :value="value"
       :class="clazz"
@@ -8,8 +9,6 @@
       autocorrect="off"
       autocomplete="off"
       spellcheck="false"
-      v-on="$listeners"
-      v-bind="$attrs"
     />
     <!-- Error -->
     <p class="error" v-if="getError" v-text="getError" />
@@ -45,7 +44,10 @@ export default {
     },
 
     getError() {
-      const error = this.errors.items.find(e => e.field == this.name)
+      let error = null
+      if (this.errors && this.errors.items) {
+        error = this.errors.items.find(e => e.field == this.name)
+      }
       return error ? error.msg : ''
     }
   }

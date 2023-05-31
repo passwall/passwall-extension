@@ -1,7 +1,3 @@
-import Vue from 'vue'
-import Vuex from 'vuex'
-Vue.use(Vuex)
-
 import CryptoUtils from '@/utils/crypto'
 import HTTPClient from '@/api/HTTPClient'
 import AuthService from '@/api/services/Auth'
@@ -18,7 +14,8 @@ import ChangeMasterPassword from '@p/views/ChangeMasterPassword/store'
 import * as Helpers from '@/utils/helpers'
 import { EVENT_TYPES } from '@/utils/constants'
 
-export default new Vuex.Store({
+import { createStore } from 'vuex';
+const store = createStore({
   state() {
     return {
       access_token: '',
@@ -138,3 +135,4 @@ export default new Vuex.Store({
     ChangeMasterPassword
   }
 })
+export default store

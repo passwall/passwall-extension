@@ -17,8 +17,8 @@
           v-validate="'required'"
           :placeholder="$t('ServerURL')"
           data-testid="server"
+          @input="handleInput"
         />
-
         <label v-text="$t('EMailAddress')" class="mb-2 mt-4" />
         <VFormText
           v-model="LoginForm.email"
@@ -27,6 +27,7 @@
           v-validate="'required'"
           :placeholder="$t('YourEMailAddress')"
           data-testid="username"
+          @input="handleInput"
         />
 
         <label v-text="$t('MasterPassword')" class="mb-2 mt-4" />
@@ -38,6 +39,7 @@
           :placeholder="$t('YourMasterPassword')"
           v-validate="'required|min:6|max:100'"
           data-testid="password"
+          @input="handleInput"
         />
 
         <!-- Login Btn -->
@@ -68,17 +70,25 @@
 <script>
 import { mapActions } from 'vuex'
 import HTTPClient from '@/api/HTTPClient'
+import { ref } from 'vue';
 
 export default {
   name: 'Login',
-  data() {
+  setup() {
+    const LoginForm = ref({
+      server: 'https://vault.passwall.io',
+      email: '',
+      master_password: ''
+    });
+
+    const handleInput = (event) => {
+      // Handle the input event
+    };
+
     return {
-      LoginForm: {
-        server: 'https://vault.passwall.io',
-        email: '',
-        master_password: ''
-      }
-    }
+      LoginForm,
+      handleInput,
+    };
   },
   mounted() {
     this.$storage.getItem('email').then(e => {
@@ -91,7 +101,8 @@ export default {
   methods: {
     ...mapActions(['Login']),
     async onLogin() {
-      if (!(await this.$validator.validateAll())) return
+      // const { validate } = useForm()
+      // if (!(await validate())) return
 
       HTTPClient.setBaseURL(this.LoginForm.server)
 
