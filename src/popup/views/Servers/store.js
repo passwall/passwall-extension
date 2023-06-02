@@ -24,14 +24,10 @@ export default {
 
   actions: {
     async FetchAll({ state }, query) {
-      const { data } = await ServersService.FetchAll(query)
-
-      const itemList = JSON.parse(CryptoUtils.aesDecrypt(data.data))
-
+      const { data: itemList } = await ServersService.FetchAll(query)
       itemList.forEach(element => {
         CryptoUtils.decryptFields(element, EncryptedFields)
       })
-
       state.ItemList = itemList
     },
 
