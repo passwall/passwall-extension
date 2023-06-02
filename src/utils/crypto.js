@@ -28,7 +28,7 @@ export default class CryptoUtils {
   static encrypt(message, password = this.encryptKey) {
     const salt = CryptoJS.lib.WordArray.random(128 / 8)
 
-    const encrypted = CryptoJS.AES.encrypt(message, password, {
+    const encrypted = CryptoJS.AES.encrypt(message, this.encryptKey, {
       iv: iv,
       padding: CryptoJS.pad.Pkcs7,
       mode: CryptoJS.mode.CBC,
@@ -41,9 +41,9 @@ export default class CryptoUtils {
     return transitMessage
   }
 
-  static decrypt(transitMessage, password = this.encryptKey) {
-    const iv = CryptoJS.enc.Hex.parse(transitMessage.substr(32, 32))
-    const encrypted = transitMessage.substring(64)
+  static decrypt(message, password = this.encryptKey) {
+    const iv = CryptoJS.enc.Hex.parse(message.substr(32, 32))
+    const encrypted = message.substring(64)
 
     const decrypted = CryptoJS.AES.decrypt(encrypted, password, {
       iv,
@@ -92,12 +92,6 @@ export default class CryptoUtils {
     })
   }
 
-  static encryptItemPayload(data, transmissionKey = this.transmissionKey) {
-    return {
-      data: this.aesEncrypt(JSON.stringify(data), transmissionKey)
-    }
-  }
-
   static encryptPayload(
     data,
     keyList = [],
@@ -109,11 +103,6 @@ export default class CryptoUtils {
         data[key] = this.encrypt(data[key], encryptKey)
       }
     })
-
-    return {
-      data: this.aesEncrypt(JSON.stringify(data), transmissionKey)
-    }
+    return data
   }
-
-  
 }

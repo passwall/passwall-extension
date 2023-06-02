@@ -34,7 +34,6 @@ class Agent {
     HTTPClient.setHeader('Authorization', `Bearer ${token}`)
 
     CryptoUtils.encryptKey = await Storage.getItem('master_hash')
-    CryptoUtils.transmissionKey = await Storage.getItem('transmission_key')
     this.isAuthenticated = true
   }
 
@@ -51,22 +50,22 @@ class Agent {
           this.fetchTokens().then(() => {
             // Send REFRESH_TOKENS message to active tab's content script
             browser.tabs.query({ active: true, currentWindow: true })
-            .then(tabs => {
-              const activeTab = tabs[0];
-              browser.tabs.sendMessage(activeTab.id, { type: EVENT_TYPES.REFRESH_TOKENS, payload: {} });
-            })
-            .catch(error => console.error(error));
+              .then(tabs => {
+                const activeTab = tabs[0];
+                browser.tabs.sendMessage(activeTab.id, { type: EVENT_TYPES.REFRESH_TOKENS, payload: {} });
+              })
+              .catch(error => console.error(error));
           });
           break
         case EVENT_TYPES.LOGOUT:
           this.isAuthenticated = false
           // Send REFRESH_TOKENS message to active tab's content script
           browser.tabs.query({ active: true, currentWindow: true })
-          .then(tabs => {  
-            const activeTab = tabs[0];
-            browser.tabs.sendMessage(activeTab.id, { type: EVENT_TYPES.LOGOUT, payload: {} });
-          })
-          .catch(error => console.error(error));
+            .then(tabs => {
+              const activeTab = tabs[0];
+              browser.tabs.sendMessage(activeTab.id, { type: EVENT_TYPES.LOGOUT, payload: {} });
+            })
+            .catch(error => console.error(error));
           break
       }
     }
@@ -92,8 +91,7 @@ class Agent {
    */
   async requestLogins(domain) {
     if (!this.isAuthenticated) throw new RequestError('Passwall authentication is needed!', 'NO_AUTH')
-    const { data } = await LoginsService.FetchAll()
-    const itemList = JSON.parse(CryptoUtils.aesDecrypt(data.data))
+    const { data: itemList } = await LoginsService.FetchAll()
     itemList.forEach(element => {
       CryptoUtils.decryptFields(element, EncryptedFields)
     })
@@ -124,62 +122,62 @@ window.addEventListener('load', () => {
 })
 
 /* var Background = (function (){
-	// variables ----------------------------------------------------------------
-	var _this 		= {},
-		_websites	= [];
+  // variables ----------------------------------------------------------------
+  var _this 		= {},
+    _websites	= [];
   
     // Login Hashmap
   var loginHashmap = new Map()
-			
-	// initialize ---------------------------------------------------------------
-	_this.init = function (){
+    	
+  // initialize ---------------------------------------------------------------
+  _this.init = function (){
     console.log("Passwall background script initialized successfully.");
 
-		// list of website liked
-		_websites = [];
-		
-		// receive post messages from "content-script.js" and any iframes
-		browser.runtime.onMessage.addListener(onPostMessage);
-		
-		// manage when a user change tabs
-		// browser.tabs.onActivated.addListener(onTabActivated);		
+    // list of website liked
+    _websites = [];
+  	
+    // receive post messages from "content-script.js" and any iframes
+    browser.runtime.onMessage.addListener(onPostMessage);
+  	
+    // manage when a user change tabs
+    // browser.tabs.onActivated.addListener(onTabActivated);		
 
     browser.tabs.onUpdated.addListener(onTabUpdated);
     
-	};
+  };
 
   // events -------------------------------------------------------------------
-	function onPostMessage (request, sender, sendResponse){
-		if (!request.message) return;
+  function onPostMessage (request, sender, sendResponse){
+    if (!request.message) return;
     
-		// if it has a "view", it resends the message to all the frames in the current tab
-		if (request.data.view){
-			_this.tell(request.message, request.data);
-			return;
-		}
-		
-		processMessage(request);
-	};
+    // if it has a "view", it resends the message to all the frames in the current tab
+    if (request.data.view){
+      _this.tell(request.message, request.data);
+      return;
+    }
+  	
+    processMessage(request);
+  };
 
-	function onTabActivated (){
-		upateCurrentTab();
-	};
+  function onTabActivated (){
+    upateCurrentTab();
+  };
 
   function onTabUpdated() {
-		updateTab();
-	};
+    updateTab();
+  };
 	
-	// private functions --------------------------------------------------------
-	function processMessage (request){
+  // private functions --------------------------------------------------------
+  function processMessage (request){
     console.log('background scripte gelen: ',request.message);
-		switch (request.message){
+    switch (request.message){
       case 'fill-hashmap-from-popup': fillHashmapFromPopup(request.data); break;
       case 'fill-hashmap-from-content': fillHashmapFromContent(request.data); break;
-			case 'save-iheart': message_onSaved(request.data); break;
-			case 'all-iframes-loaded': message_allIframesLoaded(request.data); break;
-		};
+      case 'save-iheart': message_onSaved(request.data); break;
+      case 'all-iframes-loaded': message_allIframesLoaded(request.data); break;
+    };
     console.log(loginHashmap);
-	};
+  };
 
   function updateTab(url){
     browser.tabs.query({lastFocusedWindow: true, active: true}).then(tabs => {
@@ -213,20 +211,20 @@ window.addEventListener('load', () => {
     activeTab.then(function (tabs) {
     
       var website = null;	
-			for (var i in _websites){
-				if (_websites[i].url == tabs[0].url) website = _websites[i];
-			}
-			
-			if (website){
-				// send a message to all the views (with "*" wildcard)
-				_this.tell('website-is-hearted', {view:'*', comment:website.comment});
-			}
+      for (var i in _websites){
+        if (_websites[i].url == tabs[0].url) website = _websites[i];
+      }
+    	
+      if (website){
+        // send a message to all the views (with "*" wildcard)
+        _this.tell('website-is-hearted', {view:'*', comment:website.comment});
+      }
       
     }, null);
     
-	};	
+  };	
 
-	// actions -------------------------------------------------------------------
+  // actions -------------------------------------------------------------------
   function fillHashmapFromPopup(data) {
     data.forEach((item,index)=>{
       let key = getKey(item.url, item.username, 'popup');
@@ -257,17 +255,17 @@ window.addEventListener('load', () => {
     }; // end if
   };
 
-	function message_onSaved (data){
-		_websites.push({
-			url			: data.url,
-			title		: data.title,
-			comment		: data.comment
-		});
-	};
+  function message_onSaved (data){
+    _websites.push({
+      url			: data.url,
+      title		: data.title,
+      comment		: data.comment
+    });
+  };
 	
-	function message_allIframesLoaded (data){
-		upateCurrentTab();
-	};
+  function message_allIframesLoaded (data){
+    upateCurrentTab();
+  };
 	
   // util functions ---------------------------------------------------------
   function getKey(url,username,source) {
@@ -288,26 +286,26 @@ window.addEventListener('load', () => {
     return false;
   };
 	
-	// public functions ---------------------------------------------------------
-	_this.getWebsites = function (){
-		return _websites;
-	};
+  // public functions ---------------------------------------------------------
+  _this.getWebsites = function (){
+    return _websites;
+  };
 	
-	_this.tell = function (message, data){
-		var data = data || {};
+  _this.tell = function (message, data){
+    var data = data || {};
 
     // find the current tab and send a message to "content-script.js" and all the iframes
     browser.tabs.query({active: true, lastFocusedWindow: true}).then(tabs => {
       if (!tabs[0]) return;
       browser.tabs.sendMessage(tabs[0].id, {
-				message	: message,
-				data	: data
-			});
+        message	: message,
+        data	: data
+      });
     });
 
-	};
+  };
 	
-	return _this;
+  return _this;
 }());
 
 window.addEventListener("load", function() { Background.init(); }, false); */
