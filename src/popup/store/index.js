@@ -15,6 +15,7 @@ import BankAccounts from '@p/views/BankAccounts/store'
 import Notes from '@p/views/Notes/store'
 import Servers from '@p/views/Servers/store'
 import ChangeMasterPassword from '@p/views/ChangeMasterPassword/store'
+import Migration from '@p/views/Migration/store'
 import * as Helpers from '@/utils/helpers'
 import { EVENT_TYPES } from '@/utils/constants'
 
@@ -90,6 +91,7 @@ export default new Vuex.Store({
         Storage.setItem('refresh_token', data.refresh_token),
         Storage.setItem('user', data),
         Storage.setItem('master_hash', state.master_hash),
+        Storage.setItem('is_migrated', data.is_migrated),
       ])
 
       HTTPClient.setHeader('Authorization', `Bearer ${state.access_token}`)
@@ -125,6 +127,7 @@ export default new Vuex.Store({
     BankAccounts,
     Notes,
     Servers,
-    ChangeMasterPassword
+    ChangeMasterPassword,
+    Migration
   }
 })
