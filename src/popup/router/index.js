@@ -61,6 +61,11 @@ const router = new Router({
       component: require('@p/views/ChangeMasterPassword').default
     },
     {
+      path: '/migration',
+      name: 'Migration',
+      component: require('@p/views/Migration').default
+    },
+    {
       path: '/logins/create',
       name: 'LoginCreate',
       component: require('@p/views/Logins/create').default
@@ -162,10 +167,10 @@ router.beforeEach(async (to, from, next) => {
   const detail = await Storage.getItem('latest_route_param_detail')
   const shouldRedirect = Boolean(
     to.name === 'Logins' &&
-      lastRouteName &&
-      isFirstTransition &&
-      lastRouteName !== 'SavePassword' &&
-      lastRouteName !== 'LoginAsPopup'
+    lastRouteName &&
+    isFirstTransition &&
+    lastRouteName !== 'SavePassword' &&
+    lastRouteName !== 'LoginAsPopup'
   )
 
   if (shouldRedirect) {

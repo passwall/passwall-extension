@@ -13,22 +13,17 @@ export const isBase64 = value => {
 }
 
 export default class CryptoUtils {
-  static transmissionKey
   static encryptKey
 
   static sha1(msg) {
     return CryptoJS.SHA1(msg).toString().toUpperCase();
   }
 
-  static hmac(msg, transmissionKey = this.transmissionKey) {
-    const encrypted = CryptoJS.HmacSHA256(msg, transmissionKey)
-    return encrypted.toString()
-  }
-
   static encrypt(message, password = this.encryptKey) {
     const salt = CryptoJS.lib.WordArray.random(128 / 8)
+    const hexKey = CryptoJS.enc.Hex.parse(password)
 
-    const encrypted = CryptoJS.AES.encrypt(message, this.encryptKey, {
+    const encrypted = CryptoJS.AES.encrypt(message, hexKey, {
       iv: iv,
       padding: CryptoJS.pad.Pkcs7,
       mode: CryptoJS.mode.CBC,
@@ -42,6 +37,21 @@ export default class CryptoUtils {
   }
 
   static decrypt(message, password = this.encryptKey) {
+    const iv = CryptoJS.enc.Hex.parse(message.substr(32, 32))
+    const encrypted = message.substring(64)
+    const hexKey = CryptoJS.enc.Hex.parse(password)
+
+    const decrypted = CryptoJS.AES.decrypt(encrypted, hexKey, {
+      iv,
+      padding: CryptoJS.pad.Pkcs7,
+      mode: CryptoJS.mode.CBC,
+      hasher: CryptoJS.algo.SHA256
+    })
+    return decrypted.toString(CryptoJS.enc.Utf8)
+  }
+
+  // decryptLegacy is deprecated
+  static decryptLegacy(message, password = this.encryptKey) {
     const iv = CryptoJS.enc.Hex.parse(message.substr(32, 32))
     const encrypted = message.substring(64)
 
@@ -68,14 +78,6 @@ export default class CryptoUtils {
     return CryptoJS.SHA256(value).toString()
   }
 
-  static aesEncrypt(value, key = this.transmissionKey) {
-    return CryptoJS.AES.encrypt(value, key).toString()
-  }
-
-  static aesDecrypt(value, key = this.transmissionKey) {
-    return CryptoJS.AES.decrypt(value, key).toString(CryptoJS.enc.Utf8)
-  }
-
   static encryptFields(data, keyList, encryptKey = this.encryptKey) {
     Object.keys(data).forEach(key => {
       if (data[key] && keyList.includes(key)) {
@@ -92,11 +94,18 @@ export default class CryptoUtils {
     })
   }
 
+  static decryptFieldsLegacy(data, keyList, encryptKey = this.encryptKey) {
+    Object.keys(data).forEach(key => {
+      if (data[key] && keyList.includes(key)) {
+        data[key] = this.decryptLegacy(data[key], encryptKey)
+      }
+    })
+  }
+
   static encryptPayload(
     data,
     keyList = [],
     encryptKey = this.encryptKey,
-    transmissionKey = this.transmissionKey
   ) {
     Object.keys(data).forEach(key => {
       if (keyList.includes(key.toLowerCase())) {
