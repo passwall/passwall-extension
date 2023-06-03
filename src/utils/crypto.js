@@ -13,16 +13,10 @@ export const isBase64 = value => {
 }
 
 export default class CryptoUtils {
-  static transmissionKey
   static encryptKey
 
   static sha1(msg) {
     return CryptoJS.SHA1(msg).toString().toUpperCase();
-  }
-
-  static hmac(msg, transmissionKey = this.transmissionKey) {
-    const encrypted = CryptoJS.HmacSHA256(msg, transmissionKey)
-    return encrypted.toString()
   }
 
   static encrypt(message, password = this.encryptKey) {
@@ -82,14 +76,6 @@ export default class CryptoUtils {
 
   static sha256Encrypt(value) {
     return CryptoJS.SHA256(value).toString()
-  }
-
-  static aesEncrypt(value, key = this.transmissionKey) {
-    return CryptoJS.AES.encrypt(value, key).toString()
-  }
-
-  static aesDecrypt(value, key = this.transmissionKey) {
-    return CryptoJS.AES.decrypt(value, key).toString(CryptoJS.enc.Utf8)
   }
 
   static encryptFields(data, keyList, encryptKey = this.encryptKey) {
