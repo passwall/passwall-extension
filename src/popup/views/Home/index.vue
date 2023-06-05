@@ -110,19 +110,7 @@ export default {
 
     goUpgrade() {
       this.$browser.tabs.create({
-        url: 'https://signup.passwall.io/upgrade'
-      })
-    },
-
-    goCancel() {
-      this.$browser.tabs.create({
-        url: this.user.cancel_url
-      })
-    },
-
-    goUpdate() {
-      this.$browser.tabs.create({
-        url: this.user.update_url
+        url: 'https://passwall.io'
       })
     },
 
