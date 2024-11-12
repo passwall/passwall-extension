@@ -1,10 +1,10 @@
 {
   "name": "passwall-extension",
-  "version": "1.1.1",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service build --mode development --watch",
-    "build": "vue-cli-service build",
+    "build": "vue-cli-service build && node scripts/fixManifest.js",
     "lint": "vue-cli-service lint",
     "test": "jest",
     "test:build": "yarn build && jest"

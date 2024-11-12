@@ -1,4 +1,41 @@
+
+const fs = require('fs');
+const path = require('path');
+
 module.exports = {
+  configureWebpack: {
+    devtool: 'source-map',
+    optimization: {
+      minimize: true,
+    },
+    performance: {
+      hints: 'warning',
+      maxAssetSize: 1000000,
+      maxEntrypointSize: 800000,
+    },
+  },
+  chainWebpack: (config) => {
+    // Build sırasında content_security_policy alanını string olarak ayarla
+    config.plugin('copy').tap(([options]) => {
+      const to = options[0].to;
+      const from = options[0].from;
+      const transform = options[0].transform;
+
+      options[0].transform = (content, path) => {
+        if (path.endsWith('manifest.json')) {
+          const manifest = JSON.parse(content.toString());
+
+          // content_security_policy alanını string olarak ayarla
+          manifest.content_security_policy = "script-src 'self'; object-src 'self';";
+
+          return JSON.stringify(manifest, null, 2);
+        }
+        return transform ? transform(content, path) : content;
+      };
+
+      return [options];
+    });
+  },
   pages: {
     popup: {
       template: 'public/browser-extension.html',
