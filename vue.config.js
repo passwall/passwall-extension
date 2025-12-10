@@ -20,6 +20,7 @@ module.exports = {
   },
   pluginOptions: {
     browserExtension: {
+      manifestVersion: 3,
       componentOptions: {
         background: {
           entry: 'src/background-scripts/background-script.js'
@@ -29,6 +30,11 @@ module.exports = {
             'content-script': ['src/content-scripts/content-script.js']
           }
         }
+      },
+      modifyManifest: (manifest) => {
+        // Remove CSP for Manifest V3 - uses default secure CSP
+        delete manifest.content_security_policy
+        return manifest
       }
     }
   }

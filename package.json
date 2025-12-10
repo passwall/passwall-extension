@@ -1,10 +1,12 @@
 {
   "name": "passwall-extension",
-  "version": "1.1.1",
+  "version": "2.1.0",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service build --mode development --watch",
-    "build": "vue-cli-service build",
+    "build": "NODE_OPTIONS=--openssl-legacy-provider vue-cli-service build && node scripts/fix-manifest-mv3.js",
+    "build:dev": "NODE_OPTIONS=--openssl-legacy-provider vue-cli-service build --mode development && node scripts/fix-manifest-mv3.js",
+    "package": "yarn build && cd dist && zip -r ../passwall-extension-v$(node -p \"require('../package.json').version\").zip . -x '*.DS_Store' && cd ..",
     "lint": "vue-cli-service lint",
     "test": "jest",
     "test:build": "yarn build && jest"

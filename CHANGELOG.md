@@ -1,0 +1,82 @@
+# Changelog
+
+All notable changes to Passwall Browser Extension will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [2.1.0] - 2025-12-10
+
+### 🎉 Major Update: Manifest V3 Migration
+
+#### Added
+- ✨ **Manifest V3 Support** - Full upgrade to Chrome's latest extension architecture
+- 🛠️ **Auto-fix Script** - Post-build script (`scripts/fix-manifest-mv3.js`) for manifest compatibility
+- 📚 **Documentation** - Comprehensive project analysis and upgrade documentation
+  - `PROJECT_ANALYSIS.md` - Complete technical documentation
+  - `MANIFEST_V3_UPGRADE.md` - Detailed upgrade changelog
+  - `BUILD_INSTRUCTIONS.md` - Updated build guide in Turkish
+
+#### Changed
+- 🔄 **Background Script** - Migrated from persistent background page to service worker
+- 🔒 **Permissions Model** - Split permissions into `permissions` and `host_permissions`
+- 🎨 **Browser Action** - Updated `browser_action` to `action` API
+- 📦 **Web Accessible Resources** - New structured format for MV3
+- 🔧 **CSP Handling** - Removed custom CSP, using secure MV3 defaults
+
+#### Fixed
+- ✅ **Chrome Compatibility** - Now fully compatible with Chrome 88+ (Manifest V3 required)
+- ✅ **Build Process** - Fixed Node.js 17+ OpenSSL compatibility issues
+- ✅ **Service Worker** - Proper async message handling for MV3
+- ✅ **CSP Validation** - Automatic removal of incompatible CSP format
+
+#### Technical Improvements
+- 🚀 **Performance** - Service worker architecture reduces memory usage
+- 🔐 **Security** - Enhanced security with MV3's stricter policies
+- 🌐 **Future-Proof** - Ready for Manifest V2 deprecation (June 2024+)
+
+#### Build System
+- Updated build scripts with OpenSSL legacy provider support
+- Added automatic manifest fixing in build pipeline
+- Improved error handling in background script
+
+### Migration Notes
+
+**For Users:**
+- No action required - extension updates automatically
+- All existing data is preserved
+- Login credentials remain encrypted
+
+**For Developers:**
+- Use `yarn build` for production builds
+- CSP is automatically fixed post-build
+- Service worker initializes immediately (no window.load)
+
+**Breaking Changes:**
+- Requires Chrome 88+ or Firefox 109+
+- Older browser versions not supported
+
+---
+
+## [1.1.1] - Previous Release
+
+### Features
+- Password manager with client-side encryption
+- Auto-fill login credentials
+- Password generator
+- Support for multiple data types (logins, cards, notes, servers)
+- Cross-browser support (Chrome, Firefox, Edge)
+- Self-hosted server option
+
+---
+
+## Release Links
+
+- [Chrome Web Store](https://chrome.google.com/webstore) - Coming soon
+- [GitHub Releases](https://github.com/passwall/passwall-extension/releases)
+- [Homepage](https://passwall.io)
+
+---
+
+**Full Changelog**: [View on GitHub](https://github.com/passwall/passwall-extension/compare/v1.1.1...v1.2.0)
+

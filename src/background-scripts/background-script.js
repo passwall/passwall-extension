@@ -17,10 +17,16 @@ class Agent {
 
   async init() {
     await this.fetchTokens()
-    browser.runtime.onMessage.addListener(this.handleMessage.bind(this)) // for content-scirpt/popup events events
+    browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      // Return true to indicate async response in MV3
+      this.handleMessage(request, sender, sendResponse)
+      return true
+    })
 
     browser.tabs.onUpdated.addListener((tabId, changeInfo, tabInfo) => {
-      browser.tabs.sendMessage(tabId, { type: EVENT_TYPES.TAB_UPDATE, payload: {} })
+      browser.tabs.sendMessage(tabId, { type: EVENT_TYPES.TAB_UPDATE, payload: {} }).catch(() => {
+        // Ignore errors if tab is not ready
+      })
     })
   }
 
@@ -117,9 +123,9 @@ class Agent {
   }
 }
 
-window.addEventListener('load', () => {
-  new Agent()
-})
+// Initialize agent immediately for service worker (MV3)
+// Service workers don't have window.load event
+new Agent()
 
 /* var Background = (function (){
   // variables ----------------------------------------------------------------
