@@ -12,12 +12,16 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex'
+import { useAuthStore } from '@/stores/auth'
 
 export default {
   name: 'App',
-  methods: {
-    ...mapActions(['loadStore'])
+  setup() {
+    const authStore = useAuthStore()
+    
+    return {
+      loadStore: authStore.loadStore
+    }
   },
   created() {
     this.messageToBackground({ type: 'POPUP_INITAL' })

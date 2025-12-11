@@ -25,10 +25,14 @@
     <div class="scroll detail">
       <form class="form" @submit.stop.prevent="onClickUpdate">
         <FormRowText v-model="form.title" title="title" :edit-mode="isEditMode" :show-icons="false">
-          <template v-slot:second-icon> <div /> </template>
+          <template v-slot:second-icon>
+            <ClipboardButton v-if="form.title" :copy="form.title" />
+          </template>
         </FormRowText>
         <FormRowText v-model="form.email" title="email" :edit-mode="isEditMode" :show-icons="true">
-          <template v-slot:second-icon> <div /> </template>
+          <template v-slot:second-icon>
+            <ClipboardButton v-if="form.email" :copy="form.email" />
+          </template>
         </FormRowText>
         <FormRowText
           v-model="form.password"
@@ -36,7 +40,13 @@
           :edit-mode="isEditMode"
           :show-icons="true"
           password
-        />
+        >
+          <template v-slot:second-icon>
+            <div class="d-flex flex-items-center">
+              <ClipboardButton v-if="form.password" :copy="form.password" />
+            </div>
+          </template>
+        </FormRowText>
         <!-- Save & Cancel -->
         <div class="d-flex m-3" v-if="isEditMode">
           <VButton class="flex-1" theme="text" :disabled="loading" @click="isEditMode = false">
@@ -52,41 +62,60 @@
 </template>
 
 <script>
-import { mapState, mapActions } from 'vuex'
-import DetailMixin from '@/mixins/detail'
+import { useEmailsStore } from '@/stores/emails'
 
 export default {
-  mixins: [DetailMixin],
-
   data() {
     return {
+      form: {
+        title: '',
+        email: '',
+        password: ''
+      },
       isEditMode: false,
       showPass: false
     }
   },
 
-  beforeRouteUpdate(to, from, next) {
-    this.isEditMode = false
-    this.showPass = false
-    next()
+  setup() {
+    const emailsStore = useEmailsStore()
+    return {
+      emailsStore,
+      deleteItem: emailsStore.delete,
+      updateItem: emailsStore.update
+    }
+  },
+
+  computed: {
+    ItemList() {
+      return this.emailsStore?.itemList || []
+    },
+    loading() {
+      return this.$wait.is(this.$waiters.Emails.Update)
+    }
+  },
+
+  mounted() {
+    let detail = this.emailsStore.detail
+    if (!detail || !detail.id) {
+      detail = this.$route.params.detail
+    }
+    if ((!detail || !detail.id) && this.$route.params.id) {
+      detail = this.ItemList.find(i => i.id == this.$route.params.id)
+    }
+    if (detail && detail.id) {
+      this.form = { ...this.form, ...detail }
+    }
   },
 
   methods: {
-    ...mapActions('Emails', ['Delete', 'Update']),
-
-    openLink() {
-      this.$browser.tabs.create({
-        url: this.detail.url
-      })
-    },
-
     goBack() {
       this.$router.push({ name: 'Emails', params: { cache: true } })
     },
 
     onClickDelete() {
       const onSuccess = async () => {
-        await this.Delete(this.form.id)
+        await this.deleteItem(this.form.id)
         const index = this.ItemList.findIndex(item => item.id == this.form.id)
         if (index !== -1) {
           this.ItemList.splice(index, 1)
@@ -99,19 +128,13 @@ export default {
 
     async onClickUpdate() {
       const onSuccess = async () => {
-        await this.Update({ ...this.form })
-        this.$router.push({ name: 'Emails', params: { cache: true } })
+        const updated = await this.updateItem({ ...this.form })
+        this.form = { ...this.form, ...updated }
+        this.emailsStore.setDetail(updated)
       }
 
       await this.$request(onSuccess, this.$waiters.Emails.Update)
       this.isEditMode = false
-    }
-  },
-  computed: {
-    ...mapState('Emails', ['Detail', 'ItemList']),
-
-    loading() {
-      return this.$wait.is(this.$waiters.Emails.Update)
     }
   }
 }

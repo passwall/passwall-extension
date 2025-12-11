@@ -2,20 +2,20 @@
   <div class="form-text-wrapper">
     <input
       :type="$attrs.type || 'text'"
-      :value="value"
+      :value="modelValue || value"
       :class="clazz"
       class="form-text"
       autocorrect="off"
       autocomplete="off"
       spellcheck="false"
-      v-on="$listeners"
+      @input="$emit('input', $event); $emit('update:modelValue', $event.target.value)"
       v-bind="$attrs"
     />
     <!-- Error -->
     <p class="error" v-if="getError" v-text="getError" />
     <VIcon
-      :name="value.length <= 0 ? 'search' : 'x-icon'"
-      @click="$emit('input', { target: { value: '' } })"
+      :name="(modelValue || value || '').length <= 0 ? 'search' : 'x-icon'"
+      @click="$emit('input', { target: { value: '' } }); $emit('update:modelValue', '')"
       class="icon c-pointer"
       color="#8B93A1"
     />
@@ -25,10 +25,13 @@
 <script>
 export default {
   name: 'VFormSearch',
+  inheritAttrs: false,
+  emits: ['input', 'update:modelValue'],
 
   props: {
     name: String,
     value: String,
+    modelValue: String,
     theme: {
       type: String,
       default: 'default'
@@ -45,6 +48,7 @@ export default {
     },
 
     getError() {
+      if (!this.errors) return ''
       const error = this.errors.items.find(e => e.field == this.name)
       return error ? error.msg : ''
     }
@@ -58,8 +62,9 @@ export default {
 
   .icon {
     position: absolute;
-    top: 12px;
+    top: 50%;
     right: 10px;
+    transform: translateY(-50%);
   }
 
   .error {

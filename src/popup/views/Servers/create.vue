@@ -182,10 +182,16 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex'
+import { useServersStore } from '@/stores/servers'
 import Storage from '@/utils/storage'
 
 export default {
+  setup() {
+    const serversStore = useServersStore()
+    return {
+      createItem: serversStore.create
+    }
+  },
   data() {
     return {
       showPass: false,
@@ -219,11 +225,13 @@ export default {
     }
   },
   methods: {
-    ...mapActions('Servers', ['Create']),
     async onSubmit() {
-      if (!(await this.$validator.validateAll())) return
+      if (!this.form.title) {
+        this.$notifyError(this.$t('PleaseFillAllFields') || 'Please fill all required fields')
+        return
+      }
       const onSuccess = async () => {
-        await this.Create({ ...this.form })
+        await this.createItem({ ...this.form })
         this.$router.push({ name: 'Servers' })
       }
       this.$request(onSuccess, this.$waiters.Servers.Create)

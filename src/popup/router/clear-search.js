@@ -1,5 +1,6 @@
-import store from '@p/store'
+import { useAuthStore } from '@/stores/auth'
 
 export default () => {
-  store.commit('onInputSearchQuery', { target: { value: '' } })
+  const authStore = useAuthStore()
+  authStore.setSearchQuery({ target: { value: '' } })
 }

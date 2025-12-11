@@ -14,7 +14,6 @@
           v-model="LoginForm.server"
           size="medium"
           name="server"
-          v-validate="'required'"
           :placeholder="$t('ServerURL')"
           data-testid="server"
         />
@@ -24,7 +23,6 @@
           v-model="LoginForm.email"
           size="medium"
           name="username"
-          v-validate="'required'"
           :placeholder="$t('YourEMailAddress')"
           data-testid="username"
         />
@@ -36,7 +34,6 @@
           type="password"
           name="Password"
           :placeholder="$t('YourMasterPassword')"
-          v-validate="'required|min:6|max:100'"
           data-testid="password"
         />
 
@@ -66,11 +63,18 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex'
+import { useAuthStore } from '@/stores/auth'
 import HTTPClient from '@/api/HTTPClient'
 
 export default {
   name: 'Login',
+  setup() {
+    const authStore = useAuthStore()
+    
+    return {
+      loginAction: authStore.login
+    }
+  },
   data() {
     return {
       LoginForm: {
@@ -80,37 +84,67 @@ export default {
       }
     }
   },
-  mounted() {
-    this.$storage.getItem('email').then(e => {
-      if (e) this.LoginForm.email = e
-    }),
-      this.$storage.getItem('server').then(e => {
-        if (e) this.LoginForm.server = e
-      })
+  async mounted() {
+    console.log('Login mounted, initial form:', this.LoginForm)
+    
+    const savedEmail = await this.$storage.getItem('email')
+    if (savedEmail) {
+      this.LoginForm.email = savedEmail
+      console.log('Loaded saved email:', savedEmail)
+    }
+    
+    const savedServer = await this.$storage.getItem('server')
+    if (savedServer) {
+      this.LoginForm.server = savedServer
+      console.log('Loaded saved server:', savedServer)
+    }
+    
+    console.log('Login mounted complete, form:', this.LoginForm)
   },
   methods: {
-    ...mapActions(['Login']),
     async onLogin() {
-      if (!(await this.$validator.validateAll())) return
+      console.log('Login form values:', this.LoginForm)
+      
+      // Basic validation (VeeValidate temporarily removed)
+      if (!this.LoginForm.email || !this.LoginForm.email.trim()) {
+        console.log('Email validation failed:', this.LoginForm.email)
+        this.$notifyError('Please enter your email address')
+        return
+      }
+      if (!this.LoginForm.master_password || this.LoginForm.master_password.length < 6) {
+        console.log('Password validation failed:', this.LoginForm.master_password?.length)
+        this.$notifyError('Master password must be at least 6 characters')
+        return
+      }
+      if (!this.LoginForm.server || !this.LoginForm.server.trim()) {
+        console.log('Server validation failed:', this.LoginForm.server)
+        this.$notifyError('Please enter server URL')
+        return
+      }
+      
+      console.log('Validation passed, attempting login...')
 
       HTTPClient.setBaseURL(this.LoginForm.server)
 
       const onError = error => {
         let text = this.$t('Ooops! Something went wrong!')
-        if (error.response.status == 401) {
+        if (error.response && error.response.status == 401) {
           text = this.$t(error.response.data.message)
         }
         this.$notifyError(text)
       }
 
       const onSuccess = async () => {
-        await this.Login({ ...this.LoginForm })
+        await this.loginAction({ ...this.LoginForm })
         const is_migrated = await this.$storage.getItem('is_migrated')
         if (!is_migrated) {
           this.$router.replace({ name: 'Migration' })
           return
         }
-        this.$router.replace({ name: 'Home' })
+        // Go directly to Logins instead of Home (which redirects to Logins)
+        // This prevents double setup and data clearing
+        console.log('✅ Login successful, navigating to Logins...')
+        this.$router.replace({ name: 'Logins' })
       }
       this.$request(onSuccess, this.$waiters.Auth.Login, onError)
     },

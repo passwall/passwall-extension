@@ -3,10 +3,10 @@
     <div class="d-flex">
       <label v-if="label" class="title">{{ label }}</label>
             <ShowPassButton @click="showNote = !showNote" />
-            <ClipboardButton :copy="value"></ClipboardButton>
+            <ClipboardButton :copy="modelValue || value"></ClipboardButton>
     </div>
     <textarea
-      :value="showNote || isEditable ? value : '●●●●●●'"
+      :value="showNote || isEditable ? (modelValue || value) : '●●●●●●'"
       autocorrect="off"
       autocomplete="off"
       spellcheck="false"
@@ -22,9 +22,13 @@
 <script>
 export default {
   name: 'VTextArea',
+  inheritAttrs: false,
+  emits: ['input', 'update:modelValue'],
+  
   props: {
     name: String,
     value: String,
+    modelValue: String,
     isEditable: Boolean,
     label: {
       type: String,
@@ -42,16 +46,22 @@ export default {
   },
   computed: {
     getError() {
+      if (!this.errors) return ''
       const error = this.errors.items.find(e => e.field == this.name)
       return error ? error.msg : ''
     },
     hiddenNote() {
-      return this.note.replaceAll("","*");
+      return this.note?.replaceAll("","*") || '';
     },
     inputListeners() {
-      return Object.assign({}, this.$listeners, {
-        input: event => this.$emit('input', event.target.value)
-      })
+      // Vue 3: $listeners merged into $attrs
+      return {
+        ...this.$attrs,
+        input: event => {
+          this.$emit('input', event.target.value)
+          this.$emit('update:modelValue', event.target.value)
+        }
+      }
     },
     cssVars() {
       return {

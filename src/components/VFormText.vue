@@ -2,7 +2,7 @@
   <div class="form-text-wrapper">
     <input
       :type="$attrs.type || 'text'"
-      :value="value"
+      :value="modelValue || value"
       :class="clazz"
       class="form-text"
       autocorrect="off"
@@ -19,10 +19,12 @@
 <script>
 export default {
   name: 'VFormText',
+  inheritAttrs: false,
 
   props: {
     name: String,
-    value: String,
+    value: [String, Number],
+    modelValue: [String, Number], // Vue 3 v-model
     theme: {
       type: String,
       default: 'default'
@@ -33,6 +35,8 @@ export default {
     }
   },
 
+  emits: ['update:modelValue', 'input'],
+  
   computed: {
     clazz() {
       return [`--${this.size}`, `--${this.theme}`, { '--error': this.getError }]
@@ -47,9 +51,19 @@ export default {
     },
 
     inputListeners() {
-      return Object.assign({}, this.$listeners, {
-        input: event => this.$emit('input', event.target.value)
-      })
+      // Vue 3: $listeners merged into $attrs
+      const listeners = { ...this.$attrs }
+      delete listeners.type
+      delete listeners.name
+      delete listeners.placeholder
+      
+      return {
+        ...listeners,
+        input: event => {
+          this.$emit('input', event.target.value)
+          this.$emit('update:modelValue', event.target.value)
+        }
+      }
     }
   }
 }

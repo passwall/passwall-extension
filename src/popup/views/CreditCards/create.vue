@@ -102,10 +102,16 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex'
+import { useCreditCardsStore } from '@/stores/creditCards'
 import Storage from '@/utils/storage'
 
 export default {
+  setup() {
+    const creditCardsStore = useCreditCardsStore()
+    return {
+      createItem: creditCardsStore.create
+    }
+  },
   data() {
     return {
       showPass: false,
@@ -126,11 +132,13 @@ export default {
     }
   },
   methods: {
-    ...mapActions('CreditCards', ['Create']),
     async onSubmit() {
-      if (!(await this.$validator.validateAll())) return
+      if (!this.form.title) {
+        this.$notifyError(this.$t('PleaseFillAllFields') || 'Please fill all required fields')
+        return
+      }
       const onSuccess = async () => {
-        await this.Create({ ...this.form })
+        await this.createItem({ ...this.form })
         this.$router.push({ name: 'CreditCards' })
       }
       this.$request(onSuccess, this.$waiters.CreditCards.Create)

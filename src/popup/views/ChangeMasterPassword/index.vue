@@ -16,7 +16,6 @@
           <VFormText
             name="Email"
             v-model="form.email"
-            v-validate="'required'"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
@@ -29,7 +28,6 @@
               name="Current Master Password"
               class="flex-auto"
               v-model="form.current"
-              v-validate="'required'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showCurrent ? 'text' : 'password'"
@@ -49,7 +47,6 @@
               name="New Master Password"
               class="flex-auto"
               v-model="form.new"
-              v-validate="'required'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showNew ? 'text' : 'password'"
@@ -71,7 +68,6 @@
               name="New Master Password Confirmation"
               class="flex-auto"
               v-model="form.newConfirm"
-              v-validate="'required|confirmed:new_master_password'"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showNewConfirm ? 'text' : 'password'"
@@ -99,12 +95,21 @@
 
 <script>
 import CheckPassword from '@/components/CheckPassword.vue';
-import { mapActions } from 'vuex'
+import { useChangeMasterPasswordStore } from '@/stores/changeMasterPassword'
+import { useAuthStore } from '@/stores/auth'
 import Storage from '@/utils/storage'
-import store from '@p/store'
 
 export default {
   components: { CheckPassword },
+  setup() {
+    const changeMasterPasswordStore = useChangeMasterPasswordStore()
+    const authStore = useAuthStore()
+    
+    return {
+      changeMasterPasswordStore,
+      authStore
+    }
+  },
   data() {
     return {
       showCurrent: false,
@@ -119,76 +124,67 @@ export default {
     }
   },
   methods: {
-    ...mapActions('ChangeMasterPassword', 
-    [
-      'CheckCredentials',
-      'GenerateNewMasterHash',
-      'FetchAllBankAccounts',
-      'UpdateAllBankAccounts',
-      'FetchAllCreditCards',
-      'UpdateAllCreditCards',
-      'FetchAllEmails',
-      'UpdateAllEmails',
-      'FetchAllLogins',
-      'UpdateAllLogins',
-      'FetchAllNotes',
-      'UpdateAllNotes',
-      'FetchAllServers',
-      'UpdateAllServers',
-      'ChangeMasterPassword'
-    ]),
     async onSubmit() {
-      if (!(await this.$validator.validateAll())) return
+      // TODO: Add VeeValidate v4 validation
+      // Temporary basic validation
+      if (!this.form.email || !this.form.current || !this.form.new || !this.form.newConfirm) {
+        this.$notifyError('Please fill all fields')
+        return
+      }
+      
+      if (this.form.new !== this.form.newConfirm) {
+        this.$notifyError('New passwords do not match')
+        return
+      }
+      
       if (this.form.new === this.form.current) {
         const text = this.$t(`New master password can not be same with current master password.`)
         this.$notifyError(text) 
         return
       }
+      
       const onError = async () => {
         const text = this.$t(`Failed to change master password. Please contact with "hello@passwall.io".`)
         this.$notifyError(text) 
       }
+      
       const onSuccess = async () => {
         try {
-          await this.CheckCredentials(this.form )
+          await this.changeMasterPasswordStore.checkCredentials(this.form)
         } catch (error) {
           const text = this.$t(`Email address or master password is wrong.`)
           this.$notifyError(text) 
           return
         }
         
-        await this.GenerateNewMasterHash(this.form)
+        await this.changeMasterPasswordStore.generateNewMasterHash(this.form)
         
-        await this.FetchAllBankAccounts()
-        await this.UpdateAllBankAccounts()
+        await this.changeMasterPasswordStore.fetchAllBankAccounts()
+        await this.changeMasterPasswordStore.updateAllBankAccounts()
 
-        await this.FetchAllCreditCards()
-        await this.UpdateAllCreditCards()
+        await this.changeMasterPasswordStore.fetchAllCreditCards()
+        await this.changeMasterPasswordStore.updateAllCreditCards()
 
-        await this.FetchAllEmails()
-        await this.UpdateAllEmails()
+        await this.changeMasterPasswordStore.fetchAllEmails()
+        await this.changeMasterPasswordStore.updateAllEmails()
 
-        await this.FetchAllLogins()
-        await this.UpdateAllLogins()
+        await this.changeMasterPasswordStore.fetchAllLogins()
+        await this.changeMasterPasswordStore.updateAllLogins()
 
-        await this.FetchAllNotes()
-        await this.UpdateAllNotes()
+        await this.changeMasterPasswordStore.fetchAllNotes()
+        await this.changeMasterPasswordStore.updateAllNotes()
 
-        await this.FetchAllServers()
-        await this.UpdateAllServers()
+        await this.changeMasterPasswordStore.fetchAllServers()
+        await this.changeMasterPasswordStore.updateAllServers()
 
-        await this.ChangeMasterPassword(this.form)
+        await this.changeMasterPasswordStore.changeMasterPassword(this.form)
         
         // Reset all tokens and logout
-        await store.dispatch('Logout')
+        await this.authStore.logout()
         this.$router.push({ name: 'Login' })
       }
       this.$request(onSuccess, this.$waiters.ChangeMasterPassword.Update, onError)
-    },
-
-
-
-
+    }
   }
 }
 </script>

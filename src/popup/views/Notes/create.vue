@@ -52,10 +52,16 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex'
+import { useNotesStore } from '@/stores/notes'
 import Storage from '@/utils/storage'
 
 export default {
+  setup() {
+    const notesStore = useNotesStore()
+    return {
+      createItem: notesStore.create
+    }
+  },
   data() {
     return {
       showPass: false,
@@ -72,11 +78,13 @@ export default {
     }
   },
   methods: {
-    ...mapActions('Notes', ['Create']),
     async onSubmit() {
-      if (!(await this.$validator.validateAll())) return
+      if (!this.form.title) {
+        this.$notifyError(this.$t('PleaseFillAllFields') || 'Please fill all required fields')
+        return
+      }
       const onSuccess = async () => {
-        await this.Create({ ...this.form })
+        await this.createItem({ ...this.form })
         this.$router.push({ name: 'Notes' })
       }
       this.$request(onSuccess, this.$waiters.Notes.Create)

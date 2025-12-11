@@ -1,13 +1,13 @@
-import Vue from 'vue'
+import { createApp } from 'vue'
 import App from './App.vue'
 
-import '../styles/app.scss'
+import '@/styles/app.scss'
 
 import storage from '@/utils/storage'
-Vue.prototype.$storage = storage
 
-/* eslint-disable no-new */
-new Vue({
-  el: '#app',
-  render: h => h(App)
-})
+const app = createApp(App)
+
+// Global properties
+app.config.globalProperties.$storage = storage
+
+app.mount('#app')

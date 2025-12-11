@@ -51,11 +51,17 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex'
+import { useLoginsStore } from '@/stores/logins'
 import Storage from '@/utils/storage'
 
 export default {
   name: 'SavePassword',
+  setup() {
+    const loginsStore = useLoginsStore()
+    return {
+      createLogin: loginsStore.create
+    }
+  },
   data() {
     return {
       showContent: false,
@@ -102,12 +108,11 @@ export default {
     resizeObserver.observe(this.$refs.window)
   },
   methods: {
-    ...mapActions('Logins', ['Create']),
 
     async onSubmit() {
       if (!(await this.$validator.validateAll())) return
       const onSuccess = async () => {
-        await this.Create({ ...this.form })
+        await this.createLogin({ ...this.form })
         this.tell('close-iframe')
       }
       this.$request(onSuccess, this.$waiters.Logins.Create)

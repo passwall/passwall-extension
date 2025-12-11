@@ -8,7 +8,7 @@
       >
         <VAvatar :name="user.name" class="mr-1" />
         <div class="d-flex flex-column ml-2 mt-1">
-          <span class="fs-x-big fw-semibold ff-inter" data-testid="username-label">{{
+          <span class="fs-x-big fw-semibold ff-inter c-white" data-testid="username-label">{{
             user.name
           }}</span>
           <div class="mt-2">
@@ -24,13 +24,19 @@
 </template>
 
 <script>
-import { mapState, mapGetters } from 'vuex'
+import { useAuthStore } from '@/stores/auth'
+import { storeToRefs } from 'pinia'
 
 export default {
   name: 'Header',
-  computed: {
-    ...mapState(['user']),
-    ...mapGetters(['hasProPlan'])
+  setup() {
+    const authStore = useAuthStore()
+    const { user, hasProPlan } = storeToRefs(authStore)
+    
+    return {
+      user,
+      hasProPlan
+    }
   }
 }
 </script>

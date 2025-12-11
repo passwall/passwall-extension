@@ -1,6 +1,7 @@
 <template>
   <div class="d-flex flex-justify-center flex-items-center flex-shrink-0 logoWrap">
-    <img
+    <!-- Temporarily disabled logo fetching - just show first letter -->
+    <!-- <img
       v-if="logoAvailable && check"
       class="logo"
       :src="`https://logo.clearbit.com/${domain}?size=40?format=png`"
@@ -8,8 +9,8 @@
       height="40"
       width="40"
       @error="logoAvailable = false"
-    />
-    <span class="fw-bold fs-big c-secondary" v-else v-text="logoLetter" />
+    /> -->
+    <span class="fw-bold fs-big c-secondary" v-text="logoLetter" />
   </div>
 </template>
 
@@ -28,7 +29,7 @@ export default {
   },
   data() {
     return {
-      logoAvailable: true
+      logoAvailable: false // Disabled logo fetching
     }
   },
 

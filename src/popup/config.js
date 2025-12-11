@@ -1,140 +1,181 @@
-import Vue from 'vue'
-import store from '@p/store'
-import router from '@p/router'
-
+import { createApp } from 'vue'
 import browser from 'webextension-polyfill'
-Vue.prototype.$browser = browser
-
-import '@/mixins/global'
+import { notify } from '@kyvg/vue3-notification'
+import FloatingVue from 'floating-vue'
+import VueClipboard from 'vue-clipboard3'
+import Notifications from '@kyvg/vue3-notification'
+import globalMixin from '@/mixins/global-vue3'
 
 import * as Waiters from '@/utils/waiters'
-Vue.prototype.$waiters = Waiters
-
 import * as Constants from '@/utils/constants'
-Vue.prototype.$c = Constants
-
 import storage from '@/utils/storage'
-Vue.prototype.$storage = storage
-
 import * as Helpers from '@/utils/helpers'
-Vue.prototype.$helpers = Helpers
 
-import VeeValidate from 'vee-validate'
-Vue.use(VeeValidate, { events: 'input|blur' })
+import { reactive } from 'vue'
 
-import VueClipboard from 'vue-clipboard2'
-Vue.use(VueClipboard)
-
-import VTooltip from 'v-tooltip'
-Vue.use(VTooltip)
-
-import VueWait from 'vue-wait'
-Vue.use(VueWait)
-
-import vOutsideEvents from 'vue-outside-events'
-Vue.use(vOutsideEvents)
-
-import Notifications from 'vue-notification'
-Vue.use(Notifications, { duration: 3000 })
-Vue.prototype.$notifyError = text => Vue.prototype.$notify({ type: 'error', text })
-Vue.prototype.$notifyWarn = text => Vue.prototype.$notify({ type: 'warn', text })
-Vue.prototype.$notifySuccess = text => Vue.prototype.$notify({ type: 'success', text })
-
-window.wait = new VueWait({
-  registerComponent: false,
-  registerDirective: false
-})
-
-Vue.directive('click-outside', {
-  bind: function(el, binding, vnode) {
-    el.clickOutsideEvent = function(event) {
-      // here I check that click was outside the el and his children
-      if (!(el == event.target || el.contains(event.target))) {
-        // and if it did, call method provided in attribute value
-        vnode.context[binding.expression](event)
-      }
-    }
-    document.body.addEventListener('click', el.clickOutsideEvent)
-  },
-  unbind: function(el) {
-    document.body.removeEventListener('click', el.clickOutsideEvent)
+// Custom wait implementation to replace vue-wait (Vue 3 reactive)
+class Wait {
+  constructor() {
+    this.state = reactive({
+      waitingFor: new Set()
+    })
   }
-})
-// Auto register all components
-const requireComponent = require.context('../components', true, /\.(vue)$/)
-requireComponent.keys().forEach(fileName => {
-  const componentConfig = requireComponent(fileName)
-  Vue.component(componentConfig.default.name, componentConfig.default)
-})
 
-Vue.prototype.$request = async (callback, waitKey, errorCallback = null, retry = false) => {
-  window.wait.start(waitKey)
+  start(key) {
+    console.log('⏳ Wait START:', key)
+    this.state.waitingFor.add(key)
+  }
 
-  try {
-    await callback()
-  } catch (error) {
-    console.error(error)
+  end(key) {
+    console.log('✅ Wait END:', key)
+    this.state.waitingFor.delete(key)
+  }
 
-    // No connection
-    if (!error.response) {
-      Vue.prototype.$notifyError('Network Error !')
-      Vue.prototype.$wait.end(waitKey)
-      return
-    }
+  is(key) {
+    const waiting = this.state.waitingFor.has(key)
+    console.log('🔍 Wait.is(' + key + '):', waiting)
+    return waiting
+  }
 
-    if (error.response.status === 401 && !router.app._route.meta.auth && !retry) {
-      // Refresh token
-      try {
-        await store.dispatch('RefreshToken')
-        // Retry the connection
-        return Vue.prototype.$request(callback, waitKey, errorCallback, true)
-      } catch (refreshError) {
-        Vue.prototype.$notifyError('Authorization expired.')
-
-        // Reset all tokens
-        await store.dispatch('Logout')
-        return router.push({ name: 'Login' })
-      }
-    }
-
-    if (errorCallback) {
-      errorCallback(error)
-    } else if (error.response.status >= 500) {
-      Vue.prototype.$notifyError(i18n.t('API500ErrorMessage'))
-    } else if (error.response.data.Message && error.response.status != 401) {
-      Vue.prototype.$notifyError(error.response.data.Message)
-    }
-  } finally {
-    window.wait.end(waitKey)
+  any() {
+    return this.state.waitingFor.size > 0
   }
 }
 
-if (
-  // From testing the following conditions seem to indicate that the popup was opened on a secondary monitor
-  window.screenLeft < 0 ||
-  window.screenTop < 0 ||
-  window.screenLeft > window.screen.width ||
-  window.screenTop > window.screen.height
-) {
-  chrome.runtime.getPlatformInfo(function(info) {
-    if (info.os === 'mac') {
-      const fontFaceSheet = new CSSStyleSheet()
-      fontFaceSheet.insertRule(`
-        @keyframes redraw {
-          0% {
-            opacity: 1;
-          }
-          100% {
-            opacity: .99;
-          }
-        }
-      `)
-      fontFaceSheet.insertRule(`
-        html {
-          animation: redraw 1s linear infinite;
-        }
-      `)
-      document.adoptedStyleSheets = [...document.adoptedStyleSheets, fontFaceSheet]
+import { useAuthStore } from '@/stores/auth'
+
+export function setupPlugins(app, router, pinia, i18n) {
+  // Register global mixin
+  app.mixin(globalMixin)
+  
+  // Global properties (Vue 2: Vue.prototype.$x → Vue 3: app.config.globalProperties.$x)
+  app.config.globalProperties.$browser = browser
+  app.config.globalProperties.$waiters = Waiters
+  app.config.globalProperties.$c = Constants
+  app.config.globalProperties.$storage = storage
+  app.config.globalProperties.$helpers = Helpers
+  
+  // Wait functionality
+  const wait = new Wait()
+  app.config.globalProperties.$wait = wait
+  window.wait = wait
+
+  // Plugins
+  app.use(FloatingVue, {
+    themes: {
+      tooltip: {
+        delay: { show: 200, hide: 0 }
+      }
     }
   })
+  
+  app.use(VueClipboard, {
+    autoSetContainer: true
+  })
+
+  app.use(Notifications, { duration: 3000 })
+
+  // Notification helpers
+  app.config.globalProperties.$notify = notify
+  app.config.globalProperties.$notifyError = (text) => notify({ type: 'error', text })
+  app.config.globalProperties.$notifyWarn = (text) => notify({ type: 'warn', text })
+  app.config.globalProperties.$notifySuccess = (text) => notify({ type: 'success', text })
+
+  // Global directives
+  app.directive('click-outside', {
+    mounted(el, binding) {
+      el.clickOutsideEvent = function(event) {
+        if (!(el === event.target || el.contains(event.target))) {
+          binding.value(event)
+        }
+      }
+      document.body.addEventListener('click', el.clickOutsideEvent)
+    },
+    unmounted(el) {
+      document.body.removeEventListener('click', el.clickOutsideEvent)
+    }
+  })
+
+  // Auto-register components globally
+  const componentModules = import.meta.glob('../components/**/*.vue', { eager: true })
+  Object.entries(componentModules).forEach(([path, module]) => {
+    const componentName = module.default.name || path.split('/').pop().replace(/\.\w+$/, '')
+    app.component(componentName, module.default)
+  })
+
+  // Global request handler with loading states
+  app.config.globalProperties.$request = async (callback, waitKey, errorCallback = null, retry = false) => {
+    wait.start(waitKey)
+    console.log('🔵 $request called, waitKey:', waitKey)
+
+    try {
+      await callback()
+      console.log('✅ $request callback completed')
+    } catch (error) {
+      console.error('❌ $request error:', error)
+
+      // No connection
+      if (!error.response) {
+        notify({ type: 'error', text: 'Network Error!' })
+        wait.end(waitKey)
+        return
+      }
+
+      if (error.response.status === 401 && !router.currentRoute.value.meta.auth && !retry) {
+        // Refresh token
+        try {
+          const authStore = useAuthStore()
+          console.log('🔄 Attempting token refresh...')
+          await authStore.refreshToken()
+          // Retry the connection
+          return app.config.globalProperties.$request(callback, waitKey, errorCallback, true)
+        } catch (refreshError) {
+          notify({ type: 'error', text: 'Authorization expired.' })
+          
+          // Reset all tokens
+          const authStore = useAuthStore()
+          await authStore.logout()
+          return router.push({ name: 'Login' })
+        }
+      }
+
+      if (errorCallback) {
+        errorCallback(error)
+      } else if (error.response.status >= 500) {
+        notify({ type: 'error', text: i18n.global.t('API500ErrorMessage') })
+      } else if (error.response.data.Message && error.response.status !== 401) {
+        notify({ type: 'error', text: error.response.data.Message })
+      }
+    } finally {
+      wait.end(waitKey)
+      console.log('🔵 $request completed, wait ended')
+    }
+  }
+
+  // macOS secondary monitor fix
+  if (
+    window.screenLeft < 0 ||
+    window.screenTop < 0 ||
+    window.screenLeft > window.screen.width ||
+    window.screenTop > window.screen.height
+  ) {
+    chrome.runtime.getPlatformInfo(function(info) {
+      if (info.os === 'mac') {
+        const fontFaceSheet = new CSSStyleSheet()
+        fontFaceSheet.insertRule(`
+          @keyframes redraw {
+            0% { opacity: 1; }
+            100% { opacity: .99; }
+          }
+        `)
+        fontFaceSheet.insertRule(`
+          html {
+            animation: redraw 1s linear infinite;
+          }
+        `)
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, fontFaceSheet]
+      }
+    })
+  }
 }
+

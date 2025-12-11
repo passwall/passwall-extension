@@ -99,10 +99,17 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex'
+import { useLoginsStore } from '@/stores/logins'
 import Storage from '@/utils/storage'
 
 export default {
+  setup() {
+    const loginsStore = useLoginsStore()
+    
+    return {
+      createLogin: loginsStore.create
+    }
+  },
   data() {
     return {
       showPass: false,
@@ -129,11 +136,14 @@ export default {
     }
   },
   methods: {
-    ...mapActions('Logins', ['Create']),
     async onSubmit() {
-      if (!(await this.$validator.validateAll())) return
+      // Basic required: title
+      if (!this.form.title) {
+        this.$notifyError(this.$t('PleaseFillAllFields') || 'Please fill all required fields')
+        return
+      }
       const onSuccess = async () => {
-        await this.Create({ ...this.form })
+        await this.createLogin({ ...this.form })
         this.$router.push({ name: 'Logins' })
       }
       this.$request(onSuccess, this.$waiters.Logins.Create)

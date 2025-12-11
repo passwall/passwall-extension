@@ -29,7 +29,7 @@ html {
 #app {
   width: 100vw;
   height: 100vh;
-  background-color: black;
+  background-color: $color-black-400;
   color: $color-gray-300;
 }
 
@@ -327,6 +327,24 @@ hr {
   transition-duration: 0.1s;
   transition-property: opacity;
   transition-timing-function: ease;
+}
+
+.sticky-list-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background-color: $color-black-400;
+  padding-top: $spacer-3;
+  padding-bottom: $spacer-2;
+}
+
+.sticky-list-subheader {
+  position: sticky;
+  top: 108px; // search (48) + tabs (~40) + spacing
+  z-index: 4;
+  background-color: $color-black-400;
+  padding-top: $spacer-2;
+  padding-bottom: $spacer-2;
 }
 
 .fade-enter,

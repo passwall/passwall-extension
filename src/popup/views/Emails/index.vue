@@ -2,7 +2,7 @@
   <div class="container">
     <div class="mx-3">
       <div class="py-3 head">
-        <span class="fw-bold h5">Emails</span>
+        <span class="fw-bold fs-big c-white">Emails ({{ filteredList.length }})</span>
       </div>
 
       <ListLoader v-if="$wait.is($waiters.Emails.All)" />
@@ -22,20 +22,28 @@
 </template>
 
 <script>
-import { mapActions, mapState } from 'vuex'
+import { useEmailsStore } from '@/stores/emails'
+import { storeToRefs } from 'pinia'
 import ListMixin from '@/mixins/list'
 
 export default {
   mixins: [ListMixin],
   name: 'Emails', // it uses for loading state !! important
-  methods: {
-    ...mapActions('Emails', ['FetchAll']),
-    clickItem(detail) {
-      this.$router.push({ name: 'EmailDetail', params: { detail, id: detail.id } })
+  setup() {
+    const emailsStore = useEmailsStore()
+    const { itemList } = storeToRefs(emailsStore)
+    
+    return {
+      emailsStore,
+      ItemList: itemList,
+      FetchAll: emailsStore.fetchAll
     }
   },
-  computed: {
-    ...mapState('Emails', ['ItemList'])
+  methods: {
+    clickItem(detail) {
+      this.emailsStore.setDetail(detail)
+      this.$router.push({ name: 'EmailDetail', params: { id: detail.id } })
+    }
   }
 }
 </script>

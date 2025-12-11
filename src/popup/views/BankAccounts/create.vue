@@ -103,10 +103,16 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex'
+import { useBankAccountsStore } from '@/stores/bankAccounts'
 import Storage from '@/utils/storage'
 
 export default {
+  setup() {
+    const bankAccountsStore = useBankAccountsStore()
+    return {
+      createItem: bankAccountsStore.create
+    }
+  },
   data() {
     return {
       showPass: false,
@@ -127,11 +133,13 @@ export default {
     }
   },
   methods: {
-    ...mapActions('BankAccounts', ['Create']),
     async onSubmit() {
-      if (!(await this.$validator.validateAll())) return
+      if (!this.form.title) {
+        this.$notifyError(this.$t('PleaseFillAllFields') || 'Please fill all required fields')
+        return
+      }
       const onSuccess = async () => {
-        await this.Create({ ...this.form })
+        await this.createItem({ ...this.form })
         this.$router.push({ name: 'BankAccounts' })
       }
       this.$request(onSuccess, this.$waiters.BankAccounts.Create)

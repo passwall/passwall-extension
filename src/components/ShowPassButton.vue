@@ -12,17 +12,23 @@
 <script>
 export default {
   name: 'ShowPassButton',
+  inheritAttrs: false,
+  emits: ['click'],
+  
   data() {
     return { isShow: false }
   },
+  
   computed: {
     inputListeners() {
-      return Object.assign({}, this.$listeners, {
+      // Vue 3: $listeners merged into $attrs
+      return {
+        ...this.$attrs,
         click: event => {
           this.isShow = !this.isShow
           return this.$emit('click', this.isShow)
         }
-      })
+      }
     }
   }
 }

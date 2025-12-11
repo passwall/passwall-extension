@@ -59,7 +59,7 @@
       </div>
     </div>
     <div class="scroll">
-      <div class="mx-3">
+      <div class="mx-3 sticky-list-header">
         <VFormSearch
           class="mt-2"
           :value="searchQuery"
@@ -83,25 +83,31 @@
 </template>
 
 <script>
-import Tabs from './tabs'
-import { mapActions, mapMutations, mapState, mapGetters } from 'vuex'
+import Tabs from './tabs.vue'
+import { useAuthStore } from '@/stores/auth'
+import { storeToRefs } from 'pinia'
 
 export default {
   components: { Tabs },
+  setup() {
+    const authStore = useAuthStore()
+    const { searchQuery, user, hasProPlan } = storeToRefs(authStore)
+    
+    return {
+      authStore,
+      searchQuery,
+      user,
+      hasProPlan,
+      onInputSearchQuery: authStore.setSearchQuery
+    }
+  },
   data() {
     return {
       searchText: '',
       showSettings: false
     }
   },
-  computed: {
-    ...mapState(['searchQuery', 'user']),
-    ...mapGetters(['hasProPlan'])
-  },
   methods: {
-    ...mapActions(['Logout']),
-    ...mapMutations(['onInputSearchQuery']),
-
     closeSettings(e) {
       if (e.target === this.$refs.overlay) {
         this.showSettings = false
@@ -114,12 +120,24 @@ export default {
       })
     },
 
+    goUpdate() {
+      this.$browser.tabs.create({
+        url: 'https://passwall.io/account'
+      })
+    },
+
+    goCancel() {
+      this.$browser.tabs.create({
+        url: 'https://passwall.io/account/cancel'
+      })
+    },
+
     changeMasterPassword: function () {
       this.$router.push({ name: 'ChangeMasterPassword' })
     },
 
     logout() {
-      this.Logout().then(() => this.$router.push('Login'))
+      this.authStore.logout().then(() => this.$router.push('Login'))
     },
 
     passwordGenerator() {

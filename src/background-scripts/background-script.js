@@ -16,12 +16,38 @@ class Agent {
   }
 
   async init() {
+    console.log('🔵 Background script initializing...')
     await this.fetchTokens()
+    
     browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      // Return true to indicate async response in MV3
-      this.handleMessage(request, sender, sendResponse)
-      return true
+      console.log('📨 Background received message:', request.type, 'from:', request.who)
+      
+      // Handle async messages from content-script
+      if (request.who === 'content-script') {
+        console.log('⏳ Async message from content-script, waiting for response...')
+        this.handleMessage(request, sender, sendResponse)
+          .then(data => {
+            console.log('✅ Sending response:', data)
+            sendResponse(data)
+          })
+          .catch(err => {
+            console.error('❌ Message handler error:', err)
+            sendResponse({ error: err.message })
+          })
+        return true // Indicate async response
+      }
+      
+      // Handle sync messages from popup (fire and forget)
+      if (request.who === 'popup') {
+        console.log('📤 Sync message from popup, no response needed')
+        this.handleMessage(request, sender, sendResponse)
+        return false // No async response
+      }
+      
+      return false
     })
+    
+    console.log('✅ Background script initialized and listening')
 
     browser.tabs.onUpdated.addListener((tabId, changeInfo, tabInfo) => {
       browser.tabs.sendMessage(tabId, { type: EVENT_TYPES.TAB_UPDATE, payload: {} }).catch(() => {
@@ -49,7 +75,7 @@ class Agent {
    */
   async handleMessage(request, sender, sendResponse) {
     if (request.who === 'popup') {
-      // Message from popup
+      // Message from popup - these don't need responses
       switch (request.type) {
         case EVENT_TYPES.LOGIN:
         case EVENT_TYPES.REFRESH_TOKENS:
@@ -57,37 +83,45 @@ class Agent {
             // Send REFRESH_TOKENS message to active tab's content script
             browser.tabs.query({ active: true, currentWindow: true })
               .then(tabs => {
-                const activeTab = tabs[0];
-                browser.tabs.sendMessage(activeTab.id, { type: EVENT_TYPES.REFRESH_TOKENS, payload: {} });
+                if (tabs[0]) {
+                  browser.tabs.sendMessage(tabs[0].id, { type: EVENT_TYPES.REFRESH_TOKENS, payload: {} })
+                    .catch(() => {}) // Ignore if tab not ready
+                }
               })
               .catch(error => console.error(error));
           });
-          break
+          return undefined // No response needed
         case EVENT_TYPES.LOGOUT:
           this.isAuthenticated = false
-          // Send REFRESH_TOKENS message to active tab's content script
+          // Send LOGOUT message to active tab's content script
           browser.tabs.query({ active: true, currentWindow: true })
             .then(tabs => {
-              const activeTab = tabs[0];
-              browser.tabs.sendMessage(activeTab.id, { type: EVENT_TYPES.LOGOUT, payload: {} });
+              if (tabs[0]) {
+                browser.tabs.sendMessage(tabs[0].id, { type: EVENT_TYPES.LOGOUT, payload: {} })
+                  .catch(() => {}) // Ignore if tab not ready
+              }
             })
             .catch(error => console.error(error));
-          break
+          return undefined // No response needed
       }
+      return undefined
     }
+    
     if (request.who === 'content-script') {
-      // Message from content-script
+      // Message from content-script - these need async responses
       switch (request.type) {
         case EVENT_TYPES.REQUEST_LOGINS:
           try {
             const logins = await this.requestLogins(request.payload)
-            return Promise.resolve(logins)
+            return logins // Return data directly, will be wrapped in Promise
           } catch (error) {
             console.error(error)
-            return Promise.reject(error)
+            throw error // Throw error, will be caught by message handler
           }
       }
     }
+    
+    return undefined // No response for unknown messages
   }
 
   /**
@@ -125,7 +159,9 @@ class Agent {
 
 // Initialize agent immediately for service worker (MV3)
 // Service workers don't have window.load event
-new Agent()
+console.log('🚀 Creating Background Agent...')
+const agent = new Agent()
+console.log('✅ Background Agent created:', agent)
 
 /* var Background = (function (){
   // variables ----------------------------------------------------------------

@@ -29,14 +29,18 @@
           title="title" 
           :edit-mode="isEditMode" 
           :show-icons="false">
-          <template v-slot:second-icon> <div /> </template>
+          <template v-slot:second-icon>
+            <ClipboardButton v-if="form.title" :copy="form.title" />
+          </template>
         </FormRowText>
         <FormRowText 
           v-model="form.ip" 
           title="ip" 
           :edit-mode="isEditMode" 
           :show-icons="true">
-          <template v-slot:second-icon> <div /> </template>
+          <template v-slot:second-icon>
+            <ClipboardButton v-if="form.ip" :copy="form.ip" />
+          </template>
         </FormRowText>
         <FormRowText
           v-model="form.username"
@@ -44,7 +48,9 @@
           :edit-mode="isEditMode"
           :show-icons="true"
         >
-          <template v-slot:second-icon> <div /> </template>
+          <template v-slot:second-icon>
+            <ClipboardButton v-if="form.username" :copy="form.username" />
+          </template>
         </FormRowText>
         <FormRowText
           v-model="form.password"
@@ -52,10 +58,17 @@
           :edit-mode="isEditMode"
           :show-icons="true"
           password
-        />
+        >
+          <template v-slot:second-icon>
+            <div class="d-flex flex-items-center">
+              <ClipboardButton v-if="form.password" :copy="form.password" />
+            </div>
+          </template>
+        </FormRowText>
         <FormRowText v-model="form.url" title="website" :edit-mode="isEditMode" :show-icons="true">
           <template v-slot:second-icon>
             <LinkButton :link="form.url" />
+            <ClipboardButton v-if="form.url" class="ml-2" :copy="form.url" />
           </template>
         </FormRowText>
         <FormRowText
@@ -64,7 +77,9 @@
           :edit-mode="isEditMode"
           :show-icons="true"
         >
-          <template v-slot:second-icon> <div /> </template>
+          <template v-slot:second-icon>
+            <ClipboardButton v-if="form.hosting_username" :copy="form.hosting_username" />
+          </template>
         </FormRowText>
         <FormRowText
           v-model="form.hosting_password"
@@ -72,14 +87,22 @@
           :edit-mode="isEditMode"
           :show-icons="true"
           password
-        />
+        >
+          <template v-slot:second-icon>
+            <div class="d-flex flex-items-center">
+              <ClipboardButton v-if="form.hosting_password" :copy="form.hosting_password" />
+            </div>
+          </template>
+        </FormRowText>
         <FormRowText
           v-model="form.admin_username"
           title="admin username"
           :edit-mode="isEditMode"
           :show-icons="true"
         >
-          <template v-slot:second-icon> <div /> </template>
+          <template v-slot:second-icon>
+            <ClipboardButton v-if="form.admin_username" :copy="form.admin_username" />
+          </template>
         </FormRowText>
         <FormRowText
           v-model="form.admin_password"
@@ -87,7 +110,13 @@
           :edit-mode="isEditMode"
           :show-icons="true"
           password
-        />
+        >
+          <template v-slot:second-icon>
+            <div class="d-flex flex-items-center">
+              <ClipboardButton v-if="form.admin_password" :copy="form.admin_password" />
+            </div>
+          </template>
+        </FormRowText>
 
         <div>
           <VTextArea
@@ -97,6 +126,9 @@
             :placeholder="$t(isEditMode ? 'ClickToFill' : 'ContentHidden')"
             :disabled="!isEditMode"
           />
+        </div>
+        <div class="d-flex px-3 mb-2" v-if="form.extra">
+          <ClipboardButton :copy="form.extra" />
         </div>
 
         <!-- Save & Cancel -->
@@ -114,41 +146,67 @@
 </template>
 
 <script>
-import { mapState, mapActions } from 'vuex'
-import DetailMixin from '@/mixins/detail'
+import { useServersStore } from '@/stores/servers'
 
 export default {
-  mixins: [DetailMixin],
-
   data() {
     return {
+      form: {
+        title: '',
+        ip: '',
+        username: '',
+        password: '',
+        url: '',
+        hosting_username: '',
+        hosting_password: '',
+        admin_username: '',
+        admin_password: '',
+        extra: ''
+      },
       isEditMode: false,
       showPass: false
     }
   },
 
-  beforeRouteUpdate(to, from, next) {
-    this.isEditMode = false
-    this.showPass = false
-    next()
+  setup() {
+    const serversStore = useServersStore()
+    return {
+      serversStore,
+      deleteItem: serversStore.delete,
+      updateItem: serversStore.update
+    }
+  },
+
+  computed: {
+    ItemList() {
+      return this.serversStore?.itemList || []
+    },
+    loading() {
+      return this.$wait.is(this.$waiters.Servers.Update)
+    }
+  },
+
+  mounted() {
+    let detail = this.serversStore.detail
+    if (!detail || !detail.id) {
+      detail = this.$route.params.detail
+    }
+    if ((!detail || !detail.id) && this.$route.params.id) {
+      detail = this.ItemList.find(i => i.id == this.$route.params.id)
+    }
+    if (detail && detail.id) {
+      this.form = { ...this.form, ...detail }
+    }
   },
 
   methods: {
-    ...mapActions('Servers', ['Delete', 'Update']),
-
-    openLink() {
-      this.$browser.tabs.create({
-        url: this.detail.url
-      })
-    },
-
     goBack() {
       this.$router.push({ name: 'Servers', params: { cache: true } })
     },
 
     onClickDelete() {
       const onSuccess = async () => {
-        await this.Delete(this.form.id)
+        await this.deleteItem(this.form.id)
         const index = this.ItemList.findIndex(item => item.id == this.form.id)
         if (index !== -1) {
           this.ItemList.splice(index, 1)
@@ -161,19 +219,13 @@ export default {
 
     async onClickUpdate() {
       const onSuccess = async () => {
-        await this.Update({ ...this.form })
-        this.$router.push({ name: 'Servers', params: { cache: true } })
+        const updated = await this.updateItem({ ...this.form })
+        this.form = { ...this.form, ...updated }
+        this.serversStore.setDetail(updated)
       }
 
       await this.$request(onSuccess, this.$waiters.Servers.Update)
       this.isEditMode = false
-    }
-  },
-  computed: {
-    ...mapState('Servers', ['Detail', 'ItemList']),
-
-    loading() {
-      return this.$wait.is(this.$waiters.Servers.Update)
     }
   }
 }

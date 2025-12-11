@@ -29,62 +29,55 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex'
-import store from '@p/store'
+import { useMigrationStore } from '@/stores/migration'
+import { useAuthStore } from '@/stores/auth'
 
 export default {
+  setup() {
+    const migrationStore = useMigrationStore()
+    const authStore = useAuthStore()
+    
+    return {
+      migrationStore,
+      authStore
+    }
+  },
   data() {
     return {
       form: {}
     }
   },
   methods: {
-    ...mapActions('Migration',
-    [
-      'FetchAllBankAccounts',
-      'UpdateAllBankAccounts',
-      'FetchAllCreditCards',
-      'UpdateAllCreditCards',
-      'FetchAllEmails',
-      'UpdateAllEmails',
-      'FetchAllLogins',
-      'UpdateAllLogins',
-      'FetchAllNotes',
-      'UpdateAllNotes',
-      'FetchAllServers',
-      'UpdateAllServers',
-      'Migrate',
-    ]),
     async onSubmit() {
       const onError = async () => {
         const text = this.$t(`Failed to migrate. Please contact with "hello@passwall.io".`)
         this.$notifyError(text) 
       }
       const onSuccess = async () => {
-        await this.FetchAllBankAccounts()
-        await this.UpdateAllBankAccounts()
+        await this.migrationStore.fetchAllBankAccounts()
+        await this.migrationStore.updateAllBankAccounts()
 
-        await this.FetchAllCreditCards()
-        await this.UpdateAllCreditCards()
+        await this.migrationStore.fetchAllCreditCards()
+        await this.migrationStore.updateAllCreditCards()
 
-        await this.FetchAllEmails()
-        await this.UpdateAllEmails()
+        await this.migrationStore.fetchAllEmails()
+        await this.migrationStore.updateAllEmails()
 
-        await this.FetchAllLogins()
-        await this.UpdateAllLogins()
+        await this.migrationStore.fetchAllLogins()
+        await this.migrationStore.updateAllLogins()
 
-        await this.FetchAllNotes()
-        await this.UpdateAllNotes()
+        await this.migrationStore.fetchAllNotes()
+        await this.migrationStore.updateAllNotes()
 
-        await this.FetchAllServers()
-        await this.UpdateAllServers()
+        await this.migrationStore.fetchAllServers()
+        await this.migrationStore.updateAllServers()
 
-        await this.Migrate()
+        await this.migrationStore.migrate()
         
         this.$notifySuccess(this.$t('Migration completed successfully.'))
         
         // Reset all tokens and logout
-        await store.dispatch('Logout')
+        await this.authStore.logout()
         this.$router.push({ name: 'Login' })
       }
       this.$request(onSuccess, this.$waiters.Migration.Update, onError)

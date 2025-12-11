@@ -31,7 +31,9 @@
             :edit-mode="isEditMode"
             :show-icons="false"
           >
-            <template v-slot:second-icon> <div /> </template>
+            <template v-slot:second-icon>
+              <ClipboardButton v-if="form.title" :copy="form.title" />
+            </template>
           </FormRowText>
         </div>
         <div class="d-flex">
@@ -44,6 +46,9 @@
             :disabled="!isEditMode"
             minheight=270
           />
+        </div>
+        <div class="d-flex px-3 mb-2" v-if="form.note">
+          <ClipboardButton :copy="form.note" />
         </div>
 
         <!-- Save & Cancel -->
@@ -61,42 +66,59 @@
 </template>
 
 <script>
-import { mapState, mapActions } from 'vuex'
-import DetailMixin from '@/mixins/detail'
+import { useNotesStore } from '@/stores/notes'
 
 export default {
-  mixins: [DetailMixin],
-
   data() {
     return {
+      form: {
+        title: '',
+        note: ''
+      },
       isEditMode: false,
       showPass: false
     }
   },
 
-  beforeRouteUpdate(to, from, next) {
-    this.isEditMode = false
-    this.showPass = false
- 
-    next()
+  setup() {
+    const notesStore = useNotesStore()
+    return {
+      notesStore,
+      deleteItem: notesStore.delete,
+      updateItem: notesStore.update
+    }
+  },
+
+  computed: {
+    ItemList() {
+      return this.notesStore?.itemList || []
+    },
+    loading() {
+      return this.$wait.is(this.$waiters.Notes.Update)
+    }
+  },
+
+  mounted() {
+    let detail = this.notesStore.detail
+    if (!detail || !detail.id) {
+      detail = this.$route.params.detail
+    }
+    if ((!detail || !detail.id) && this.$route.params.id) {
+      detail = this.ItemList.find(i => i.id == this.$route.params.id)
+    }
+    if (detail && detail.id) {
+      this.form = { ...this.form, ...detail }
+    }
   },
 
   methods: {
-    ...mapActions('Notes', ['Delete', 'Update']),
-
-    openLink() {
-      this.$browser.tabs.create({
-        url: this.detail.url
-      })
-    },
-
     goBack() {
       this.$router.push({ name: 'Notes', params: { cache: true } })
     },
 
     onClickDelete() {
       const onSuccess = async () => {
-        await this.Delete(this.form.id)
+        await this.deleteItem(this.form.id)
         const index = this.ItemList.findIndex(item => item.id == this.form.id)
         if (index !== -1) {
           this.ItemList.splice(index, 1)
@@ -109,20 +131,13 @@ export default {
 
     async onClickUpdate() {
       const onSuccess = async () => {
-        await this.Update({ ...this.form })
-        this.$router.push({ name: 'Notes', params: { cache: true } })
+        const updated = await this.updateItem({ ...this.form })
+        this.form = { ...this.form, ...updated }
+        this.notesStore.setDetail(updated)
       }
 
       await this.$request(onSuccess, this.$waiters.Notes.Update)
       this.isEditMode = false
-    }
-  },
-
-  computed: {
-    ...mapState('Notes', ['Detail', 'ItemList']),
-
-    loading() {
-      return this.$wait.is(this.$waiters.Notes.Update)
     }
   }
 }

@@ -1,80 +1,48 @@
 {
   "name": "passwall-extension",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "serve": "vue-cli-service build --mode development --watch",
-    "build": "NODE_OPTIONS=--openssl-legacy-provider vue-cli-service build && node scripts/fix-manifest-mv3.js",
-    "build:dev": "NODE_OPTIONS=--openssl-legacy-provider vue-cli-service build --mode development && node scripts/fix-manifest-mv3.js",
+    "dev": "vite build --watch --mode development",
+    "build": "vite build && node scripts/fix-manifest-mv3.js",
+    "build:dev": "vite build --mode development && node scripts/fix-manifest-mv3.js",
     "package": "yarn build && cd dist && zip -r ../passwall-extension-v$(node -p \"require('../package.json').version\").zip . -x '*.DS_Store' && cd ..",
-    "lint": "vue-cli-service lint",
-    "test": "jest",
-    "test:build": "yarn build && jest"
-  },
-  "jest": {
-    "verbose": true,
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "jsx",
-      "ts",
-      "tsx",
-      "node",
-      "vue"
-    ],
-    "transform": {
-      ".+\\.(css|styl|less|sass|scss|png|jpg|ttf|woff|woff2)$": "jest-transform-stub",
-      "^.+\\.js$": "babel-jest",
-      "^.+\\.vue$": "vue-jest"
-    },
-    "setupFiles": [
-      "jest-webextension-mock"
-    ]
+    "preview": "vite preview",
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .gitignore",
+    "test": "vitest",
+    "test:build": "yarn build && vitest run"
   },
   "dependencies": {
-    "axios": "^1.4.0",
-    "core-js": "^3.30.1",
-    "crypto-js": "^4.1.1",
+    "@kyvg/vue3-notification": "^3.1.3",
+    "@vueuse/core": "^10.7.2",
+    "axios": "^1.6.5",
+    "crypto-js": "^4.2.0",
+    "floating-vue": "^5.2.2",
     "localforage": "^1.10.0",
-    "puppeteer-core": "https://github.com/seanaye/puppeteer/releases/download/v5.5.0-apple-silicon/puppeteer-core-5.5.0-post.tgz",
-    "skeleton-loader-vue": "^1.0.6",
-    "v-tooltip": "^2.1.1",
-    "vee-validate": "2.2.15",
-    "vue": "^2.6.14",
-    "vue-clipboard2": "^0.3.3",
-    "vue-i18n": "^8.26.5",
-    "vue-notification": "^1.3.20",
-    "vue-outside-events": "^1.1.3",
-    "vue-router": "^3.5.2",
-    "vue-wait": "^1.5.3",
-    "vuex": "^3.4.0",
-    "webextension-polyfill": "^0.8.0"
+    "pinia": "^2.1.7",
+    "vee-validate": "^4.12.5",
+    "vue": "^3.4.15",
+    "vue-clipboard3": "^2.0.0",
+    "vue-i18n": "^9.9.1",
+    "vue-router": "^4.2.5",
+    "webextension-polyfill": "^0.11.0",
+    "yup": "^1.3.3"
   },
   "devDependencies": {
-    "@vue/cli-plugin-babel": "~4.5.13",
-    "@vue/cli-plugin-eslint": "~4.5.13",
-    "@vue/cli-plugin-router": "~4.5.13",
-    "@vue/cli-plugin-vuex": "~4.5.13",
-    "@vue/cli-service": "~4.5.13",
-    "@vue/test-utils": "^1.2.2",
-    "babel-core": "^7.0.0-bridge.0",
-    "babel-eslint": "^10.1.0",
-    "babel-plugin-module-resolver": "^4.1.0",
-    "eslint": "^7.32.0",
-    "eslint-plugin-vue": "^7.18.0",
-    "jest": "^27.2.4",
-    "jest-puppeteer": "^6.0.0",
-    "jest-transform-stub": "^2.0.0",
-    "jest-webextension-mock": "^3.7.19",
-    "puppeteer": "^10.4.0",
-    "sass": "^1.42.1",
-    "sass-loader": "^10",
-    "vue-cli-plugin-browser-extension": "^0.25.2",
-    "vue-jest": "^3.0.7",
-    "vue-template-compiler": "^2.6.14"
-  },
-  "resolutions": {
-    "cacache": "^15.0.6",
-    "ssri": "^8.0.1"
+    "@crxjs/vite-plugin": "^2.0.0-beta.23",
+    "@vitejs/plugin-vue": "^5.0.3",
+    "@vue/test-utils": "^2.4.4",
+    "@vueuse/integrations": "^10.7.2",
+    "eslint": "^8.56.0",
+    "eslint-plugin-vue": "^9.20.1",
+    "jsdom": "^24.0.0",
+    "sass": "^1.70.0",
+    "unplugin-auto-import": "^0.17.3",
+    "unplugin-vue-components": "^0.26.0",
+    "vite": "^5.0.12",
+    "vite-plugin-vue-devtools": "^7.0.13",
+    "vitest": "^1.2.1",
+    "webextension-polyfill-ts": "^0.26.0"
   }
 }

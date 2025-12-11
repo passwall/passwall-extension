@@ -75,10 +75,16 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex'
+import { useEmailsStore } from '@/stores/emails'
 import Storage from '@/utils/storage'
 
 export default {
+  setup() {
+    const emailsStore = useEmailsStore()
+    return {
+      createItem: emailsStore.create
+    }
+  },
   data() {
     return {
       showPass: false,
@@ -96,11 +102,13 @@ export default {
     }
   },
   methods: {
-    ...mapActions('Emails', ['Create']),
     async onSubmit() {
-      if (!(await this.$validator.validateAll())) return
+      if (!this.form.title || !this.form.email || !this.form.password) {
+        this.$notifyError(this.$t('PleaseFillAllFields') || 'Please fill all required fields')
+        return
+      }
       const onSuccess = async () => {
-        await this.Create({ ...this.form })
+        await this.createItem({ ...this.form })
         this.$router.push({ name: 'Emails' })
       }
       this.$request(onSuccess, this.$waiters.Emails.Create)

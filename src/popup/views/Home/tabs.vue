@@ -34,12 +34,18 @@
 </template>
 
 <script>
-import { mapGetters } from 'vuex'
+import { useAuthStore } from '@/stores/auth'
+import { storeToRefs } from 'pinia'
 
 export default {
   name: 'Tabs',
-  computed: {
-    ...mapGetters(['hasProPlan'])
+  setup() {
+    const authStore = useAuthStore()
+    const { hasProPlan } = storeToRefs(authStore)
+    
+    return {
+      hasProPlan
+    }
   },
   methods: {
     switchTabs(name) {

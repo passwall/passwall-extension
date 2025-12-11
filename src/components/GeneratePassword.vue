@@ -26,9 +26,11 @@ import SystemService from '@/api/services/System'
 
 export default {
   name: 'GeneratePassword',
+  emits: ['update:modelValue', 'input'],
 
   props: {
-    value: String
+    modelValue: String,
+    value: String // backwards compatibility
   },
 
   data() {
@@ -44,7 +46,9 @@ export default {
     },
 
     onClickUseThis() {
-      this.$emit('input', this.password)
+      const val = this.password
+      this.$emit('update:modelValue', val)
+      this.$emit('input', val) // legacy
     },
 
     async onClickGenerate() {

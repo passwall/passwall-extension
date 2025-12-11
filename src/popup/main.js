@@ -1,26 +1,48 @@
-import Vue from 'vue'
-import './config'
+import { createApp } from 'vue'
+import { createPinia } from 'pinia'
+import { setupPlugins } from './config'
 
 import App from './App.vue'
 import router from '@p/router'
-import store from '@p/store'
 import i18n from '@/i18n'
 import HTTPClient from '@/api/HTTPClient'
 import Storage from '@/utils/storage'
-import '../styles/app.scss'
-;(async () => {
-  await store.dispatch('init')
+import { useAuthStore } from '@/stores/auth'
+import '@/styles/app.scss'
+import 'floating-vue/dist/style.css'
+
+// Initialize app
+const initApp = async () => {
+  // Create Vue app
+  const app = createApp(App)
+
+  // Create and use Pinia
+  const pinia = createPinia()
+  app.use(pinia)
+
+  // Use core plugins
+  app.use(router)
+  app.use(i18n)
+
+  // Setup additional plugins and global properties
+  setupPlugins(app, router, pinia, i18n)
+
+  // Initialize auth store
+  const authStore = useAuthStore()
+  await authStore.init()
+  
+  // Set auth token if exists
   const token = await Storage.getItem('access_token')
   if (token) {
     HTTPClient.setHeader('Authorization', `Bearer ${token}`)
   }
-  /* eslint-disable no-new */
-  new Vue({
-    router,
-    store,
-    i18n,
-    wait: window.wait,
-    el: '#app',
-    render: h => h(App)
-  })
-})()
+
+  // Mount app
+  app.mount('#app')
+}
+
+// Start app
+initApp().catch((error) => {
+  console.error('Failed to initialize app:', error)
+})
+

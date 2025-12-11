@@ -3,14 +3,14 @@
     <label v-text="title" class="title" />
     <VFormText
       v-if="editMode"
-      :value="value"
+      :modelValue="modelValue"
       theme="no-border"
-      @input="$emit('input', $event)"
+      @update:modelValue="$emit('update:modelValue', $event)"
       :placeholder="$t('ClickToFill')"
     />
     <!-- Text -->
     <div v-else class="d-flex flex-items-center flex-justify-between px-3 py-2">
-      <span v-text="show ? value : '●●●●●●'" class="fw-medium h6 w-80 mr-2 p-1 field" />
+      <span v-text="show ? modelValue : '●●●●●●'" class="fw-medium h6 w-80 mr-2 p-1 field" />
       <div class="d-flex flex-items-center" v-if="showIcons">
         <slot name="second-icon">
           
@@ -28,7 +28,7 @@ export default {
 
   props: {
     title: String,
-    value: String,
+    modelValue: [String, Number],
     editMode: Boolean,
     showIcons: Boolean,
     password: {
@@ -36,6 +36,8 @@ export default {
       default: false
     }
   },
+
+  emits: ['update:modelValue'],
 
   data() {
     return {
@@ -55,5 +57,6 @@ export default {
   white-space: nowrap;
   overflow: auto;
   scrollbar-width: none;
+  color: #fff;
 }
 </style>

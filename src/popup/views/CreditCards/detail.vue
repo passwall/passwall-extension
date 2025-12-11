@@ -25,7 +25,9 @@
     <div class="scroll detail">
       <form class="form" @submit.stop.prevent="onClickUpdate">
         <FormRowText v-model="form.title" title="title" :edit-mode="isEditMode" :show-icons="false">
-          <template v-slot:second-icon> <div /> </template>
+          <template v-slot:second-icon>
+            <ClipboardButton v-if="form.title" :copy="form.title" />
+          </template>
         </FormRowText>
         <FormRowText
           v-model="form.cardholder_name"
@@ -33,10 +35,14 @@
           :edit-mode="isEditMode"
           :show-icons="true"
         >
-          <template v-slot:second-icon> <div /> </template>
+          <template v-slot:second-icon>
+            <ClipboardButton v-if="form.cardholder_name" :copy="form.cardholder_name" />
+          </template>
         </FormRowText>
         <FormRowText v-model="form.type" title="type" :edit-mode="isEditMode" :show-icons="true">
-          <template v-slot:second-icon> <div /> </template>
+          <template v-slot:second-icon>
+            <ClipboardButton v-if="form.type" :copy="form.type" />
+          </template>
         </FormRowText>
         <FormRowText
           v-model="form.number"
@@ -44,7 +50,9 @@
           :edit-mode="isEditMode"
           :show-icons="true"
         >
-          <template v-slot:second-icon> <div /> </template>
+          <template v-slot:second-icon>
+            <ClipboardButton v-if="form.number" :copy="form.number" />
+          </template>
         </FormRowText>
         <FormRowText
           v-model="form.expiry_date"
@@ -52,7 +60,9 @@
           :edit-mode="isEditMode"
           :show-icons="true"
         >
-          <template v-slot:second-icon> <div /> </template>
+          <template v-slot:second-icon>
+            <ClipboardButton v-if="form.expiry_date" :copy="form.expiry_date" />
+          </template>
         </FormRowText>
         <FormRowText
           v-model="form.verification_number"
@@ -60,7 +70,13 @@
           :edit-mode="isEditMode"
           :show-icons="true"
           password
-        />
+        >
+          <template v-slot:second-icon>
+            <div class="d-flex flex-items-center">
+              <ClipboardButton v-if="form.verification_number" :copy="form.verification_number" />
+            </div>
+          </template>
+        </FormRowText>
 
         <!-- Save & Cancel -->
         <div class="d-flex m-3" v-if="isEditMode">
@@ -77,41 +93,63 @@
 </template>
 
 <script>
-import { mapState, mapActions } from 'vuex'
-import DetailMixin from '@/mixins/detail'
+import { useCreditCardsStore } from '@/stores/creditCards'
 
 export default {
-  mixins: [DetailMixin],
-
   data() {
     return {
+      form: {
+        title: '',
+        cardholder_name: '',
+        type: '',
+        number: '',
+        expiry_date: '',
+        verification_number: ''
+      },
       isEditMode: false,
       showPass: false
     }
   },
 
-  beforeRouteUpdate(to, from, next) {
-    this.isEditMode = false
-    this.showPass = false
-    next()
+  setup() {
+    const creditCardsStore = useCreditCardsStore()
+    return {
+      creditCardsStore,
+      deleteItem: creditCardsStore.delete,
+      updateItem: creditCardsStore.update
+    }
+  },
+
+  computed: {
+    ItemList() {
+      return this.creditCardsStore?.itemList || []
+    },
+    loading() {
+      return this.$wait.is(this.$waiters.CreditCards.Update)
+    }
+  },
+
+  mounted() {
+    let detail = this.creditCardsStore.detail
+    if (!detail || !detail.id) {
+      detail = this.$route.params.detail
+    }
+    if ((!detail || !detail.id) && this.$route.params.id) {
+      detail = this.ItemList.find(i => i.id == this.$route.params.id)
+    }
+    if (detail && detail.id) {
+      this.form = { ...this.form, ...detail }
+    }
   },
 
   methods: {
-    ...mapActions('CreditCards', ['Delete', 'Update']),
-
-    openLink() {
-      this.$browser.tabs.create({
-        url: this.detail.url
-      })
-    },
-
     goBack() {
       this.$router.push({ name: 'CreditCards', params: { cache: true } })
     },
 
     onClickDelete() {
       const onSuccess = async () => {
-        await this.Delete(this.form.id)
+        await this.deleteItem(this.form.id)
         const index = this.ItemList.findIndex(item => item.id == this.form.id)
         if (index !== -1) {
           this.ItemList.splice(index, 1)
@@ -124,19 +162,13 @@ export default {
 
     async onClickUpdate() {
       const onSuccess = async () => {
-        await this.Update({ ...this.form })
-        this.$router.push({ name: 'CreditCards', params: { cache: true } })
+        const updated = await this.updateItem({ ...this.form })
+        this.form = { ...this.form, ...updated }
+        this.creditCardsStore.setDetail(updated)
       }
 
       await this.$request(onSuccess, this.$waiters.CreditCards.Update)
       this.isEditMode = false
-    }
-  },
-  computed: {
-    ...mapState('CreditCards', ['Detail', 'ItemList']),
-
-    loading() {
-      return this.$wait.is(this.$waiters.CreditCards.Update)
     }
   }
 }

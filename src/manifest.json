@@ -4,7 +4,7 @@
   "homepage_url": "https://passwall.io",
   "description": "Passwall is an open source password manager",
   "default_locale": "en",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "permissions": [
     "tabs",
     "activeTab",
@@ -14,19 +14,23 @@
     "<all_urls>"
   ],
   "icons": {
-    "16": "icons/16.png",
-    "48": "icons/48.png",
-    "128": "icons/128.png"
+    "16": "public/icons/16.png",
+    "48": "public/icons/48.png",
+    "128": "public/icons/128.png"
   },
   "background": {
-    "service_worker": "js/background.js"
+    "service_worker": "src/background-scripts/background-script.js",
+    "type": "module"
   },
-  "options_page": "options.html",
+  "options_ui": {
+    "page": "src/options/index.html",
+    "open_in_tab": true
+  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["js/content-script.js", "js/jquery.js"],
-      "css": ["css/content-script.css"],
+      "js": ["src/content-scripts/content-script.js"],
+      "css": ["public/css/content-script.css"],
       "all_frames": true,
       "run_at": "document_start"
     }
@@ -38,13 +42,13 @@
     }
   ],
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "src/popup/index.html",
     "default_title": "Passwall - Free Password Manager",
     "default_icon": {
-      "16": "icons/16.png",
-      "19": "icons/19.png",
-      "38": "icons/38.png",
-      "48": "icons/48.png"
+      "16": "public/icons/16.png",
+      "19": "public/icons/19.png",
+      "38": "public/icons/38.png",
+      "48": "public/icons/48.png"
     }
   }
 }

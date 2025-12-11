@@ -27,7 +27,9 @@
     <div class="scroll detail">
       <form class="form" @submit.stop.prevent="onClickUpdate">
         <FormRowText v-model="form.title" title="title" :edit-mode="isEditMode" :show-icons="false">
-          <template v-slot:second-icon> <div /> </template>
+          <template v-slot:second-icon>
+            <ClipboardButton v-if="form.title" :copy="form.title" />
+          </template>
         </FormRowText>
         <FormRowText
           v-model="form.username"
@@ -35,7 +37,9 @@
           :edit-mode="isEditMode"
           :show-icons="true"
         >
-          <template v-slot:second-icon> <div /> </template>
+          <template v-slot:second-icon>
+            <ClipboardButton v-if="form.username" :copy="form.username" />
+          </template>
         </FormRowText>
         <FormRowText
           v-model="form.password"
@@ -43,10 +47,20 @@
           :edit-mode="isEditMode"
           :show-icons="true"
           password
-        />
+        >
+          <template v-slot:second-icon>
+            <div class="d-flex flex-items-center">
+              <GeneratePassword v-model="form.password" />
+              <CheckPassword :password="form.password" />
+              <ShowPassButton @click="showPass = $event" />
+              <ClipboardButton :copy="form.password" />
+            </div>
+          </template>
+        </FormRowText>
         <FormRowText v-model="form.url" title="website" :edit-mode="isEditMode" :show-icons="true">
           <template v-slot:second-icon>
             <LinkButton :link="form.url" />
+            <ClipboardButton v-if="form.url" class="ml-2" :copy="form.url" />
           </template>
         </FormRowText>
 
@@ -59,6 +73,9 @@
             :disabled="!isEditMode"
             minheight=110
           />
+        </div>
+        <div class="d-flex px-3 mb-2" v-if="form.extra">
+          <ClipboardButton :copy="form.extra" />
         </div>
 
         <!-- Save & Cancel -->
@@ -76,41 +93,68 @@
 </template>
 
 <script>
-import { mapState, mapActions } from 'vuex'
-import DetailMixin from '@/mixins/detail'
+import { useLoginsStore } from '@/stores/logins'
 
 export default {
-  mixins: [DetailMixin],
-
   data() {
     return {
+      form: {
+        title: '',
+        username: '',
+        password: '',
+        url: '',
+        extra: ''
+      },
       isEditMode: false,
       showPass: false
     }
   },
 
-  beforeRouteUpdate(to, from, next) {
-    this.isEditMode = false
-    this.showPass = false
-    next()
+  setup() {
+    const loginsStore = useLoginsStore()
+    return {
+      loginsStore,
+      deleteLogin: loginsStore.delete,
+      updateLogin: loginsStore.update
+    }
+  },
+
+  computed: {
+    ItemList() {
+      return this.loginsStore?.itemList || []
+    },
+    loading() {
+      return this.$wait.is(this.$waiters.Logins.Update)
+    }
+  },
+
+  mounted() {
+    // Primary source: store detail (set by clickItem)
+    let detail = this.loginsStore.detail
+
+    // Fallback: route params detail (if present)
+    if (!detail || !detail.id) {
+      detail = this.$route.params.detail
+    }
+
+    // Fallback: find by id in item list
+    if ((!detail || !detail.id) && this.$route.params.id) {
+      detail = this.ItemList.find(i => i.id == this.$route.params.id)
+    }
+
+    if (detail && detail.id) {
+      this.form = { ...this.form, ...detail }
+    }
   },
 
   methods: {
-    ...mapActions('Logins', ['Delete', 'Update']),
-
-    openLink() {
-      this.$browser.tabs.create({
-        url: this.detail.url
-      })
-    },
-
     goBack() {
       this.$router.push({ name: 'Logins', params: { cache: true } })
     },
 
     onClickDelete() {
       const onSuccess = async () => {
-        await this.Delete(this.form.id)
+        await this.deleteLogin(this.form.id)
         const index = this.ItemList.findIndex(item => item.id == this.form.id)
         if (index !== -1) {
           this.ItemList.splice(index, 1)
@@ -123,19 +167,14 @@ export default {
 
     async onClickUpdate() {
       const onSuccess = async () => {
-        await this.Update({ ...this.form })
-        this.$router.push({ name: 'Logins', params: { cache: true } })
+        const updated = await this.updateLogin({ ...this.form })
+        // keep detail page open and sync form with updated data
+        this.form = { ...this.form, ...updated }
+        this.loginsStore.setDetail(updated)
       }
 
       await this.$request(onSuccess, this.$waiters.Logins.Update)
       this.isEditMode = false
-    }
-  },
-  computed: {
-    ...mapState('Logins', ['Detail', 'ItemList']),
-
-    loading() {
-      return this.$wait.is(this.$waiters.Logins.Update)
     }
   }
 }

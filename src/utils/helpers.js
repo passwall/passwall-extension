@@ -99,7 +99,7 @@ export async function getCurrentTab() {
 }
 
 export function messageToBackground(data = {}) {
-  browser.runtime.sendMessage({ ...data, who: 'popup' })
+  return browser.runtime.sendMessage({ ...data, who: 'popup' })
 }
 
 /**

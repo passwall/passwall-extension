@@ -15,6 +15,7 @@
 <script>
 export default {
   name: 'VButton',
+  inheritAttrs: false,
 
   props: {
     size: {
@@ -38,14 +39,14 @@ export default {
     },
 
     getError() {
+      if (!this.errors) return ''
       const error = this.errors.items.find(e => e.field == this.name)
       return error ? error.msg : ''
     },
 
     inputListeners() {
-      return Object.assign({}, this.$listeners, {
-        input: event => this.$emit('input', event.target.value)
-      })
+      // Vue 3: $listeners merged into $attrs
+      return this.$attrs
     }
   }
 }

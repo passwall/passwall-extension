@@ -3,7 +3,7 @@
     :width="width || size"
     :height="height || size"
     :transform="`rotate(${rotation} 0 0)`"
-    v-on="$listeners"
+    v-bind="$attrs"
     class="v-icon no-select"
   >
     <use :xlink:href="`#${name}`" />
@@ -13,6 +13,8 @@
 <script>
 export default {
   name: 'VIcon',
+  inheritAttrs: false,
+  
   props: {
     name: String,
     width: [String, Number],

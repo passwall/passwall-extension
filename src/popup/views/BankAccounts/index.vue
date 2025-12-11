@@ -2,7 +2,7 @@
   <div class="container">
     <div class="mx-3">
       <div class="py-3 head">
-        <span class="fw-bold h5">Bank Accounts</span>
+        <span class="fw-bold fs-big c-white">Bank Accounts ({{ filteredList.length }})</span>
       </div>
 
       <ListLoader v-if="$wait.is($waiters.BankAccounts.All)" />
@@ -22,20 +22,28 @@
 </template>
 
 <script>
-import { mapActions, mapState } from 'vuex'
+import { useBankAccountsStore } from '@/stores/bankAccounts'
+import { storeToRefs } from 'pinia'
 import ListMixin from '@/mixins/list'
 
 export default {
   mixins: [ListMixin],
   name: 'BankAccounts', // it uses for loading state !! important
-  methods: {
-    ...mapActions('BankAccounts', ['FetchAll']),
-    clickItem(detail) {
-      this.$router.push({ name: 'BankAccountDetail', params: { detail, id: detail.id } })
+  setup() {
+    const bankAccountsStore = useBankAccountsStore()
+    const { itemList } = storeToRefs(bankAccountsStore)
+    
+    return {
+      bankAccountsStore,
+      ItemList: itemList,
+      FetchAll: bankAccountsStore.fetchAll
     }
   },
-  computed: {
-    ...mapState('BankAccounts', ['ItemList'])
+  methods: {
+    clickItem(detail) {
+      this.bankAccountsStore.setDetail(detail)
+      this.$router.push({ name: 'BankAccountDetail', params: { id: detail.id } })
+    }
   }
 }
 </script>
