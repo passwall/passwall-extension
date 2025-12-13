@@ -22,19 +22,15 @@ class Wait {
   }
 
   start(key) {
-    console.log('⏳ Wait START:', key)
     this.state.waitingFor.add(key)
   }
 
   end(key) {
-    console.log('✅ Wait END:', key)
     this.state.waitingFor.delete(key)
   }
 
   is(key) {
-    const waiting = this.state.waitingFor.has(key)
-    console.log('🔍 Wait.is(' + key + '):', waiting)
-    return waiting
+    return this.state.waitingFor.has(key)
   }
 
   any() {
@@ -106,13 +102,11 @@ export function setupPlugins(app, router, pinia, i18n) {
   // Global request handler with loading states
   app.config.globalProperties.$request = async (callback, waitKey, errorCallback = null, retry = false) => {
     wait.start(waitKey)
-    console.log('🔵 $request called, waitKey:', waitKey)
 
     try {
       await callback()
-      console.log('✅ $request callback completed')
     } catch (error) {
-      console.error('❌ $request error:', error)
+      console.error('Request error:', error)
 
       // No connection
       if (!error.response) {
@@ -125,7 +119,6 @@ export function setupPlugins(app, router, pinia, i18n) {
         // Refresh token
         try {
           const authStore = useAuthStore()
-          console.log('🔄 Attempting token refresh...')
           await authStore.refreshToken()
           // Retry the connection
           return app.config.globalProperties.$request(callback, waitKey, errorCallback, true)
@@ -148,7 +141,6 @@ export function setupPlugins(app, router, pinia, i18n) {
       }
     } finally {
       wait.end(waitKey)
-      console.log('🔵 $request completed, wait ended')
     }
   }
 

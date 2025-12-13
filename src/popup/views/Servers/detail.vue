@@ -4,11 +4,11 @@
       <template v-slot:content>
         <div class="d-flex flex-items-center w-100">
           <VIcon class="c-pointer" name="arrow-left" @click="goBack" />
-          <div class="d-flex flex-auto flex-items-center ml-3">
-            <CompanyLogo :url="form.url" />
+          <div class="d-flex flex-auto flex-items-center ml-3" style="min-width: 0; overflow: hidden;">
+            <CompanyLogo :url="form.url" style="flex-shrink: 0;" />
             <span class="title fw-bold h5 ml-2">{{ form.title }}</span>
           </div>
-          <div class="d-flex">
+          <div class="d-flex" style="flex-shrink: 0;">
             <!-- Delete Btn -->
             <button v-tooltip="$t('Delete')" @click="onClickDelete">
               <VIcon class="c-pointer trash" name="trash" />
@@ -28,44 +28,26 @@
           v-model="form.title" 
           title="title" 
           :edit-mode="isEditMode" 
-          :show-icons="false">
-          <template v-slot:second-icon>
-            <ClipboardButton v-if="form.title" :copy="form.title" />
-          </template>
-        </FormRowText>
+          :show-icons="true" />
         <FormRowText 
           v-model="form.ip" 
           title="ip" 
           :edit-mode="isEditMode" 
-          :show-icons="true">
-          <template v-slot:second-icon>
-            <ClipboardButton v-if="form.ip" :copy="form.ip" />
-          </template>
-        </FormRowText>
+          :show-icons="true" />
         <FormRowText
           v-model="form.username"
           title="username"
           :edit-mode="isEditMode"
           :show-icons="true"
-        >
-          <template v-slot:second-icon>
-            <ClipboardButton v-if="form.username" :copy="form.username" />
-          </template>
-        </FormRowText>
+        />
         <FormRowText
           v-model="form.password"
           title="password"
           :edit-mode="isEditMode"
           :show-icons="true"
           password
-        >
-          <template v-slot:second-icon>
-            <div class="d-flex flex-items-center">
-              <ClipboardButton v-if="form.password" :copy="form.password" />
-            </div>
-          </template>
-        </FormRowText>
-        <FormRowText v-model="form.url" title="website" :edit-mode="isEditMode" :show-icons="true">
+        />
+        <FormRowText v-model="form.url" title="website" :edit-mode="isEditMode" :show-icons="false">
           <template v-slot:second-icon>
             <LinkButton :link="form.url" />
             <ClipboardButton v-if="form.url" class="ml-2" :copy="form.url" />
@@ -76,47 +58,27 @@
           title="hosting username"
           :edit-mode="isEditMode"
           :show-icons="true"
-        >
-          <template v-slot:second-icon>
-            <ClipboardButton v-if="form.hosting_username" :copy="form.hosting_username" />
-          </template>
-        </FormRowText>
+        />
         <FormRowText
           v-model="form.hosting_password"
           title="hosting password"
           :edit-mode="isEditMode"
           :show-icons="true"
           password
-        >
-          <template v-slot:second-icon>
-            <div class="d-flex flex-items-center">
-              <ClipboardButton v-if="form.hosting_password" :copy="form.hosting_password" />
-            </div>
-          </template>
-        </FormRowText>
+        />
         <FormRowText
           v-model="form.admin_username"
           title="admin username"
           :edit-mode="isEditMode"
           :show-icons="true"
-        >
-          <template v-slot:second-icon>
-            <ClipboardButton v-if="form.admin_username" :copy="form.admin_username" />
-          </template>
-        </FormRowText>
+        />
         <FormRowText
           v-model="form.admin_password"
           title="admin password"
           :edit-mode="isEditMode"
           :show-icons="true"
           password
-        >
-          <template v-slot:second-icon>
-            <div class="d-flex flex-items-center">
-              <ClipboardButton v-if="form.admin_password" :copy="form.admin_password" />
-            </div>
-          </template>
-        </FormRowText>
+        />
 
         <div>
           <VTextArea
@@ -240,7 +202,8 @@ export default {
 }
 .title {
   flex: 1;
-
-  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

@@ -6,449 +6,250 @@ import HTTPClient from '@/api/HTTPClient'
 import CryptoUtils from '@/utils/crypto'
 import { RequestError } from '@/utils/helpers'
 
-const EncryptedFields = ['username', 'password', 'extra']
+const ENCRYPTED_FIELDS = ['username', 'password', 'extra']
 
-class Agent {
-  isAuthenticated = false
+/**
+ * Background Script Agent
+ * Manages authentication state and orchestrates communication between
+ * popup UI, content scripts, and API services
+ */
+class BackgroundAgent {
   constructor() {
-    console.log('Background initalize')
+    this.isAuthenticated = false
     this.init()
   }
 
+  /**
+   * Initialize background script
+   * Sets up message listeners and restores authentication state
+   */
   async init() {
-    console.log('🔵 Background script initializing...')
-    await this.fetchTokens()
-    
-    browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      console.log('📨 Background received message:', request.type, 'from:', request.who)
+    await this.restoreAuthState()
+    this.setupMessageListeners()
+    this.setupTabListeners()
+  }
+
+  /**
+   * Restore authentication state from storage
+   * Configures HTTP client and crypto utilities if authenticated
+   */
+  async restoreAuthState() {
+    try {
+      const [accessToken, masterHash] = await Promise.all([
+        Storage.getItem('access_token'),
+        Storage.getItem('master_hash')
+      ])
       
-      // Handle async messages from content-script
-      if (request.who === 'content-script') {
-        console.log('⏳ Async message from content-script, waiting for response...')
-        this.handleMessage(request, sender, sendResponse)
-          .then(data => {
-            console.log('✅ Sending response:', data)
-            sendResponse(data)
-          })
-          .catch(err => {
-            console.error('❌ Message handler error:', err)
-            sendResponse({ error: err.message })
-          })
-        return true // Indicate async response
+      if (!accessToken || !masterHash) {
+        this.isAuthenticated = false
+        return
       }
       
-      // Handle sync messages from popup (fire and forget)
+      HTTPClient.setHeader('Authorization', `Bearer ${accessToken}`)
+      CryptoUtils.encryptKey = masterHash
+      this.isAuthenticated = true
+    } catch (error) {
+      console.error('Failed to restore auth state:', error)
+      this.isAuthenticated = false
+    }
+  }
+
+  /**
+   * Setup message listeners for popup and content scripts
+   * @private
+   */
+  setupMessageListeners() {
+    browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      // Content script messages require async responses
+      if (request.who === 'content-script') {
+        this.handleContentScriptMessage(request)
+          .then(data => sendResponse(data))
+          .catch(err => {
+            console.error('Content script message error:', err)
+            sendResponse({ 
+              error: err.message,
+              errorType: err.type || 'UNKNOWN',
+              errorName: err.name
+            })
+          })
+        return true // Keep channel open for async response
+      }
+      
+      // Popup messages are fire-and-forget
       if (request.who === 'popup') {
-        console.log('📤 Sync message from popup, no response needed')
-        this.handleMessage(request, sender, sendResponse)
-        return false // No async response
+        this.handlePopupMessage(request).catch(err => {
+          console.error('Popup message error:', err)
+        })
+        return false
       }
       
       return false
     })
-    
-    console.log('✅ Background script initialized and listening')
+  }
 
+  /**
+   * Setup tab update listeners
+   * @private
+   */
+  setupTabListeners() {
     browser.tabs.onUpdated.addListener((tabId, changeInfo, tabInfo) => {
-      browser.tabs.sendMessage(tabId, { type: EVENT_TYPES.TAB_UPDATE, payload: {} }).catch(() => {
-        // Ignore errors if tab is not ready
-      })
+      // Notify content scripts to re-scan for login forms
+      browser.tabs.sendMessage(tabId, { 
+        type: EVENT_TYPES.TAB_UPDATE, 
+        payload: {} 
+      }).catch(() => {}) // Ignore if content script not ready
     })
   }
 
-  async fetchTokens() {
-    const token = await Storage.getItem('access_token')
-    if (!token) {
-      console.warn('Login first!')
+  /**
+   * Handle messages from popup UI
+   * @param {Object} request - Message request object
+   * @returns {Promise<void>}
+   * @private
+   */
+  async handlePopupMessage(request) {
+    switch (request.type) {
+      case EVENT_TYPES.LOGIN:
+      case EVENT_TYPES.REFRESH_TOKENS:
+        await this.handleAuthRefresh()
+        break
+        
+      case EVENT_TYPES.LOGOUT:
+        await this.handleLogout()
+        break
+    }
+  }
+
+  /**
+   * Handle messages from content scripts
+   * @param {Object} request - Message request object
+   * @returns {Promise<any>}
+   * @private
+   */
+  async handleContentScriptMessage(request) {
+    switch (request.type) {
+      case EVENT_TYPES.REQUEST_LOGINS:
+        return await this.fetchLoginsByDomain(request.payload)
+        
+      default:
+        return null
+    }
+  }
+
+  /**
+   * Refresh authentication state and notify active tab
+   * Called after user logs in or token is refreshed
+   * @private
+   */
+  async handleAuthRefresh() {
+    try {
+      await this.restoreAuthState()
+      await this.notifyActiveTab(EVENT_TYPES.REFRESH_TOKENS)
+    } catch (error) {
+      console.error('Auth refresh failed:', error)
+    }
+  }
+
+  /**
+   * Handle logout and notify active tab
+   * Clears authentication state and crypto keys
+   * @private
+   */
+  async handleLogout() {
+    try {
       this.isAuthenticated = false
-      return
+      CryptoUtils.encryptKey = null
+      HTTPClient.setHeader('Authorization', '')
+      
+      await this.notifyActiveTab(EVENT_TYPES.LOGOUT)
+    } catch (error) {
+      console.error('Logout notification failed:', error)
     }
-    HTTPClient.setHeader('Authorization', `Bearer ${token}`)
-
-    CryptoUtils.encryptKey = await Storage.getItem('master_hash')
-    this.isAuthenticated = true
   }
 
   /**
-   *
-   * @param {import('@/content-scripts/content-script').RuntimeRequest} request
+   * Send message to active tab's content script
+   * @param {string} type - Event type
+   * @param {Object} payload - Optional payload
+   * @private
    */
-  async handleMessage(request, sender, sendResponse) {
-    if (request.who === 'popup') {
-      // Message from popup - these don't need responses
-      switch (request.type) {
-        case EVENT_TYPES.LOGIN:
-        case EVENT_TYPES.REFRESH_TOKENS:
-          this.fetchTokens().then(() => {
-            // Send REFRESH_TOKENS message to active tab's content script
-            browser.tabs.query({ active: true, currentWindow: true })
-              .then(tabs => {
-                if (tabs[0]) {
-                  browser.tabs.sendMessage(tabs[0].id, { type: EVENT_TYPES.REFRESH_TOKENS, payload: {} })
-                    .catch(() => {}) // Ignore if tab not ready
-                }
-              })
-              .catch(error => console.error(error));
-          });
-          return undefined // No response needed
-        case EVENT_TYPES.LOGOUT:
-          this.isAuthenticated = false
-          // Send LOGOUT message to active tab's content script
-          browser.tabs.query({ active: true, currentWindow: true })
-            .then(tabs => {
-              if (tabs[0]) {
-                browser.tabs.sendMessage(tabs[0].id, { type: EVENT_TYPES.LOGOUT, payload: {} })
-                  .catch(() => {}) // Ignore if tab not ready
-              }
-            })
-            .catch(error => console.error(error));
-          return undefined // No response needed
+  async notifyActiveTab(type, payload = {}) {
+    try {
+      const tabs = await browser.tabs.query({ active: true, currentWindow: true })
+      if (tabs[0]) {
+        await browser.tabs.sendMessage(tabs[0].id, { type, payload })
+          .catch(() => {}) // Ignore if content script not ready
       }
-      return undefined
+    } catch (error) {
+      console.error(`Failed to notify tab for ${type}:`, error)
     }
-    
-    if (request.who === 'content-script') {
-      // Message from content-script - these need async responses
-      switch (request.type) {
-        case EVENT_TYPES.REQUEST_LOGINS:
-          try {
-            const logins = await this.requestLogins(request.payload)
-            return logins // Return data directly, will be wrapped in Promise
-          } catch (error) {
-            console.error(error)
-            throw error // Throw error, will be caught by message handler
-          }
-      }
-    }
-    
-    return undefined // No response for unknown messages
   }
 
   /**
-   *
-   * @param {string} domain
-   * @returns {Promise<Array>}
+   * Fetch and decrypt logins for a specific domain
+   * @param {string} domain - Domain to filter logins by
+   * @returns {Promise<Array>} Filtered and decrypted login items
+   * @throws {RequestError} If not authenticated or no logins found
    */
-  async requestLogins(domain) {
-    if (!this.isAuthenticated) throw new RequestError('Passwall authentication is needed!', 'NO_AUTH')
-    const { data: itemList } = await LoginsService.FetchAll()
-    itemList.forEach(element => {
-      CryptoUtils.decryptFields(element, EncryptedFields)
-    })
-
-    const filteredItems = itemList.filter(item =>
-      Object.values(item).some(value =>
-        (value || '')
-          .toString()
-          .toLowerCase()
-          .includes(domain.toLowerCase())
-      )
-    )
-    if (filteredItems.length === 0) throw new RequestError('No logins found', 'NO_LOGINS')
-    return filteredItems
-  }
-
-  async sendResponseToContentScirpt(data = {}) {
-    // find the current tab and send a message to "content-script.js" and all the iframes
-    browser.tabs.query({ active: true, lastFocusedWindow: true }).then(tabs => {
-      if (!tabs[0]) return
-      browser.tabs.sendMessage(tabs[0].id, data)
-    })
-  }
-}
-
-// Initialize agent immediately for service worker (MV3)
-// Service workers don't have window.load event
-console.log('🚀 Creating Background Agent...')
-const agent = new Agent()
-console.log('✅ Background Agent created:', agent)
-
-/* var Background = (function (){
-  // variables ----------------------------------------------------------------
-  var _this 		= {},
-    _websites	= [];
-  
-    // Login Hashmap
-  var loginHashmap = new Map()
-    	
-  // initialize ---------------------------------------------------------------
-  _this.init = function (){
-    console.log("Passwall background script initialized successfully.");
-
-    // list of website liked
-    _websites = [];
-  	
-    // receive post messages from "content-script.js" and any iframes
-    browser.runtime.onMessage.addListener(onPostMessage);
-  	
-    // manage when a user change tabs
-    // browser.tabs.onActivated.addListener(onTabActivated);		
-
-    browser.tabs.onUpdated.addListener(onTabUpdated);
-    
-  };
-
-  // events -------------------------------------------------------------------
-  function onPostMessage (request, sender, sendResponse){
-    if (!request.message) return;
-    
-    // if it has a "view", it resends the message to all the frames in the current tab
-    if (request.data.view){
-      _this.tell(request.message, request.data);
-      return;
+  async fetchLoginsByDomain(domain) {
+    if (!this.isAuthenticated) {
+      throw new RequestError('Passwall authentication is needed!', 'NO_AUTH')
     }
-  	
-    processMessage(request);
-  };
-
-  function onTabActivated (){
-    upateCurrentTab();
-  };
-
-  function onTabUpdated() {
-    updateTab();
-  };
-	
-  // private functions --------------------------------------------------------
-  function processMessage (request){
-    console.log('background scripte gelen: ',request.message);
-    switch (request.message){
-      case 'fill-hashmap-from-popup': fillHashmapFromPopup(request.data); break;
-      case 'fill-hashmap-from-content': fillHashmapFromContent(request.data); break;
-      case 'save-iheart': message_onSaved(request.data); break;
-      case 'all-iframes-loaded': message_allIframesLoaded(request.data); break;
-    };
-    console.log(loginHashmap);
-  };
-
-  function updateTab(url){
-    browser.tabs.query({lastFocusedWindow: true, active: true}).then(tabs => {
-      if (!tabs[0]) return;
-
-      let url = getDomainFromURL(tabs[0].url);
-      let contentKey = getByValue(loginHashmap, url, 'content');
-      
-      if (contentKey === false) return;
-
-      let popupKey = contentKey.replace(":content", ":popup");
-      
-      if (!loginHashmap.has(popupKey) && loginHashmap.has(contentKey)) {
-          _this.tell('create-login', loginHashmap.get(contentKey));
-      }
-
-      if (loginHashmap.has(popupKey) && loginHashmap.has(contentKey)) {
-        let popupItem = loginHashmap.get(popupKey);
-        let contentItem = loginHashmap.get(contentKey);
-        if (popupItem.password !== contentItem.password) {
-          popupItem.password = contentItem.password
-          _this.tell('update-login', popupItem);
-        };
-      };
-    });    
-  };
-  
-  function upateCurrentTab (){
-    // highlight the "heart" if the web page is already liked
-    let activeTab = browser.tabs.query({lastFocusedWindow: true, active: true});
-    activeTab.then(function (tabs) {
     
-      var website = null;	
-      for (var i in _websites){
-        if (_websites[i].url == tabs[0].url) website = _websites[i];
-      }
-    	
-      if (website){
-        // send a message to all the views (with "*" wildcard)
-        _this.tell('website-is-hearted', {view:'*', comment:website.comment});
-      }
+    try {
+      const { data: logins } = await LoginsService.FetchAll()
       
-    }, null);
-    
-  };	
-
-  // actions -------------------------------------------------------------------
-  function fillHashmapFromPopup(data) {
-    data.forEach((item,index)=>{
-      let key = getKey(item.url, item.username, 'popup');
-      if (!loginHashmap.has(key)) {
-        loginHashmap.set(key, {
-          id: item.id,
-          title: item.title,
-          url: getDomainFromURL(item.url),
-          username: item.username,
-          password: item.password,
-          source: 'popup',
-        });
-      }; // end if
-    }); // end foreach
-  };
-
-  function fillHashmapFromContent(data) {
-    let key = getKey(data.url, data.username, 'content');
-    if (!loginHashmap.has(key)) {
-      loginHashmap.set(key, {
-        id: -1,
-        title: data.title,
-        url: getDomainFromURL(data.url),
-        username: data.username,
-        password: data.password,
-        source: 'content',
-      });
-    }; // end if
-  };
-
-  function message_onSaved (data){
-    _websites.push({
-      url			: data.url,
-      title		: data.title,
-      comment		: data.comment
-    });
-  };
-	
-  function message_allIframesLoaded (data){
-    upateCurrentTab();
-  };
-	
-  // util functions ---------------------------------------------------------
-  function getKey(url,username,source) {
-    url = getDomainFromURL(url);
-    return url + ":" + username + ":" + source
-  };
-  
-  function getDomainFromURL(url) {
-    const matches = url.match(/^(?:https?:)?(?:\/\/)?([^\/\?]+)/i)
-    return matches ? matches[1] : 'NONE'
-  };
-
-  function getByValue(map, url, source) {
-    for (let [key, value] of map.entries()) {
-      if ((value.url === url) && (value.source === source)) 
-        return key;
-    }
-    return false;
-  };
-	
-  // public functions ---------------------------------------------------------
-  _this.getWebsites = function (){
-    return _websites;
-  };
-	
-  _this.tell = function (message, data){
-    var data = data || {};
-
-    // find the current tab and send a message to "content-script.js" and all the iframes
-    browser.tabs.query({active: true, lastFocusedWindow: true}).then(tabs => {
-      if (!tabs[0]) return;
-      browser.tabs.sendMessage(tabs[0].id, {
-        message	: message,
-        data	: data
-      });
-    });
-
-  };
-	
-  return _this;
-}());
-
-window.addEventListener("load", function() { Background.init(); }, false); */
-
-/*
-
-// Login Hashmap
-let loginHashmap = new Map()
-
-// Message Listener
-browser.runtime.onMessage.addListener(handleMessage);
-
-// Tabs url on updated listener fired when a tab URL is changed
-browser.tabs.onUpdated.addListener(handleTabURLUpdated);
-
-// Message handler
-function handleMessage(request, sender, sendResponse) {
-  // Fill hashmap from popup
-  if (request.source === 'popup') {
-    request.loginList.forEach(fillHashmapFromPopup);
-  }
-
-  // Fill hashmap from content script
-  if (request.source === 'content' && request.action === 'fill') {
-    let item = {
-      id: -1,
-      title: sender.tab.title,
-      url: getDomainFromURL(sender.tab.url),
-      username: request.username,
-      password: request.password,
-      source: request.source
-    };
-
-    let contentKey = getKey(item.url, request.username, 'content');
-    if (!loginHashmap.has(contentKey)) {
-      fillHashmapFromContent(item);
-    }    
-
-    // TODO : parola farklıysa ne yapılacak?
-    // if (!loginHashmap.has(key)) {
-    //   let found = loginHashmap.get(key)
-    //   if (found.password !== item.password) {
-    //     // TODO : send message to content ask for update
-    //     console.log("passwords are different");
-    //   }
-    // } else {
-    //   fillHashmapFromContent(item);
-    // }
-  }
-
-  console.log(loginHashmap);
-}
-
-function handleTabURLUpdated(tabId, changeInfo, tabInfo) {
-  if (tabInfo.active) {
-    let url = getDomainFromURL(tabInfo.url);
-    let contentKey = getByValue(loginHashmap, url, 'content');
-    
-    if (contentKey !== false) {
-      let popupKey = contentKey.replace(":content", ":popup");
-      
-      if (!loginHashmap.has(popupKey) && loginHashmap.has(contentKey)) {
-          // alert("Do you want to save this login information?");
-      }
-
-      if (loginHashmap.has(popupKey) && loginHashmap.has(contentKey)) {
-        let popupItem = loginHashmap.get(popupKey);
-        let contentItem = loginHashmap.get(contentKey);
-        if (popupItem.password !== contentItem.password) {
-          // alert("Do you want to update login information for this website?");
+      // Decrypt all items (with error resilience)
+      const decryptedLogins = logins.map(login => {
+        try {
+          CryptoUtils.decryptFields(login, ENCRYPTED_FIELDS)
+          return login
+        } catch (error) {
+          console.error(`Failed to decrypt login item ${login.id}:`, error)
+          return null
         }
+      }).filter(Boolean) // Remove failed items
+
+      // Filter by domain
+      const matchedLogins = decryptedLogins.filter(item => 
+        this.loginMatchesDomain(item, domain)
+      )
+      
+      if (matchedLogins.length === 0) {
+        throw new RequestError(`No logins found for ${domain}`, 'NO_LOGINS')
       }
-
+      
+      return matchedLogins
+    } catch (error) {
+      // Re-throw RequestErrors as-is
+      if (error instanceof RequestError) {
+        throw error
+      }
+      // Wrap other errors
+      console.error('Failed to fetch logins:', error)
+      throw new RequestError('Failed to fetch logins from server', 'FETCH_ERROR')
     }
-    
-
-    // console.log(getByValue(loginHashmap, url, source))
-    // console.log(`handleUpdates : ${tabInfo.url}`);
   }
-  // console.log(tabId);
-  // console.log(changeInfo);
-  // console.log(tabInfo);
-  // let url = getDomainFromURL(tabInfo.url);
-  
 
-  // Bu üçü de sistemde yoksa yeni login aç
-  // url     : sender.tab.url,
-  // username: request.username,
-  // password: request.password,
-
-  // Bu üçü de sistemde var ve aynıysa hiç popup çıkarma
-
-  // url ve username ayni ve parola farkliysa update olmali
-
-
-
- 
-
-  // if (loginHashmap.has(tabInfo.url)) {
-  //   console.log(loginHashmap.get(tabInfo.url))
-  // }
+  /**
+   * Check if login item matches domain
+   * @param {Object} item - Login item
+   * @param {string} domain - Domain to match
+   * @returns {boolean}
+   * @private
+   */
+  loginMatchesDomain(item, domain) {
+    try {
+      const searchTerm = domain.toLowerCase()
+      return Object.values(item).some(value => 
+        (value || '').toString().toLowerCase().includes(searchTerm)
+      )
+    } catch (error) {
+      console.error('Error matching domain:', error)
+      return false
+    }
+  }
 }
 
-*/
+// Initialize agent
+const agent = new BackgroundAgent()

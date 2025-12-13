@@ -23,24 +23,52 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
+    /**
+     * Initialize auth store from storage
+     * Called on app startup to restore authentication state
+     */
     async init() {
-      CryptoUtils.encryptKey = await Storage.getItem('master_hash')
+      // Load all auth data in parallel for better performance
+      const [access_token, refresh_token, master_hash, user, server] = await Promise.all([
+        Storage.getItem('access_token'),
+        Storage.getItem('refresh_token'),
+        Storage.getItem('master_hash'),
+        Storage.getItem('user'),
+        Storage.getItem('server')
+      ])
 
-      this.access_token = await Storage.getItem('access_token')
-      this.refresh_token = await Storage.getItem('refresh_token')
-      this.master_hash = await Storage.getItem('master_hash')
-      this.user = await Storage.getItem('user')
+      this.access_token = access_token || ''
+      this.refresh_token = refresh_token || ''
+      this.master_hash = master_hash || ''
+      this.user = user
 
-      const server = await Storage.getItem('server')
-      HTTPClient.setBaseURL(server)
+      // Set crypto key for decryption
+      if (master_hash) {
+        CryptoUtils.encryptKey = master_hash
+      }
 
+      // Configure HTTP client
+      if (server) {
+        HTTPClient.setBaseURL(server)
+      }
+      
+      if (access_token) {
+        HTTPClient.setHeader('Authorization', `Bearer ${access_token}`)
+      }
+
+      // Set pro status
       if (this.user !== null) {
         this.pro = this.user.type === 'pro'
       }
     },
 
-    async refreshToken(payload) {
+    async refreshToken() {
       const token = await Storage.getItem('refresh_token')
+      
+      if (!token) {
+        throw new Error('No refresh token available')
+      }
+      
       const { data } = await AuthService.Refresh({ refresh_token: token })
 
       this.access_token = data.access_token
@@ -55,18 +83,35 @@ export const useAuthStore = defineStore('auth', {
       Helpers.messageToBackground({ type: EVENT_TYPES.REFRESH_TOKENS })
     },
 
+    /**
+     * Login user with email and master password
+     * @param {Object} payload - Login credentials
+     * @param {string} payload.email - User email
+     * @param {string} payload.master_password - Master password (will be hashed)
+     * @param {string} payload.server - Server URL
+     */
     async login(payload) {
-      payload.master_password = CryptoUtils.sha256Encrypt(payload.master_password)
+      // Hash master password for API
+      const hashedPassword = CryptoUtils.sha256Encrypt(payload.master_password)
+      
+      const { data } = await AuthService.Login({
+        ...payload,
+        master_password: hashedPassword
+      })
 
-      const { data } = await AuthService.Login(payload)
-
+      // Generate master hash for encryption/decryption
+      this.master_hash = CryptoUtils.pbkdf2Encrypt(data.secret, hashedPassword)
       this.access_token = data.access_token
       this.refresh_token = data.refresh_token
-      this.master_hash = CryptoUtils.pbkdf2Encrypt(data.secret, payload.master_password)
-      CryptoUtils.encryptKey = this.master_hash
       this.user = data
       this.pro = this.user.type === 'pro'
 
+      // Configure crypto and HTTP client
+      CryptoUtils.encryptKey = this.master_hash
+      HTTPClient.setHeader('Authorization', `Bearer ${this.access_token}`)
+      HTTPClient.setBaseURL(payload.server)
+
+      // Persist to storage
       await Promise.all([
         Storage.setItem('email', payload.email),
         Storage.setItem('server', payload.server),
@@ -77,29 +122,44 @@ export const useAuthStore = defineStore('auth', {
         Storage.setItem('is_migrated', data.is_migrated)
       ])
 
-      HTTPClient.setHeader('Authorization', `Bearer ${this.access_token}`)
+      // Notify background script
       Helpers.messageToBackground({ type: EVENT_TYPES.LOGIN })
     },
 
     async logout() {
+      // Clear state first
+      this.access_token = ''
+      this.refresh_token = ''
+      this.master_hash = ''
+      this.user = null
+      this.pro = false
+      this.searchQuery = ''
+      CryptoUtils.encryptKey = null
+      HTTPClient.setHeader('Authorization', '')
+      
+      // Preserve email and server for convenience
       const email = await Storage.getItem('email')
       const server = await Storage.getItem('server')
       
       await Storage.clear()
       
-      this.access_token = null
-      this.refresh_token = null
-      this.master_hash = null
-      this.user = null
-      
-      await Storage.setItem('email', email)
-      await Storage.setItem('server', server)
+      await Promise.all([
+        Storage.setItem('email', email),
+        Storage.setItem('server', server)
+      ])
       
       Helpers.messageToBackground({ type: EVENT_TYPES.LOGOUT })
     },
 
+    /**
+     * Load user data from storage
+     * Used by App.vue to refresh user state on popup open
+     */
     async loadStore() {
       this.user = await Storage.getItem('user')
+      if (this.user !== null) {
+        this.pro = this.user.type === 'pro'
+      }
     },
 
     setSearchQuery(event) {

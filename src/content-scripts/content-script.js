@@ -1,420 +1,286 @@
-const browser = require('webextension-polyfill')
-import { EVENT_TYPES, PASSWALL_ICON_BS64 } from '@/utils/constants'
-import { getHostName, PFormParseError, RequestError, sendPayload } from '@/utils/helpers'
+import browser from 'webextension-polyfill'
+import { EVENT_TYPES } from '@/utils/constants'
+import { getHostName, PFormParseError, sendPayload } from '@/utils/helpers'
 import { LoginAsPopup } from './LoginAsPopup'
 import { PasswallLogo } from './PasswallLogo'
 
 /**
- * @typedef {Object} PForm
- * @property {HTMLElement} form
- * @property {HTMLElement[]} inputs
+ * @typedef {Object} LoginForm
+ * @property {HTMLFormElement} form - The form element
+ * @property {HTMLInputElement[]} inputs - Input fields in the form
  */
 
 /**
- * @typedef {Object} RuntimeRequest
- * @property {EVENT_TYPES} type
- * @property {*} payload
- *
+ * @typedef {Object} Login
+ * @property {number} id
+ * @property {string} username
+ * @property {string} password
+ * @property {string} url
  */
 
-/* capture olayı
+const INPUT_TYPES = {
+  PASSWORD: 'password',
+  TEXT: 'text',
+  EMAIL: 'email',
+  NUMBER: 'number',
+  TEL: 'tel'
+}
 
-eğer login formu varsa bunu tut (isForm)
-eğer inputa veri girişi olmuşsa bunu da tut (isTyped)
-eğer sayfa değiştikliği oluysa ve isForm ve isTyped ve aynı domaindeyse yeni input popupını göster
+// Development mode logging
+const DEV_MODE = true // Set to true for debugging
+const log = {
+  info: (...args) => DEV_MODE && console.log('🔵 [Passwall]', ...args),
+  success: (...args) => DEV_MODE && console.log('✅ [Passwall]', ...args),
+  error: (...args) => console.error('❌ [Passwall]', ...args),
+  warn: (...args) => DEV_MODE && console.warn('⚠️ [Passwall]', ...args)
+}
 
-*/
-
-class Injector {
-  /**
-   * @type PForm[]
-   */
-  forms
-  /**
-   * @type string
-   */
-  domain
-
-  /**
-   * @type {Array<Function>} listeners
-   */
-  listeners
-
-  /**
-   * @type {Array<unknown>} logins
-   */
-  logins
-
-  /**
-   * @type {Array<PasswallLogo>} logos
-   */
-  logos
+/**
+ * ContentScriptInjector - Manages Passwall integration in web pages
+ * Detects login forms and injects Passwall logo for auto-fill functionality
+ */
+class ContentScriptInjector {
   constructor() {
-    console.log('Passwall content-script initialize')
-    browser.runtime.onMessage.addListener(this.messageHandler.bind(this)) // for background
-    window.addEventListener('message', this.messageHandlerPopup.bind(this)) // for popup
-
-    window.addEventListener('resize', () => {
-      if (this.hasLogins) {
-        this.logos.forEach(logo => {
-          logo.destroy()
-          logo.render()
-        })
-      }
-    })
-    this.listeners = []
+    this.forms = []
+    this.domain = ''
     this.logins = []
+    this.authError = null
     this.logos = []
-  }
-
-  get hasLogins() {
-    if (!this.forms) return false
-    return this.forms.length > 0
+    this.popupMessageListeners = []
+    
+    this.initialize()
   }
 
   /**
-   *
-   * @param {RuntimeRequest} request
-   * @param {*} sender
-   * @param {*} sendResponse
+   * Initialize event listeners and bindings
+   * @private
    */
-  async messageHandler(request, sender, sendResponse) {
+  initialize() {
+    // Set domain first
     this.domain = getHostName(window.location.href)
+    
+    // Listen to messages from background script
+    browser.runtime.onMessage.addListener(this.handleBackgroundMessage.bind(this))
+    
+    // Listen to messages from popup windows
+    window.addEventListener('message', this.handlePopupMessage.bind(this))
+    
+    // Handle window resize - reposition logos
+    window.addEventListener('resize', this.handleWindowResize.bind(this))
+    
+    // Scan page for login forms on initialization
+    this.detectAndInjectLogos()
+  }
+
+  /**
+   * Handle window resize events
+   * @private
+   */
+  handleWindowResize() {
+    if (this.hasLoginForms) {
+      this.logos.forEach(logo => {
+        logo.destroy()
+        logo.render()
+      })
+    }
+  }
+
+  /**
+   * Check if page has detected login forms
+   * @returns {boolean}
+   */
+  get hasLoginForms() {
+    return this.forms && this.forms.length > 0
+  }
+
+  /**
+   * Handle messages from background script
+   * @param {Object} request - Message from background
+   * @param {*} sender
+   * @param {Function} sendResponse
+   */
+  async handleBackgroundMessage(request, sender, sendResponse) {
+    this.domain = getHostName(window.location.href)
+    
     switch (request.type) {
       case EVENT_TYPES.REFRESH_TOKENS:
       case EVENT_TYPES.TAB_UPDATE:
-        try {
-          this.forms = this.findFormAndFields()
-          if (this.forms.length > 0) {
-            // document has a login or register form
-            console.log('Passwall detected login form')
-            sendPayload({
-              type: EVENT_TYPES.REQUEST_LOGINS,
-              payload: this.domain
-            }).then(logins => {
-              console.log(`Found (${logins.length}) logins for '${this.domain}'`)
-              this.logins = logins
-              this.injectPasswallLogo()
-            })
-          }
-        } catch (error) {
-          if (error instanceof PFormParseError) {
-            if (error.type === 'NO_PASSWORD_FIELD') {
-              // Do nothing
-            }
-          } else console.error(error)
-        }
+        await this.detectAndInjectLogos()
         break
+        
       case EVENT_TYPES.LOGOUT:
-        this.logos.forEach(logo => logo.destroy())
-        this.logos = []
-        this.logins = []
-        break
-      default:
+        this.cleanup()
         break
     }
   }
 
-  async messageHandlerPopup(request) {
-    this.listeners.forEach(listener => listener(request.data))
+  /**
+   * Handle messages from popup windows (iframe communication)
+   * @param {MessageEvent} event
+   */
+  async handlePopupMessage(event) {
+    this.popupMessageListeners.forEach(listener => listener(event.data))
   }
 
   /**
-   * Parse inputs
-   * @returns {PForm[]}
+   * Detect login forms and inject Passwall logos
+   * @private
    */
-  findFormAndFields() {
-    const formArray = []
-    const forms = document.querySelectorAll('form')
-    const hasPasswordInput = Boolean(document.querySelector("input[type='password']"))
-    if (!hasPasswordInput) throw new PFormParseError('No password field', 'NO_PASSWORD_FIELD')
-    forms.forEach(form => {
-      /**
-       * @type {Array<HTMLElement>}
-       */
-      const inputs = [...form.querySelectorAll('input')].filter(
-        node => ['text', 'email', 'password'].includes(node.type) && !node.hidden
-      )
-      if (!inputs.some(i => i.type === 'password')) return
-      formArray.push({
-        form,
-        inputs
-      })
-    })
-    return formArray
-  }
-
-  /**
-   *
-   * @param {PForm} form
-   * @param {Array<unknown>} logins
-   */
-  injectPasswallLogo() {
-    for (const input of this.forms[0].inputs) {
-      if (['text', 'email'].includes(input.type)) {
-        const logo = new PasswallLogo(input, () => this.injectLoginAsPopup(input))
-        logo.render()
-        this.logos.push(logo)
-        return
+  async detectAndInjectLogos() {
+    try {
+      this.forms = this.findLoginForms()
+      
+      if (!this.hasLoginForms) return
+      
+      // Request matching logins from background script
+      try {
+        const logins = await sendPayload({
+          type: EVENT_TYPES.REQUEST_LOGINS,
+          payload: this.domain
+        })
+        
+        this.logins = logins
+        this.authError = null
+        this.injectLogo()
+        
+        log.success(`Passwall ready: ${logins.length} login(s) for ${this.domain}`)
+      } catch (error) {
+        // Handle authentication and no logins errors
+        if (error.type === 'NO_AUTH') {
+          // User not logged in - still show logo but with empty logins
+          // Popup will show authentication message
+          this.logins = []
+          this.authError = 'NO_AUTH'
+          this.injectLogo()
+          log.warn('User not authenticated - logo will prompt login')
+        } else if (error.type === 'NO_LOGINS') {
+          // No logins for this domain - still show logo
+          this.logins = []
+          this.authError = 'NO_LOGINS'
+          this.injectLogo()
+          log.info('No logins found for this domain')
+        } else if (!error.message?.includes('Receiving end does not exist')) {
+          log.error('Failed to fetch logins:', error)
+        }
+      }
+      
+    } catch (error) {
+      if (!(error instanceof PFormParseError && error.type === 'NO_PASSWORD_FIELD')) {
+        log.error('Form detection error:', error)
       }
     }
   }
 
   /**
-   *
-   * @param {MouseEvent} e
-   * @param {HTMLElement} input
-   * @param {Array<unknown>} logins
+   * Find all login forms on the page
+   * @returns {LoginForm[]}
+   * @throws {PFormParseError} If no password fields found
    */
-  injectLoginAsPopup(input) {
-    // TODO: Simgeye çoklu tıkama olunca iframi sürekli açma
-    const popup = new LoginAsPopup(input, this.logins, this.forms)
-    this.listeners.push(popup.messageHandler.bind(popup))
+  findLoginForms() {
+    const passwordInputExists = document.querySelector(`input[type="${INPUT_TYPES.PASSWORD}"]`)
+    
+    if (!passwordInputExists) {
+      throw new PFormParseError('No password field found', 'NO_PASSWORD_FIELD')
+    }
+    
+    const forms = document.querySelectorAll('form')
+    const loginForms = []
+    
+    forms.forEach(form => {
+      const inputs = this.getFormInputs(form)
+      
+      // Valid login form must have at least one password field
+      const hasPassword = inputs.some(input => input.type === INPUT_TYPES.PASSWORD)
+      if (!hasPassword) return
+      
+      loginForms.push({ form, inputs })
+    })
+    
+    return loginForms
+  }
+
+  /**
+   * Get relevant input fields from a form
+   * @param {HTMLFormElement} form
+   * @returns {HTMLInputElement[]}
+   * @private
+   */
+  getFormInputs(form) {
+    const inputs = form.querySelectorAll('input')
+    const relevantTypes = [
+      INPUT_TYPES.TEXT, 
+      INPUT_TYPES.EMAIL, 
+      INPUT_TYPES.PASSWORD, 
+      INPUT_TYPES.NUMBER,
+      INPUT_TYPES.TEL
+    ]
+    
+    return [...inputs].filter(input => 
+      relevantTypes.includes(input.type) && !input.hidden
+    )
+  }
+
+  /**
+   * Inject Passwall logo next to the first username input field
+   * Supports text, email, number, and tel input types
+   * @private
+   */
+  injectLogo() {
+    if (!this.hasLoginForms) return
+    
+    // Find first username field (text, email, number, or tel)
+    const firstForm = this.forms[0]
+    const usernameInput = firstForm.inputs.find(input => 
+      [INPUT_TYPES.TEXT, INPUT_TYPES.EMAIL, INPUT_TYPES.NUMBER, INPUT_TYPES.TEL].includes(input.type)
+    )
+    
+    if (!usernameInput) return
+    
+    const logo = new PasswallLogo(
+      usernameInput, 
+      () => this.showLoginSelector(usernameInput)
+    )
+    
+    logo.render()
+    this.logos.push(logo)
+  }
+
+  /**
+   * Show login selection popup
+   * @param {HTMLElement} targetInput - Input element to position popup near
+   * @private
+   */
+  showLoginSelector(targetInput) {
+    log.info(`🚀 Logo clicked! Creating popup with ${this.logins.length} logins`)
+
+    const popup = new LoginAsPopup(targetInput, this.logins, this.forms, this.authError)
+
+    // Register popup's message handler
+    this.popupMessageListeners.push(popup.messageHandler.bind(popup))
+
     popup.render()
+    log.success('Popup rendered and ready')
+  }
+
+  /**
+   * Clean up all injected elements and listeners
+   * @private
+   */
+  cleanup() {
+    this.logos.forEach(logo => logo.destroy())
+    this.logos = []
+    this.logins = []
+    this.authError = null
+    this.forms = []
+    this.popupMessageListeners = []
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  new Injector()
-})
-
-/* var Inject = (function() {
-  // constants ----------------------------------------------------------------
-  var ID = {
-    CONTAINER: 'passwall-dialog',
-    IFRAME_PREFIX: 'passwall-'
-  }
-
-  // variables ----------------------------------------------------------------
-  var _this = {},
-    _views = {},
-    _container = null,
-    _username,
-    _password
-
-  // initialize ---------------------------------------------------------------
-  _this.init = function() {
-    console.log('Passwall content script initialized successfully.')
-    [_username, _password] = detectFormFields()
-    if (_username && _password) {
-      _password.addEventListener('blur', passwordListener)
-    }
-
-    // create the main container
-    _container = $('<div />', { id: ID.CONTAINER })
-    _container.appendTo(document.body);
-
-    // add iframe
-    getView('savePassword', _container)
-    // getView('comment', _container);
-
-    // listen to the iframes/webpages message
-    window.addEventListener('message', dom_onMessage, false)
-
-    // listen to the Control Center (background.js) messages
-    browser.runtime.onMessage.addListener(background_onMessage)
-  }
-
-  // private functions --------------------------------------------------------
-  function detectFormFields() {
-    var inputs = document.querySelectorAll('input'),i
-    var user, pass
-
-    for (i = 0; i < inputs.length; ++i) {
-      // Find password field.
-      if (inputs[i].type === 'password') {
-        pass = inputs[i]
-
-        // Find username field. Check type against type hidden or checkbox etc.
-        for (var k = i; k >= 0; k--) {
-          if (inputs[k].type == 'text' || inputs[k].type == 'email') {
-            user = inputs[k]
-            break
-          }
-        }
-      }
-    }
-
-    return [user, pass]
-  }
-
-  function passwordListener() {
-    var data = {
-      title: document.title,
-      url: window.location.href,
-      username: _username.value,
-      password: _password.value
-    }
-    tell('fill-hashmap-from-content', data)
-  }
-
-  function getView(id) {
-    // return the view if it's already created
-    if (_views[id]) return _views[id]
-
-    // iframe initial details
-    var src = browser.runtime.getURL('popup.html#/savePassword')
-    const iframeId = ID.IFRAME_PREFIX + id
-
-    const iframe = $('<iframe />', {
-      id: iframeId,
-      src: src,
-      scrolling: 'no'
-    })
-
-    // view
-    _views[id] = {
-      isLoaded: false,
-      iframe: iframe
-    }
-
-    // add to the container
-    _container.append(iframe)
-
-    return _views[id]
-  }
-
-  // tell sends message to "background.js"
-  function tell(message, data) {
-    var data = data || {}
-
-    browser.runtime.sendMessage({
-      message: message,
-      data: data
-    })
-  }
-
-  function resizeIframe(height) {
-    document.getElementById('passwall-savePassword').style.height = height + 'px'
-  }
-
-  function processMessage(request) {
-    if (!request.message) return
-    console.log('content scripte gelen: ', request.message)
-    switch (request.message) {
-      case 'close-iframe':
-        _container.detach()
-        break
-      case 'fill-form':
-        message_onFillForm(request.data)
-        break
-      case 'create-login':
-        message_onCreateLogin(request.data)
-        break
-      case 'update-login':
-        message_onUpdateLogin(request.data)
-        break
-      case 'iframe-loaded':
-        message_onIframeLoaded(request.data)
-        break
-      case 'iframe-resize':
-        resizeIframe(request.data.height)
-        break
-      //case 'heart-clicked': message_onHeartClicked(request.data); break;
-      //case 'save-iheart': message_onSaved(request.data); break;
-    }
-  }
-
-  // events -------------------------------------------------------------------
-  // messages coming from iframes and the current webpage
-  function dom_onMessage(event) {
-    if (!event.data.message) return
-
-    // tell another iframe a message
-    if (event.data.view) {
-      tell(event.data)
-    } else {
-      processMessage(event.data)
-    }
-  }
-
-  // messages coming from "background.js"
-  function background_onMessage(request, sender, sendResponse) {
-    // if (request.data.view) return;
-    processMessage(request)
-  }
-
-  // messages -----------------------------------------------------------------
-  function message_onUpdateLogin(data) {
-    // var view 		= getView(data.source),
-    // 	allLoaded	= true;
-    // view.isLoaded = true;
-    // for (var i in _views){
-    // 	if (_views[i].isLoaded === false) allLoaded = false;
-    // }
-    // // tell "background.js" that all the frames are loaded
-    // if (allLoaded) tell('all-iframes-loaded');
-  }
-
-  function message_onCreateLogin(data) {
-    var view = getView('savePassword')
-    if (view.isLoaded) return
-
-    view.isLoaded = true
-    allLoaded = true
-
-    for (var i in _views) {
-      if (_views[i].isLoaded === false) allLoaded = false
-    }
-
-    _container.appendTo(document.body)
-    // getView('savePassword', _container);
-
-    // tell "background.js" that all the frames are loaded
-    // if (allLoaded) tell('all-iframes-loaded');
-  }
-
-  function message_onFillForm(data) {
-    if (_username !== '') {
-      _username.style.borderColor = '#5707FF'
-      _username.value = data.username
-    }
-
-    if (_password !== '') {
-      _password.style.borderColor = '#5707FF'
-      _password.value = data.password
-    }
-  }
-
-  function message_onIframeLoaded(data) {
-    var view = getView(data.source),
-      allLoaded = true
-
-    view.isLoaded = true
-
-    for (var i in _views) {
-      if (_views[i].isLoaded === false) allLoaded = false
-    }
-
-    // tell "background.js" that all the frames are loaded
-    if (allLoaded) tell('all-iframes-loaded')
-  }
-
-  function message_onHeartClicked(data) {
-    var comment = getView('comment')
-
-    comment.iframe.show()
-
-    // tell the "comment" iframe to show dynamic info (the page title)
-    tell('open-comment', { view: 'comment', url: window.location.href, title: document.title })
-  }
-
-  function message_onSaved(data) {
-    var comment = getView('comment')
-
-    comment.iframe.hide()
-
-    // tell "background.js" to save the liked page
-    tell('save-iheart', { url: window.location.href, title: document.title, comment: data.comment })
-  }
-
-  return _this
-})()
-document.addEventListener(
-  'DOMContentLoaded',
-  function() {
-    Inject.init()
-  },
-  false
-)
- */
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    new ContentScriptInjector()
+  })
+} else {
+  new ContentScriptInjector()
+}

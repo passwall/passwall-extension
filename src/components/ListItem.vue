@@ -44,9 +44,7 @@ export default {
   },
   
   methods: {
-    handleClick(event) {
-      console.log('🔵 ListItem clicked:', this.title)
-      console.log('🔵 Emitting item data:', this.itemData)
+    handleClick() {
       this.$emit('click', this.itemData)
     }
   }

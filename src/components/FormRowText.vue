@@ -1,22 +1,31 @@
 <template>
   <div class="form-row">
     <label v-text="title" class="title" />
-    <VFormText
-      v-if="editMode"
-      :modelValue="modelValue"
-      theme="no-border"
-      @update:modelValue="$emit('update:modelValue', $event)"
-      :placeholder="$t('ClickToFill')"
-    />
-    <!-- Text -->
+    <!-- Edit Mode -->
+    <div v-if="editMode" class="d-flex flex-items-center flex-justify-between">
+      <VFormText
+        class="flex-auto"
+        :modelValue="modelValue"
+        theme="no-border"
+        @update:modelValue="$emit('update:modelValue', $event)"
+        :placeholder="$t('ClickToFill')"
+        :type="password && !forceShow && !show ? 'password' : 'text'"
+      />
+      <div class="d-flex flex-items-center mr-3" v-if="showIcons">
+        <slot name="second-icon">
+          <ShowPassButton v-if="password" @click="show = $event" class="ml-2" />
+        </slot>
+        <ClipboardButton v-if="modelValue" :copy="modelValue" class="ml-2" />
+      </div>
+    </div>
+    <!-- Display Mode -->
     <div v-else class="d-flex flex-items-center flex-justify-between px-3 py-2">
-      <span v-text="show ? modelValue : '●●●●●●'" class="fw-medium h6 w-80 mr-2 p-1 field" />
+      <span v-text="displayValue" class="fw-medium h6 w-80 mr-2 p-1 field" />
       <div class="d-flex flex-items-center" v-if="showIcons">
         <slot name="second-icon">
-          
-          <ShowPassButton @click="show = $event" />
+          <ShowPassButton v-if="password" @click="show = $event" class="ml-2" />
         </slot>
-        <ClipboardButton class="ml-2" v-if="value" :copy="value" />
+        <ClipboardButton v-if="modelValue" :copy="modelValue" class="ml-2" />
       </div>
     </div>
   </div>
@@ -34,6 +43,10 @@ export default {
     password: {
       type: Boolean,
       default: false
+    },
+    forceShow: {
+      type: Boolean,
+      default: false
     }
   },
 
@@ -42,6 +55,14 @@ export default {
   data() {
     return {
       show: !this.password
+    }
+  },
+
+  computed: {
+    displayValue() {
+      if (!this.password) return this.modelValue
+      if (this.forceShow || this.show) return this.modelValue
+      return '●●●●●●'
     }
   }
 }

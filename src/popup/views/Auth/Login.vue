@@ -85,44 +85,32 @@ export default {
     }
   },
   async mounted() {
-    console.log('Login mounted, initial form:', this.LoginForm)
-    
     const savedEmail = await this.$storage.getItem('email')
     if (savedEmail) {
       this.LoginForm.email = savedEmail
-      console.log('Loaded saved email:', savedEmail)
     }
     
     const savedServer = await this.$storage.getItem('server')
     if (savedServer) {
       this.LoginForm.server = savedServer
-      console.log('Loaded saved server:', savedServer)
     }
-    
-    console.log('Login mounted complete, form:', this.LoginForm)
   },
+  
   methods: {
     async onLogin() {
-      console.log('Login form values:', this.LoginForm)
-      
-      // Basic validation (VeeValidate temporarily removed)
+      // Basic validation
       if (!this.LoginForm.email || !this.LoginForm.email.trim()) {
-        console.log('Email validation failed:', this.LoginForm.email)
         this.$notifyError('Please enter your email address')
         return
       }
       if (!this.LoginForm.master_password || this.LoginForm.master_password.length < 6) {
-        console.log('Password validation failed:', this.LoginForm.master_password?.length)
         this.$notifyError('Master password must be at least 6 characters')
         return
       }
       if (!this.LoginForm.server || !this.LoginForm.server.trim()) {
-        console.log('Server validation failed:', this.LoginForm.server)
         this.$notifyError('Please enter server URL')
         return
       }
-      
-      console.log('Validation passed, attempting login...')
 
       HTTPClient.setBaseURL(this.LoginForm.server)
 
@@ -141,9 +129,6 @@ export default {
           this.$router.replace({ name: 'Migration' })
           return
         }
-        // Go directly to Logins instead of Home (which redirects to Logins)
-        // This prevents double setup and data clearing
-        console.log('✅ Login successful, navigating to Logins...')
         this.$router.replace({ name: 'Logins' })
       }
       this.$request(onSuccess, this.$waiters.Auth.Login, onError)

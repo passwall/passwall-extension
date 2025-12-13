@@ -1,36 +1,32 @@
 <template>
-  <v-popover offset="16">
+  <VDropdown :distance="6">
     <button 
       type="button" 
-      @click="onClickGenerate" 
       class="btn-generate-pass"
       v-tooltip="$t('Generate')">
       <VIcon name="refresh" size="20px" />
     </button>
 
-    <!-- Popover -->
-    <template slot="popover">
+    <template #popper>
       <div class="generate-password">
-        <span v-text="password" />
+        <span v-text="password || 'Generating...'" />
         <hr />
-        <VButton size="mini" v-close-popover @click="onClickUseThis">
+        <VButton size="mini" @click="onClickUseThis">
           {{ $t('UseThis') }}
         </VButton>
       </div>
     </template>
-  </v-popover>
+  </VDropdown>
 </template>
 
 <script>
-import SystemService from '@/api/services/System'
-
 export default {
   name: 'GeneratePassword',
   emits: ['update:modelValue', 'input'],
 
   props: {
     modelValue: String,
-    value: String // backwards compatibility
+    value: String
   },
 
   data() {
@@ -38,21 +34,19 @@ export default {
       password: ''
     }
   },
+  
+  async mounted() {
+    // Generate password on mount so it's ready when dropdown opens
+    this.password = await this.$helpers.generatePassword()
+  },
 
   methods: {
-    onClickItem(name) {
-      this.$router.push({ name })
-      this.$emit('hide')
-    },
-
     onClickUseThis() {
-      const val = this.password
-      this.$emit('update:modelValue', val)
-      this.$emit('input', val) // legacy
-    },
-
-    async onClickGenerate() {
-      this.password = await this.$helpers.generatePassword()
+      if (!this.password) return
+      this.$emit('update:modelValue', this.password)
+      this.$emit('input', this.password)
+      // Generate new password for next time
+      this.$helpers.generatePassword().then(p => this.password = p)
     }
   }
 }

@@ -4,13 +4,13 @@
       <template v-slot:content>
         <div class="d-flex flex-items-center w-100">
           <VIcon class="c-pointer" name="arrow-left" @click="goBack" />
-          <div class="d-flex flex-auto flex-items-center ml-3">
-            <CompanyLogo :url="form.url" />
+          <div class="d-flex flex-auto flex-items-center ml-3" style="min-width: 0; overflow: hidden;">
+            <CompanyLogo :url="form.url" style="flex-shrink: 0;" />
             <span class="title fw-bold h5 ml-2">{{
               form.title || $helpers.getHostName(form.url)
             }}</span>
           </div>
-          <div class="d-flex">
+          <div class="d-flex" style="flex-shrink: 0;">
             <!-- Delete Btn -->
             <button v-tooltip="$t('Delete')" @click="onClickDelete">
               <VIcon class="c-pointer trash" name="trash" />
@@ -26,38 +26,28 @@
     </Header>
     <div class="scroll detail">
       <form class="form" @submit.stop.prevent="onClickUpdate">
-        <FormRowText v-model="form.title" title="title" :edit-mode="isEditMode" :show-icons="false">
-          <template v-slot:second-icon>
-            <ClipboardButton v-if="form.title" :copy="form.title" />
-          </template>
-        </FormRowText>
+        <FormRowText v-model="form.title" title="title" :edit-mode="isEditMode" :show-icons="true" />
         <FormRowText
           v-model="form.username"
           title="username"
           :edit-mode="isEditMode"
           :show-icons="true"
-        >
-          <template v-slot:second-icon>
-            <ClipboardButton v-if="form.username" :copy="form.username" />
-          </template>
-        </FormRowText>
+        />
         <FormRowText
           v-model="form.password"
           title="password"
           :edit-mode="isEditMode"
           :show-icons="true"
+          :force-show="showPass"
           password
         >
           <template v-slot:second-icon>
-            <div class="d-flex flex-items-center">
-              <GeneratePassword v-model="form.password" />
-              <CheckPassword :password="form.password" />
-              <ShowPassButton @click="showPass = $event" />
-              <ClipboardButton :copy="form.password" />
-            </div>
+            <GeneratePassword v-if="isEditMode" v-model="form.password" class="ml-2" />
+            <CheckPassword :password="form.password" class="ml-2" />
+            <ShowPassButton @click="showPass = $event" class="ml-2" />
           </template>
         </FormRowText>
-        <FormRowText v-model="form.url" title="website" :edit-mode="isEditMode" :show-icons="true">
+        <FormRowText v-model="form.url" title="website" :edit-mode="isEditMode" :show-icons="false">
           <template v-slot:second-icon>
             <LinkButton :link="form.url" />
             <ClipboardButton v-if="form.url" class="ml-2" :copy="form.url" />
@@ -189,6 +179,8 @@ export default {
 }
 .title {
   flex: 1;
-  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

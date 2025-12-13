@@ -11,9 +11,7 @@ export const useLoginsStore = defineStore('logins', {
   }),
 
   getters: {
-    items: (state) => {
-      return state.itemList
-    }
+    itemById: (state) => (id) => state.itemList.find(item => item.id === id)
   },
 
   actions: {

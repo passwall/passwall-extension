@@ -2,7 +2,7 @@
   <button 
     type="button" 
     class="clipboard-btn" 
-    v-clipboard:copy="copy" 
+    @click="handleCopy"
     v-tooltip="$t('Copy')">
     <VIcon name="duplicate" size="20px" />
   </button>
@@ -14,8 +14,49 @@ export default {
 
   props: {
     copy: {
-      type: String,
+      type: [String, Number, Object],
       default: ''
+    }
+  },
+
+  computed: {
+    copyValue() {
+      if (this.copy === undefined || this.copy === null) return ''
+      if (typeof this.copy === 'string') return this.copy
+      if (typeof this.copy === 'number') return String(this.copy)
+      try {
+        return JSON.stringify(this.copy)
+      } catch (e) {
+        return String(this.copy)
+      }
+    }
+  },
+  
+  methods: {
+    async handleCopy() {
+      const text = this.copyValue
+      if (!text) return
+      
+      try {
+        await navigator.clipboard.writeText(text)
+        this.$notifySuccess?.(this.$t('Copied') || 'Copied!')
+      } catch (error) {
+        console.error('Failed to copy:', error)
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea')
+        textArea.value = text
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-999999px'
+        document.body.appendChild(textArea)
+        textArea.select()
+        try {
+          document.execCommand('copy')
+          this.$notifySuccess?.(this.$t('Copied') || 'Copied!')
+        } catch (err) {
+          console.error('Fallback copy failed:', err)
+        }
+        document.body.removeChild(textArea)
+      }
     }
   }
 }

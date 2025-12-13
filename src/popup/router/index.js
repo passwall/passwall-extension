@@ -34,10 +34,7 @@ const routes = [
   {
     path: '/login',
     name: 'Login',
-    component: Login,
-    meta: {
-      auth: true
-    }
+    component: Login
   },
   {
     path: '/home',
@@ -155,12 +152,14 @@ const routes = [
   {
     path: '/Inject/savePassword',
     name: 'SavePassword',
-    component: SavePassword
+    component: SavePassword,
+    meta: { auth: true } // Bypass auth check for iframe injection
   },
   {
     path: '/Inject/loginAsPopup',
     name: 'LoginAsPopup',
-    component: LoginAsPopup
+    component: LoginAsPopup,
+    meta: { auth: true } // Bypass auth check for iframe injection
   },
   // Vue Router 4: wildcard route updated syntax
   {

@@ -148,6 +148,13 @@ export class RequestError extends Error {
  * @param {RuntimeRequest} data
  * @returns {Promise<any>}
  */
-export function sendPayload(data) {
-  return browser.runtime.sendMessage({ ...data, who: 'content-script' })
+export async function sendPayload(data) {
+  const response = await browser.runtime.sendMessage({ ...data, who: 'content-script' })
+  
+  // If response contains an error, throw it as a RequestError
+  if (response && response.error) {
+    throw new RequestError(response.error, response.errorType)
+  }
+  
+  return response
 }

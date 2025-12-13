@@ -31,8 +31,8 @@
       "matches": ["<all_urls>"],
       "js": ["src/content-scripts/content-script.js"],
       "css": ["public/css/content-script.css"],
-      "all_frames": true,
-      "run_at": "document_start"
+      "all_frames": false,
+      "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
