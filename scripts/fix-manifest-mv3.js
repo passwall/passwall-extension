@@ -21,12 +21,7 @@ try {
   const manifestContent = fs.readFileSync(manifestPath, 'utf8');
   const manifest = JSON.parse(manifestContent);
 
-  // Remove CSP - Manifest V3 uses secure defaults
-  // For browser extensions, we cannot use unsafe-eval
-  if (manifest.content_security_policy) {
-    console.log('🔧 Removing content_security_policy for Manifest V3 compatibility...');
-    delete manifest.content_security_policy;
-  }
+  // No CSP modifications needed - using Chrome defaults
 
   // Fix icon paths - use icons/ not public/icons/
   if (manifest.icons) {

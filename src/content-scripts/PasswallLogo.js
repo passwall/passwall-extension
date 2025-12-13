@@ -35,6 +35,14 @@ export class PasswallLogo {
   }
 
   /**
+   * Get the target input element
+   * @returns {HTMLInputElement}
+   */
+  get targetElement() {
+    return this.input
+  }
+
+  /**
    * Create the logo image element
    * @private
    */

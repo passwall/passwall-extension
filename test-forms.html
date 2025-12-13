@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Passwall Form Detection Test Suite</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: white;
+      text-align: center;
+      margin-bottom: 40px;
+      font-size: 2.5em;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .test-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 30px;
+      margin-bottom: 40px;
+    }
+
+    .test-case {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      transition: transform 0.3s ease;
+    }
+
+    .test-case:hover {
+      transform: translateY(-5px);
+    }
+
+    .test-case h2 {
+      color: #667eea;
+      margin-bottom: 10px;
+      font-size: 1.3em;
+    }
+
+    .test-case p {
+      color: #666;
+      margin-bottom: 20px;
+      font-size: 0.9em;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #333;
+      font-weight: 500;
+      font-size: 0.95em;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 40px 12px 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 1em;
+      transition: border-color 0.3s ease;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 1em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+
+    button:hover {
+      transform: scale(1.02);
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    .hidden-form {
+      display: none;
+    }
+
+    .invisible-field {
+      visibility: hidden;
+      position: absolute;
+    }
+
+    .dynamic-content {
+      min-height: 200px;
+    }
+
+    #loadSpaForm {
+      margin-bottom: 20px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      background: #667eea;
+      color: white;
+      border-radius: 4px;
+      font-size: 0.75em;
+      margin-left: 8px;
+    }
+
+    .badge.formless {
+      background: #f59e0b;
+    }
+
+    .badge.shadow {
+      background: #10b981;
+    }
+
+    .info-box {
+      background: #f0f9ff;
+      border-left: 4px solid #667eea;
+      padding: 15px;
+      margin-top: 40px;
+      border-radius: 6px;
+    }
+
+    .info-box h3 {
+      color: #667eea;
+      margin-bottom: 10px;
+    }
+
+    .info-box ul {
+      margin-left: 20px;
+    }
+
+    .info-box li {
+      margin: 5px 0;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 Passwall Enhanced Form Detection Test Suite</h1>
+
+    <div class="test-grid">
+      <!-- Test 1: Traditional Form -->
+      <div class="test-case">
+        <h2>1️⃣ Traditional Form <span class="badge">Form-Based</span></h2>
+        <p>Classic &lt;form&gt; tag with name and id attributes</p>
+        <form name="loginForm" id="traditional-login">
+          <div class="form-group">
+            <label for="trad-username">Username</label>
+            <input type="text" id="trad-username" name="username" placeholder="Enter username">
+          </div>
+          <div class="form-group">
+            <label for="trad-password">Password</label>
+            <input type="password" id="trad-password" name="password" placeholder="Enter password">
+          </div>
+          <button type="submit">Login</button>
+        </form>
+      </div>
+
+      <!-- Test 2: Email Input -->
+      <div class="test-case">
+        <h2>2️⃣ Email Input Type <span class="badge">Form-Based</span></h2>
+        <p>Using type="email" for better recognition</p>
+        <form>
+          <div class="form-group">
+            <label for="email-input">Email Address</label>
+            <input type="email" id="email-input" name="email" placeholder="user@example.com">
+          </div>
+          <div class="form-group">
+            <label for="email-password">Password</label>
+            <input type="password" id="email-password" name="password" placeholder="Password">
+          </div>
+          <button type="submit">Sign In</button>
+        </form>
+      </div>
+
+      <!-- Test 3: Formless Login (React/Vue Style) -->
+      <div class="test-case">
+        <h2>3️⃣ Formless Login <span class="badge formless">Formless</span></h2>
+        <p>No &lt;form&gt; tag - common in modern SPA frameworks</p>
+        <div id="spa-login">
+          <div class="form-group">
+            <label for="spa-user">Username</label>
+            <input type="text" id="spa-user" name="user" placeholder="Username">
+          </div>
+          <div class="form-group">
+            <label for="spa-pass">Password</label>
+            <input type="password" id="spa-pass" name="pass" placeholder="Password">
+          </div>
+          <button onclick="alert('SPA login clicked')">Login</button>
+        </div>
+      </div>
+
+      <!-- Test 4: Autocomplete Attributes -->
+      <div class="test-case">
+        <h2>4️⃣ Autocomplete Hints <span class="badge">Enhanced</span></h2>
+        <p>Using autocomplete attributes for better field recognition</p>
+        <form>
+          <div class="form-group">
+            <label for="auto-username">Account</label>
+            <input type="text" id="auto-username" autocomplete="username" placeholder="Your account">
+          </div>
+          <div class="form-group">
+            <label for="auto-password">Secret</label>
+            <input type="password" id="auto-password" autocomplete="current-password" placeholder="Your secret">
+          </div>
+          <button type="submit">Access</button>
+        </form>
+      </div>
+
+      <!-- Test 5: ARIA Labels -->
+      <div class="test-case">
+        <h2>5️⃣ ARIA Labels <span class="badge">Accessibility</span></h2>
+        <p>Using aria-label for field identification</p>
+        <form>
+          <div class="form-group">
+            <input type="text" aria-label="User identifier" placeholder="User ID">
+          </div>
+          <div class="form-group">
+            <input type="password" aria-label="User password" placeholder="Password">
+          </div>
+          <button type="submit">Enter</button>
+        </form>
+      </div>
+
+      <!-- Test 6: Hidden Fields (Should be ignored) -->
+      <div class="test-case">
+        <h2>6️⃣ Hidden Fields Test <span class="badge">Visibility</span></h2>
+        <p>Should ignore hidden/invisible fields</p>
+        <form>
+          <input type="text" class="invisible-field" name="honeypot">
+          <input type="password" style="display: none;" name="fake">
+          <div class="form-group">
+            <label for="real-user">Real Username</label>
+            <input type="text" id="real-user" name="username" placeholder="Visible username">
+          </div>
+          <div class="form-group">
+            <label for="real-pass">Real Password</label>
+            <input type="password" id="real-pass" name="password" placeholder="Visible password">
+          </div>
+          <button type="submit">Login</button>
+        </form>
+      </div>
+
+      <!-- Test 7: Dynamic Content (SPA) -->
+      <div class="test-case">
+        <h2>7️⃣ Dynamic Content <span class="badge formless">MutationObserver</span></h2>
+        <p>Tests dynamic form injection (like React Router)</p>
+        <div class="dynamic-content" id="dynamic-container">
+          <button id="loadSpaForm" onclick="loadDynamicForm()">Load Login Form</button>
+        </div>
+      </div>
+
+      <!-- Test 8: Multiple Inputs Same Type -->
+      <div class="test-case">
+        <h2>8️⃣ Complex Form <span class="badge">Heuristic</span></h2>
+        <p>Multiple text inputs - tests field recognition logic</p>
+        <form>
+          <div class="form-group">
+            <label for="fullname">Full Name</label>
+            <input type="text" id="fullname" name="fullname" placeholder="John Doe">
+          </div>
+          <div class="form-group">
+            <label for="login-email">Email or Username</label>
+            <input type="text" id="login-email" name="login" placeholder="user@example.com">
+          </div>
+          <div class="form-group">
+            <label for="pwd">Password</label>
+            <input type="password" id="pwd" name="password" placeholder="Password">
+          </div>
+          <button type="submit">Register & Login</button>
+        </form>
+      </div>
+
+      <!-- Test 9: Non-English Labels -->
+      <div class="test-case">
+        <h2>9️⃣ Multi-Language <span class="badge">i18n</span></h2>
+        <p>Tests international field recognition</p>
+        <form>
+          <div class="form-group">
+            <label for="usuario">Usuario (Spanish)</label>
+            <input type="text" id="usuario" name="usuario" placeholder="Tu usuario">
+          </div>
+          <div class="form-group">
+            <label for="contraseña">Contraseña</label>
+            <input type="password" id="contraseña" name="contraseña" placeholder="Tu contraseña">
+          </div>
+          <button type="submit">Iniciar Sesión</button>
+        </form>
+      </div>
+
+      <!-- Test 10: Nested Containers -->
+      <div class="test-case">
+        <h2>🔟 Nested Structure <span class="badge formless">Complex DOM</span></h2>
+        <p>Tests field proximity detection in nested divs</p>
+        <div>
+          <div>
+            <div>
+              <div class="form-group">
+                <label>User</label>
+                <input type="text" name="nested-user" placeholder="Username">
+              </div>
+            </div>
+          </div>
+          <div>
+            <div>
+              <div class="form-group">
+                <label>Pass</label>
+                <input type="password" name="nested-pass" placeholder="Password">
+              </div>
+            </div>
+          </div>
+          <button onclick="alert('Nested login')">Login</button>
+        </div>
+      </div>
+
+      <!-- Test 11: Placeholder-based Detection -->
+      <div class="test-case">
+        <h2>1️⃣1️⃣ Placeholder Hints <span class="badge">Heuristic</span></h2>
+        <p>No labels, only placeholders for field identification</p>
+        <form>
+          <div class="form-group">
+            <input type="text" placeholder="Email address or username">
+          </div>
+          <div class="form-group">
+            <input type="password" placeholder="Enter your password">
+          </div>
+          <button type="submit">Sign In</button>
+        </form>
+      </div>
+
+      <!-- Test 12: Class-based Detection -->
+      <div class="test-case">
+        <h2>1️⃣2️⃣ Class Names <span class="badge">Enhanced</span></h2>
+        <p>Uses CSS classes for field identification</p>
+        <form>
+          <div class="form-group">
+            <input type="text" class="user-input login-field" placeholder="Account">
+          </div>
+          <div class="form-group">
+            <input type="password" class="password-input login-field" placeholder="Secret">
+          </div>
+          <button type="submit">Access</button>
+        </form>
+      </div>
+
+      <!-- Test 13: Google-Style Multi-Step Login -->
+      <div class="test-case">
+        <h2>1️⃣3️⃣ Multi-Step Login <span class="badge formless">Google-Style</span></h2>
+        <p>Step 1: Email only (no password yet) - like Google, Microsoft</p>
+        <div id="multi-step-login">
+          <div id="step1" class="form-group">
+            <label for="google-email">Email or phone</label>
+            <input 
+              type="email" 
+              id="google-email" 
+              name="identifier" 
+              autocomplete="username"
+              placeholder="Enter your email">
+            <button onclick="showStep2(); return false;" style="margin-top: 10px;">Next</button>
+          </div>
+          <div id="step2" style="display: none;">
+            <div class="form-group">
+              <label>Welcome back!</label>
+              <p style="color: #666; font-size: 0.9em; margin-bottom: 15px;" id="user-email-display"></p>
+              <label for="google-password">Enter your password</label>
+              <input 
+                type="password" 
+                id="google-password" 
+                name="password" 
+                autocomplete="current-password"
+                placeholder="Password">
+            </div>
+            <button type="submit">Sign In</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Test 14: AWS-Style 3-Step Login -->
+      <div class="test-case">
+        <h2>1️⃣4️⃣ AWS 3-Step Login <span class="badge formless">AWS-Style</span></h2>
+        <p>Step 1: Account ID (should be IGNORED) → Step 2: IAM User → Step 3: Password</p>
+        <div id="aws-login">
+          <div id="aws-step1" class="form-group">
+            <label for="aws-account">Account ID (12 digits)</label>
+            <input 
+              type="text" 
+              id="aws-account" 
+              name="account"
+              placeholder="123456789012"
+              maxlength="12"
+              pattern="[0-9]{12}">
+            <p style="color: #666; font-size: 0.8em; margin-top: 5px;">⚠️ Logo should NOT appear here (account ID)</p>
+            <button onclick="showAwsStep2(); return false;" style="margin-top: 10px;">Next</button>
+          </div>
+          <div id="aws-step2" style="display: none;">
+            <div class="form-group">
+              <label for="aws-username">IAM user name</label>
+              <input 
+                type="text" 
+                id="aws-username" 
+                name="username"
+                placeholder="Enter IAM username">
+              <p style="color: #10b981; font-size: 0.8em; margin-top: 5px;">✅ Logo SHOULD appear here</p>
+            </div>
+            <button onclick="showAwsStep3(); return false;" style="margin-top: 10px;">Next</button>
+          </div>
+          <div id="aws-step3" style="display: none;">
+            <div class="form-group">
+              <label for="aws-password">Password</label>
+              <input 
+                type="password" 
+                id="aws-password" 
+                name="password"
+                placeholder="Password">
+              <p style="color: #10b981; font-size: 0.8em; margin-top: 5px;">✅ Logo SHOULD appear here</p>
+            </div>
+            <button type="submit">Sign In</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info Box -->
+    <div class="info-box">
+      <h3>🧪 Test Instructions</h3>
+      <ul>
+        <li><strong>Install Extension:</strong> Load the Passwall extension in your browser</li>
+        <li><strong>Check Console:</strong> Open DevTools Console to see detection logs</li>
+        <li><strong>Look for Logos:</strong> Passwall logos should appear next to username fields</li>
+        <li><strong>Dynamic Test:</strong> Click "Load Login Form" button to test MutationObserver</li>
+        <li><strong>Multi-Step Test (NEW!):</strong> Test 13 simulates Google login - logo should appear on Step 1 (email only)</li>
+        <li><strong>Expected Results:</strong> All visible forms should be detected (including formless and multi-step)</li>
+        <li><strong>Hidden Fields:</strong> Test 6 should ignore invisible fields and only show logo on visible ones</li>
+      </ul>
+      
+      <h3 style="margin-top: 20px;">🎯 Multi-Step Login Test (Test 13)</h3>
+      <ul>
+        <li><strong>Step 1:</strong> Logo should appear next to "Email or phone" field (no password yet!)</li>
+        <li><strong>Step 2:</strong> After clicking "Next", password field appears dynamically</li>
+        <li><strong>Result:</strong> This mimics Google/Microsoft login flow - Passwall handles it!</li>
+      </ul>
+
+      <h3 style="margin-top: 20px;">🔧 AWS 3-Step Login Test (Test 14) - NEW!</h3>
+      <ul>
+        <li><strong>Step 1 (Account ID):</strong> Logo should NOT appear (this is not a login field!)</li>
+        <li><strong>Step 2 (IAM Username):</strong> Logo SHOULD appear after clicking "Next"</li>
+        <li><strong>Step 3 (Password):</strong> Logo SHOULD appear after clicking "Next" again</li>
+        <li><strong>Result:</strong> Account IDs are now excluded - only real login fields get logos!</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    // Dynamic form loading test
+    function loadDynamicForm() {
+      const container = document.getElementById('dynamic-container');
+      container.innerHTML = `
+        <div style="animation: fadeIn 0.5s;">
+          <div class="form-group">
+            <label for="dynamic-user">Dynamic Username</label>
+            <input type="text" id="dynamic-user" name="username" placeholder="Dynamically loaded">
+          </div>
+          <div class="form-group">
+            <label for="dynamic-pass">Dynamic Password</label>
+            <input type="password" id="dynamic-pass" name="password" placeholder="Password">
+          </div>
+          <button onclick="alert('Dynamic login')">Login Now</button>
+          <p style="color: #10b981; margin-top: 10px; font-weight: 600;">✅ Form loaded! Watch for Passwall logo appearing...</p>
+        </div>
+      `;
+    }
+
+    // Multi-step login test (Google-style)
+    function showStep2() {
+      const email = document.getElementById('google-email').value;
+      if (!email) {
+        alert('Please enter an email');
+        return;
+      }
+      
+      // Hide step 1
+      document.getElementById('step1').style.display = 'none';
+      
+      // Show step 2
+      document.getElementById('step2').style.display = 'block';
+      document.getElementById('user-email-display').textContent = email;
+      
+      // Log for debugging
+      console.log('🔄 Multi-step: Moving to step 2 (password) - MutationObserver should detect!');
+      
+      // Simulate what Google does - dynamically add password field
+      setTimeout(() => {
+        console.log('✅ Password field is now in DOM - Passwall should show logo!');
+      }, 100);
+    }
+
+    // AWS-style 3-step login test
+    function showAwsStep2() {
+      const accountId = document.getElementById('aws-account').value;
+      if (!accountId || accountId.length !== 12) {
+        alert('Please enter a 12-digit account ID');
+        return;
+      }
+      
+      // Hide step 1
+      document.getElementById('aws-step1').style.display = 'none';
+      
+      // Show step 2
+      document.getElementById('aws-step2').style.display = 'block';
+      
+      console.log('🔄 AWS Step 2: IAM username field - Logo SHOULD appear!');
+    }
+
+    function showAwsStep3() {
+      const username = document.getElementById('aws-username').value;
+      if (!username) {
+        alert('Please enter IAM username');
+        return;
+      }
+      
+      // Hide step 2
+      document.getElementById('aws-step2').style.display = 'none';
+      
+      // Show step 3
+      document.getElementById('aws-step3').style.display = 'block';
+      
+      console.log('🔄 AWS Step 3: Password field - Logo SHOULD appear!');
+    }
+
+    // Simulate SPA navigation (additional dynamic test)
+    setTimeout(() => {
+      console.log('🧪 Page loaded - Passwall should detect all forms');
+    }, 1000);
+
+    // Prevent actual form submissions
+    document.addEventListener('submit', (e) => {
+      e.preventDefault();
+      alert('Form submission prevented (test page)');
+    });
+  </script>
+</body>
+</html>
+

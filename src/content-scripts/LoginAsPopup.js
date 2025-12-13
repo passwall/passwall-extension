@@ -1,5 +1,6 @@
 import browser from 'webextension-polyfill'
-import { getOffset, sendPayload } from '@/utils/helpers'
+import { getOffset, sendPayload, getHostName } from '@/utils/helpers'
+import { shouldExcludeField } from '@/utils/platform-rules'
 
 const INPUT_TYPES = {
   PASSWORD: 'password',
@@ -54,8 +55,11 @@ export class LoginAsPopup {
     this.logins = logins || []
     this.forms = forms
     this.authError = authError
+    this.domain = getHostName(window.location.href) // For platform-specific rules
 
     this.iframeElement = null
+    this.iframeReady = false // Track if iframe is ready for messages
+    this.pendingMessages = [] // Queue messages until iframe is ready
     this.width = POPUP_CONFIG.WIDTH
     this.height = POPUP_CONFIG.INITIAL_HEIGHT
     this.className = this.generateUniqueClassName()
@@ -120,16 +124,47 @@ export class LoginAsPopup {
 
   /**
    * Send message to popup iframe
+   * Queue messages if iframe not ready yet
    * @private
    * @param {Object} message
    */
   sendMessageToIframe(message) {
-    if (!this.iframeElement || !this.iframeElement.contentWindow) {
-      log.error('Cannot send message: iframe not ready')
+    // If iframe not created yet, queue for when it's ready
+    if (!this.iframeElement) {
+      this.pendingMessages.push(message)
+      log.info('📬 Message queued (iframe not created yet):', message.type)
       return
     }
     
-    this.iframeElement.contentWindow.postMessage(JSON.stringify(message), '*')
+    // If iframe not fully loaded yet, queue the message
+    if (!this.iframeReady) {
+      this.pendingMessages.push(message)
+      log.info('📬 Message queued (iframe loading):', message.type)
+      return
+    }
+    
+    // Iframe ready - send message immediately
+    if (this.iframeElement.contentWindow) {
+      this.iframeElement.contentWindow.postMessage(JSON.stringify(message), '*')
+    } else {
+      log.warn('⚠️ ContentWindow not available, queueing message:', message.type)
+      this.pendingMessages.push(message)
+    }
+  }
+  
+  /**
+   * Flush pending messages after iframe is ready
+   * @private
+   */
+  flushPendingMessages() {
+    if (this.pendingMessages.length > 0) {
+      log.success(`📤 Flushing ${this.pendingMessages.length} queued message(s)`)
+      this.pendingMessages.forEach(message => {
+        this.iframeElement.contentWindow.postMessage(JSON.stringify(message), '*')
+        log.info(`  ✉️ Sent queued message: ${message.type}`)
+      })
+      this.pendingMessages = []
+    }
   }
 
   /**
@@ -149,7 +184,7 @@ export class LoginAsPopup {
 
   /**
    * Fill form with selected login credentials
-   * Intelligently fills username and password fields while skipping captcha
+   * Intelligently fills username and password fields while skipping captcha and account IDs
    * Triggers all necessary events for framework compatibility (React, Vue, Angular)
    * @private
    * @param {Object} credentials
@@ -167,6 +202,12 @@ export class LoginAsPopup {
     this.forms[0].inputs.forEach(input => {
       // Skip captcha fields
       if (this.isCaptchaField(input)) {
+        return
+      }
+      
+      // Skip platform-specific excluded fields (AWS account ID, Azure tenant ID, etc.)
+      if (shouldExcludeField(input, this.domain)) {
+        log.info(`Skipping excluded field (platform rule): ${input.name || input.id}`)
         return
       }
       
@@ -280,6 +321,7 @@ export class LoginAsPopup {
     return hasCaptchaKeyword || (isShortField && input.type === INPUT_TYPES.TEXT)
   }
 
+
   /**
    * Handle click outside popup
    * @private
@@ -318,11 +360,15 @@ export class LoginAsPopup {
       log.error('Iframe load error:', e)
     })
     
-    // Wait for iframe to load before sending initial data
+    // Wait for iframe to load before allowing messages
     iframe.addEventListener('load', () => {
       log.success(`Iframe loaded! src: ${iframe.src}`)
-      // Vue app will send a FETCH request when it's ready
-      // No need to proactively send data here
+      
+      // Mark iframe as ready for communication
+      this.iframeReady = true
+      
+      // Flush any messages that were queued while loading
+      this.flushPendingMessages()
     })
     
     // Setup click outside handler
@@ -368,5 +414,9 @@ export class LoginAsPopup {
       window.removeEventListener('click', this.boundClickHandler, true)
       this.boundClickHandler = null
     }
+    
+    // Clear pending messages
+    this.pendingMessages = []
+    this.iframeReady = false
   }
 }

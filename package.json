@@ -21,6 +21,7 @@
     "floating-vue": "^5.2.2",
     "localforage": "^1.10.0",
     "pinia": "^2.1.7",
+    "tldts": "^7.0.19",
     "vee-validate": "^4.12.5",
     "vue": "^3.4.15",
     "vue-clipboard3": "^2.0.0",

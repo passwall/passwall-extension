@@ -4,7 +4,7 @@ import LoginsService from '@/api/services/Logins'
 import Storage from '@/utils/storage'
 import HTTPClient from '@/api/HTTPClient'
 import CryptoUtils from '@/utils/crypto'
-import { RequestError } from '@/utils/helpers'
+import { RequestError, getDomain } from '@/utils/helpers'
 
 const ENCRYPTED_FIELDS = ['username', 'password', 'extra']
 
@@ -232,20 +232,45 @@ class BackgroundAgent {
   }
 
   /**
-   * Check if login item matches domain
-   * @param {Object} item - Login item
-   * @param {string} domain - Domain to match
+   * Check if login item matches domain (Bitwarden-style domain matching)
+   * Compares base domains instead of full hostnames
+   * 
+   * Examples:
+   *   Current URL: https://signin.aws.amazon.com → amazon.com
+   *   Saved URL: https://www.amazon.com → amazon.com
+   *   Result: ✅ MATCH!
+   * 
+   * @param {Object} item - Login item with URL field
+   * @param {string} currentHostname - Current page hostname (e.g., signin.aws.amazon.com)
    * @returns {boolean}
    * @private
    */
-  loginMatchesDomain(item, domain) {
+  loginMatchesDomain(item, currentHostname) {
     try {
-      const searchTerm = domain.toLowerCase()
-      return Object.values(item).some(value => 
-        (value || '').toString().toLowerCase().includes(searchTerm)
-      )
+      // Extract base domain from current URL
+      const currentDomain = getDomain(`https://${currentHostname}`)
+      if (!currentDomain) {
+        return false
+      }
+
+      // Extract base domain from saved login URL
+      const savedUrl = item.url || item.URL || ''
+      const savedDomain = getDomain(savedUrl)
+      if (!savedDomain) {
+        return false
+      }
+
+      // Domain matching (case-insensitive)
+      const isMatch = currentDomain.toLowerCase() === savedDomain.toLowerCase()
+
+      // Debug logging
+      if (isMatch) {
+        console.log(`✅ Domain match: ${currentDomain} === ${savedDomain}`)
+      }
+
+      return isMatch
     } catch (error) {
-      console.error('Error matching domain:', error)
+      console.error('Error matching domain:', error, { item, currentHostname })
       return false
     }
   }

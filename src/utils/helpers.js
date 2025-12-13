@@ -1,4 +1,5 @@
 import browser from 'webextension-polyfill'
+import { parse } from 'tldts'
 import { BROWSER_URL_PATTERNS } from './constants'
 import Storage from '@/utils/storage'
 
@@ -76,6 +77,10 @@ export function textEllipsis(str, maxLength, { side = 'end', ellipsis = '...' } 
   return str
 }
 
+/**
+ * Extract hostname from URL (full subdomain)
+ * Example: https://signin.aws.amazon.com → signin.aws.amazon.com
+ */
 export function getHostName(url) {
   if (url == null || url.length === 0) {
     return null
@@ -87,6 +92,61 @@ export function getHostName(url) {
   } else {
     return null
   }
+}
+
+/**
+ * Extract base domain from URL using tldts library (Bitwarden-style)
+ * Removes subdomains and returns only the main domain
+ * 
+ * Uses the official Public Suffix List for accurate TLD detection
+ * 
+ * Examples:
+ *   https://signin.aws.amazon.com → amazon.com
+ *   https://www.amazon.com → amazon.com
+ *   https://eu-north-1.signin.aws.amazon.com → amazon.com
+ *   https://accounts.google.com → google.com
+ *   https://login.microsoftonline.com → microsoftonline.com
+ *   https://giris.hepsiburada.com.tr → hepsiburada.com.tr (double TLD)
+ *   https://secure.example.co.uk → example.co.uk (double TLD)
+ * 
+ * @param {string} url - Full URL string
+ * @returns {string|null} Base domain or null
+ */
+export function getDomain(url) {
+  if (url == null || url.length === 0) {
+    return null
+  }
+
+  // Handle data: and about: URLs
+  if (url.startsWith('data:') || url.startsWith('about:')) {
+    return null
+  }
+
+  try {
+    // Parse URL using tldts (same library as Bitwarden)
+    const parseResult = parse(url, {
+      allowPrivateDomains: true, // Allow private/local domains
+    })
+
+    if (parseResult != null && parseResult.hostname != null) {
+      // Handle localhost and IP addresses
+      if (parseResult.hostname === 'localhost' || parseResult.isIp) {
+        return parseResult.hostname
+      }
+
+      // Return the domain (e.g., amazon.com, hepsiburada.com.tr)
+      if (parseResult.domain != null) {
+        return parseResult.domain
+      }
+
+      return null
+    }
+  } catch (error) {
+    console.error('Error parsing domain:', error)
+    return null
+  }
+
+  return null
 }
 
 export async function getCurrentTab() {
