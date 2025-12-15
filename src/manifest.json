@@ -4,7 +4,7 @@
   "homepage_url": "https://passwall.io",
   "description": "Passwall is an open source password manager",
   "default_locale": "en",
-  "version": "2.2.0",
+  "version": "3.0.0",
   "permissions": [
     "tabs",
     "activeTab",
