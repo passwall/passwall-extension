@@ -84,10 +84,6 @@ export class PasswallLogo {
     const inputTop = inputRect.top
     const inputBottom = inputRect.bottom
     
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/53a1b74f-c462-4c55-a5b3-a9a7d396f665',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PasswallLogo.js:detectExistingIcons',message:'Starting icon detection',data:{inputId:this.input.id,inputName:this.input.name,inputRect:{top:inputTop,right:inputRight,bottom:inputBottom,left:inputRect.left}},timestamp:Date.now(),sessionId:'debug-session',runId:'icon-collision-debug',hypothesisId:'P'})}).catch(()=>{});
-    // #endregion
-    
     // Common selectors for other password manager icons
     const iconSelectors = [
       'img[data-lastpass-icon-root]',  // LastPass
@@ -104,27 +100,17 @@ export class PasswallLogo {
     ]
     
     let maxOffset = 0
-    let foundIcons = []
     
     // Check each selector
     iconSelectors.forEach(selector => {
       try {
         const icons = document.querySelectorAll(selector)
-        // #region agent log
-        if (icons.length > 0) {
-          fetch('http://127.0.0.1:7242/ingest/53a1b74f-c462-4c55-a5b3-a9a7d396f665',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PasswallLogo.js:detectExistingIcons',message:'Found icons with selector',data:{selector:selector,count:icons.length},timestamp:Date.now(),sessionId:'debug-session',runId:'icon-collision-debug',hypothesisId:'P'})}).catch(()=>{});
-        }
-        // #endregion
         
         icons.forEach(icon => {
           // Skip our own icon
           if (icon === this.imageElement) return
           
           const iconRect = icon.getBoundingClientRect()
-          
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/53a1b74f-c462-4c55-a5b3-a9a7d396f665',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PasswallLogo.js:detectExistingIcons',message:'Checking icon position',data:{iconTag:icon.tagName,iconClass:icon.className,iconId:icon.id,iconRect:{top:iconRect.top,left:iconRect.left,right:iconRect.right,width:iconRect.width,height:iconRect.height}},timestamp:Date.now(),sessionId:'debug-session',runId:'icon-collision-debug',hypothesisId:'P'})}).catch(()=>{});
-          // #endregion
           
           // Check if icon is in the same vertical area as our input
           const sameVerticalArea = (
@@ -138,16 +124,10 @@ export class PasswallLogo {
             iconRect.left <= inputRight + 50
           )
           
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/53a1b74f-c462-4c55-a5b3-a9a7d396f665',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PasswallLogo.js:detectExistingIcons',message:'Icon proximity check',data:{sameVerticalArea:sameVerticalArea,nearInput:nearInput,willAdjust:sameVerticalArea&&nearInput},timestamp:Date.now(),sessionId:'debug-session',runId:'icon-collision-debug',hypothesisId:'P'})}).catch(()=>{});
-          // #endregion
-          
           if (sameVerticalArea && nearInput) {
             // Calculate how much space this icon takes
             const iconWidth = iconRect.width
             const iconOffset = inputRight - iconRect.left + 10 // 10px gap
-            
-            foundIcons.push({tag: icon.tagName, class: icon.className, offset: iconOffset})
             
             if (iconOffset > maxOffset) {
               maxOffset = iconOffset
@@ -159,10 +139,6 @@ export class PasswallLogo {
         // Ignore selector errors
       }
     })
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/53a1b74f-c462-4c55-a5b3-a9a7d396f665',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PasswallLogo.js:detectExistingIcons',message:'Detection complete',data:{maxOffset:maxOffset,foundIconsCount:foundIcons.length,foundIcons:foundIcons},timestamp:Date.now(),sessionId:'debug-session',runId:'icon-collision-debug',hypothesisId:'P'})}).catch(()=>{});
-    // #endregion
     
     return maxOffset
   }
