@@ -50,6 +50,29 @@
       <p class="mt-3 fw-medium" style="font-size: 14px; color: #a78bfa;">Add one from the Passwall extension →</p>
     </div>
 
+    <!-- Security Warning: Insecure HTTP -->
+    <div v-else-if="authError === 'INSECURE_HTTP'" class="mt-3 p-4 bg-black-400 radius text-center">
+      <div class="mb-3" style="font-size: 48px;">⚠️</div>
+      <p class="fs-large fw-bold mb-2 c-white">Insecure Connection</p>
+      <p class="c-white mb-1" style="font-size: 14px;">This site uses HTTP (not secure).</p>
+      <p class="c-white mb-1" style="font-size: 14px;">For your security, autofill is</p>
+      <p class="c-white" style="font-size: 14px;">disabled on non-HTTPS sites.</p>
+      <p class="mt-3 fw-medium" style="font-size: 13px; color: #f59e0b;">
+        🔒 Use HTTPS for secure autofill
+      </p>
+    </div>
+
+    <!-- Security Warning: Suspicious URL -->
+    <div v-else-if="authError === 'SUSPICIOUS_URL'" class="mt-3 p-4 bg-black-400 radius text-center">
+      <div class="mb-3" style="font-size: 48px;">🚫</div>
+      <p class="fs-large fw-bold mb-2 c-white">Autofill Disabled</p>
+      <p class="c-white mb-1" style="font-size: 14px;">Autofill is not available</p>
+      <p class="c-white" style="font-size: 14px;">on this type of page.</p>
+      <p class="mt-3 fw-medium" style="font-size: 13px; color: #6b7280;">
+        (Extension pages, file://, etc.)
+      </p>
+    </div>
+
     <!-- Login List -->
     <ul v-else class="mt-2">
       <li

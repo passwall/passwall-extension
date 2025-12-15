@@ -25,6 +25,88 @@
  */
 
 /**
+ * Equivalent Domains (Bitwarden-inspired)
+ * 
+ * Some services use multiple domains that should share credentials.
+ * Example: Google accounts work on google.com, youtube.com, gmail.com, etc.
+ * 
+ * @type {Map<string, Set<string>>}
+ */
+export const EQUIVALENT_DOMAINS = new Map([
+  // Google services
+  ['google.com', new Set([
+    'google.com',
+    'youtube.com',
+    'gmail.com',
+    'google.co.uk',
+    'google.com.tr'
+  ])],
+  
+  // Microsoft services
+  ['microsoft.com', new Set([
+    'microsoft.com',
+    'live.com',
+    'outlook.com',
+    'hotmail.com',
+    'msn.com',
+    'office.com'
+  ])],
+  
+  // Apple services
+  ['apple.com', new Set([
+    'apple.com',
+    'icloud.com',
+    'me.com',
+    'mac.com'
+  ])],
+  
+  // Amazon services
+  ['amazon.com', new Set([
+    'amazon.com',
+    'amazon.co.uk',
+    'amazon.de',
+    'amazon.fr',
+    'amazon.com.tr'
+  ])]
+])
+
+/**
+ * Domain Match Blacklist (Bitwarden-inspired)
+ * 
+ * For certain base domains, exclude specific subdomains from credential matching.
+ * This prevents false positives where a subdomain shouldn't use the main domain's credentials.
+ * 
+ * Example: google.com credentials shouldn't autofill on script.google.com
+ * 
+ * @type {Map<string, Set<string>>}
+ */
+export const DOMAIN_MATCH_BLACKLIST = new Map([
+  // Google: Exclude API/developer subdomains
+  ['google.com', new Set([
+    'script.google.com',      // Google Apps Script
+    'developers.google.com',  // Developer console
+    'console.cloud.google.com' // Google Cloud (different auth)
+  ])],
+  
+  // Amazon: Exclude seller/AWS subdomains
+  ['amazon.com', new Set([
+    'sellercentral.amazon.com',  // Seller Central (different auth)
+    'advertising.amazon.com'      // Amazon Ads (different auth)
+  ])],
+  
+  // Microsoft: Exclude developer portals
+  ['microsoft.com', new Set([
+    'dev.azure.com',           // Azure DevOps (different auth)
+    'developer.microsoft.com'  // Developer portal
+  ])],
+  
+  // GitHub: Exclude GitHub Pages
+  ['github.com', new Set([
+    'pages.github.com'  // GitHub Pages (static hosting)
+  ])]
+])
+
+/**
  * Platform-specific rules database
  * Add new platforms here as edge cases are discovered
  * 
@@ -239,11 +321,76 @@ export function addPlatformRule(rule) {
   PLATFORM_RULES.push(rule)
 }
 
+/**
+ * Get equivalent domains for a given domain (Bitwarden-inspired)
+ * 
+ * @param {string} domain - Base domain (e.g., 'google.com')
+ * @returns {Set<string>} Set of equivalent domains
+ * 
+ * @example
+ * getEquivalentDomains('google.com')
+ * // Returns: Set(['google.com', 'youtube.com', 'gmail.com', ...])
+ * 
+ * getEquivalentDomains('youtube.com')
+ * // Returns: Set(['google.com', 'youtube.com', 'gmail.com', ...]) (same group!)
+ */
+export function getEquivalentDomains(domain) {
+  if (!domain) return new Set([])
+  
+  const normalizedDomain = domain.toLowerCase()
+  
+  // Check if this domain is in any equivalent domain group
+  for (const [key, equivalents] of EQUIVALENT_DOMAINS.entries()) {
+    if (equivalents.has(normalizedDomain)) {
+      return equivalents  // Return the entire group
+    }
+  }
+  
+  // No equivalent domains - return just this domain
+  return new Set([normalizedDomain])
+}
+
+/**
+ * Check if a hostname should be excluded from domain matching
+ * (Bitwarden DomainMatchBlacklist equivalent)
+ * 
+ * @param {string} hostname - Full hostname to check (e.g., 'script.google.com')
+ * @param {string} baseDomain - Base domain (e.g., 'google.com')
+ * @returns {boolean} True if hostname should be excluded
+ * 
+ * @example
+ * isHostnameBlacklisted('script.google.com', 'google.com')
+ * // Returns: true (blacklisted!)
+ * 
+ * isHostnameBlacklisted('mail.google.com', 'google.com')
+ * // Returns: false (allowed)
+ */
+export function isHostnameBlacklisted(hostname, baseDomain) {
+  if (!hostname || !baseDomain) return false
+  
+  const normalizedHostname = hostname.toLowerCase()
+  const normalizedDomain = baseDomain.toLowerCase()
+  
+  // Check if this base domain has blacklist entries
+  const blacklistedSubdomains = DOMAIN_MATCH_BLACKLIST.get(normalizedDomain)
+  
+  if (!blacklistedSubdomains) {
+    return false  // No blacklist for this domain
+  }
+  
+  // Check if current hostname is in the blacklist
+  return blacklistedSubdomains.has(normalizedHostname)
+}
+
 export default {
   PLATFORM_RULES,
+  EQUIVALENT_DOMAINS,
+  DOMAIN_MATCH_BLACKLIST,
   getPlatformRules,
   shouldExcludeField,
   getPlatformInfo,
-  addPlatformRule
+  addPlatformRule,
+  getEquivalentDomains,
+  isHostnameBlacklisted
 }
 

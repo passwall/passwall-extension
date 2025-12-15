@@ -4,7 +4,8 @@ import LoginsService from '@/api/services/Logins'
 import Storage from '@/utils/storage'
 import HTTPClient from '@/api/HTTPClient'
 import CryptoUtils from '@/utils/crypto'
-import { RequestError, getDomain } from '@/utils/helpers'
+import { RequestError, getDomain, getHostName } from '@/utils/helpers'
+import { isHostnameBlacklisted, getEquivalentDomains } from '@/utils/platform-rules'
 
 const ENCRYPTED_FIELDS = ['username', 'password', 'extra']
 
@@ -233,12 +234,20 @@ class BackgroundAgent {
 
   /**
    * Check if login item matches domain (Bitwarden-style domain matching)
-   * Compares base domains instead of full hostnames
+   * Supports: base domain matching, equivalent domains, blacklist exclusions
    * 
    * Examples:
-   *   Current URL: https://signin.aws.amazon.com → amazon.com
-   *   Saved URL: https://www.amazon.com → amazon.com
+   *   Current: signin.aws.amazon.com → amazon.com
+   *   Saved: www.amazon.com → amazon.com
    *   Result: ✅ MATCH!
+   * 
+   *   Current: youtube.com → google.com (equivalent!)
+   *   Saved: www.google.com → google.com
+   *   Result: ✅ MATCH! (equivalent domains)
+   * 
+   *   Current: script.google.com → google.com (blacklisted!)
+   *   Saved: www.google.com → google.com
+   *   Result: ❌ NO MATCH (blacklisted subdomain)
    * 
    * @param {Object} item - Login item with URL field
    * @param {string} currentHostname - Current page hostname (e.g., signin.aws.amazon.com)
@@ -260,15 +269,36 @@ class BackgroundAgent {
         return false
       }
 
-      // Domain matching (case-insensitive)
-      const isMatch = currentDomain.toLowerCase() === savedDomain.toLowerCase()
-
-      // Debug logging
-      if (isMatch) {
-        console.log(`✅ Domain match: ${currentDomain} === ${savedDomain}`)
+      // Get equivalent domains for both current and saved domains
+      const currentEquivalents = getEquivalentDomains(currentDomain)
+      const savedEquivalents = getEquivalentDomains(savedDomain)
+      
+      // Check if domains are in the same equivalent group
+      // Example: youtube.com and google.com are equivalent
+      const hasEquivalentMatch = [...currentEquivalents].some(domain => 
+        savedEquivalents.has(domain)
+      )
+      
+      if (!hasEquivalentMatch) {
+        // Not equivalent and not exact match
+        return false
       }
 
-      return isMatch
+      // Bitwarden-style blacklist check
+      // Even if domains match/equivalent, exclude certain subdomains
+      if (isHostnameBlacklisted(currentHostname, currentDomain)) {
+        console.log(`❌ Hostname blacklisted: ${currentHostname} (domain: ${currentDomain})`)
+        return false
+      }
+
+      // Debug logging
+      if (currentDomain === savedDomain) {
+        console.log(`✅ Domain match: ${currentDomain} === ${savedDomain}`)
+      } else {
+        console.log(`✅ Equivalent domain match: ${currentDomain} ≈ ${savedDomain}`)
+      }
+
+      return true
     } catch (error) {
       console.error('Error matching domain:', error, { item, currentHostname })
       return false

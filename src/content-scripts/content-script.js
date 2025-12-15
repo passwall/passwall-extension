@@ -2,6 +2,7 @@ import browser from 'webextension-polyfill'
 import { EVENT_TYPES } from '@/utils/constants'
 import { getHostName, getDomain, PFormParseError, sendPayload } from '@/utils/helpers'
 import { shouldExcludeField, getPlatformInfo } from '@/utils/platform-rules'
+import { checkCurrentPageSecurity, SECURITY_WARNINGS } from '@/utils/security-checks'
 import { LoginAsPopup } from './LoginAsPopup'
 import { PasswallLogo } from './PasswallLogo'
 
@@ -155,9 +156,19 @@ class ContentScriptInjector {
   /**
    * Detect login forms and inject Passwall logos (Enhanced)
    * Supports multi-step forms (like Google login)
+   * Includes Bitwarden-style security checks
    * @private
    */
   async detectAndInjectLogos() {
+    // Security check first (Bitwarden-style)
+    const securityCheck = checkCurrentPageSecurity()
+    
+    if (!securityCheck.allowed) {
+      log.warn(`🔒 Security check failed: ${securityCheck.reason}`)
+      // Still detect forms but show security warning in popup
+      this.authError = securityCheck.warningType
+    }
+    
     try {
       this.forms = this.findLoginForms()
       
@@ -165,6 +176,15 @@ class ContentScriptInjector {
         // Enhanced: Check for potential multi-step login fields
         // (email/username fields without password - like Google)
         this.checkForMultiStepLogin()
+        return
+      }
+      
+      // If security check failed, still inject logo but with security warning
+      if (!securityCheck.allowed) {
+        this.logins = []
+        this.authError = securityCheck.warningType
+        this.injectLogo()
+        log.warn(`Logo injected with security warning: ${securityCheck.warningType}`)
         return
       }
       
@@ -669,6 +689,18 @@ class ContentScriptInjector {
       form: loginField.form,
       inputs: [loginField.username].filter(Boolean)
     }))
+    
+    // Security check (Bitwarden-style)
+    const securityCheck = checkCurrentPageSecurity()
+    
+    if (!securityCheck.allowed) {
+      // Security check failed - show warning instead of logins
+      this.logins = []
+      this.authError = securityCheck.warningType
+      this.injectLogo()
+      log.warn(`Multi-step logo injected with security warning: ${securityCheck.warningType}`)
+      return
+    }
     
     // Try to fetch logins
     try {
