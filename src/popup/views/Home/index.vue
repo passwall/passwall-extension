@@ -86,6 +86,8 @@
 import Tabs from './tabs.vue'
 import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
+import { getDomain } from '@/utils/helpers'
+import browser from 'webextension-polyfill'
 
 export default {
   components: { Tabs },
@@ -105,6 +107,25 @@ export default {
     return {
       searchText: '',
       showSettings: false
+    }
+  },
+  
+  async mounted() {
+    // Auto-fill search with current tab's domain
+    try {
+      const tabs = await browser.tabs.query({ active: true, currentWindow: true })
+      if (tabs && tabs[0] && tabs[0].url) {
+        const currentUrl = tabs[0].url
+        const domain = getDomain(currentUrl)
+        
+        if (domain && domain !== 'chrome' && domain !== 'edge') {
+          // Set search query to domain for auto-filtering
+          this.authStore.searchQuery = domain
+          console.log(`🔍 [Popup] Auto-filtering by domain: ${domain}`)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to get current tab domain:', error)
     }
   },
   methods: {

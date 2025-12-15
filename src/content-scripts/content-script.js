@@ -253,13 +253,27 @@ class ContentScriptInjector {
       }
     })
 
-    // Observe entire document for changes
-    this.mutationObserver.observe(document.body, {
-      childList: true,
-      subtree: true
-    })
-
-    log.success('MutationObserver setup complete - watching for dynamic content')
+    // Observe entire document for changes (with safety check)
+    if (document.body) {
+      this.mutationObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+      })
+      log.success('MutationObserver setup complete - watching for dynamic content')
+    } else {
+      log.warn('document.body not ready - MutationObserver will be set up later')
+      // Retry when body is available
+      const bodyCheck = setInterval(() => {
+        if (document.body) {
+          clearInterval(bodyCheck)
+          this.mutationObserver.observe(document.body, {
+            childList: true,
+            subtree: true
+          })
+          log.success('MutationObserver setup complete (delayed)')
+        }
+      }, 100)
+    }
   }
 
   /**
@@ -596,7 +610,9 @@ class ContentScriptInjector {
         id: (input.id || '').toLowerCase(),
         placeholder: (input.placeholder || '').toLowerCase(),
         autocomplete: (input.autocomplete || '').toLowerCase(),
-        ariaLabel: (input.getAttribute('aria-label') || '').toLowerCase()
+        ariaLabel: (input.getAttribute('aria-label') || '').toLowerCase(),
+        role: (input.getAttribute('role') || '').toLowerCase(),
+        type: input.type || 'text'
       }
       
       const label = this.getAssociatedLabel(input)
@@ -609,6 +625,19 @@ class ContentScriptInjector {
         attributes.ariaLabel,
         labelText
       ].join(' ')
+      
+      // EXCLUDE: Search boxes, search bars (Gmail, etc.)
+      if (
+        /search|query|q\b|buscar|suche|recherche|検索/.test(allText) ||
+        attributes.role === 'searchbox' ||
+        attributes.role === 'search' ||
+        attributes.type === 'search' ||
+        attributes.name === 'q' ||
+        attributes.id === 'q'
+      ) {
+        log.info(`Skipping search field: ${input.name || input.id || 'unnamed'}`)
+        return false
+      }
       
       // Check if it looks like a login field
       return (

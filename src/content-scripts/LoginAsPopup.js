@@ -228,30 +228,39 @@ export class LoginAsPopup {
 
   /**
    * Fill input field and trigger all necessary events
-   * for framework and native form validation compatibility
-   * Handles React, Vue, Angular, and custom event handlers
+   * Enhanced for React/Vue/Angular form validation compatibility
+   * Simulates real user typing with proper event sequence
    * @private
    * @param {HTMLInputElement} input
    * @param {string} value
    */
   fillInputWithEvents(input, value) {
-    // Clear existing value first
-    input.value = ''
+    // Store initial state
+    const initialValue = input.value
+    
+    // Trigger focus event FIRST (critical for React)
+    const focusEvent = new FocusEvent('focus', { bubbles: true })
+    input.dispatchEvent(focusEvent)
     
     // Focus the input (critical for many forms)
     input.focus()
-    input.click()
+    
+    // Click to ensure focus
+    const clickEvent = new MouseEvent('click', { 
+      bubbles: true, 
+      cancelable: true,
+      view: window 
+    })
+    input.dispatchEvent(clickEvent)
+    
+    // Clear existing value first
+    input.value = ''
     
     // Use native property descriptor for React/Vue compatibility
     const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype,
       'value'
     )?.set
-    
-    const nativeInputValueGetter = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
-      'value'
-    )?.get
     
     // Set value using native setter if available (React requires this)
     if (nativeInputValueSetter) {
@@ -260,42 +269,59 @@ export class LoginAsPopup {
       input.value = value
     }
     
-    // Trigger comprehensive event sequence
-    const eventTypes = [
-      'keydown',
-      'keypress', 
-      'input',
-      'keyup',
-      'change'
-    ]
-    
-    eventTypes.forEach(eventType => {
-      const event = new Event(eventType, { 
-        bubbles: true, 
-        cancelable: true,
-        composed: true 
-      })
-      input.dispatchEvent(event)
+    // Trigger KeyboardEvent (more realistic than Event)
+    const keydownEvent = new KeyboardEvent('keydown', { 
+      bubbles: true, 
+      cancelable: true,
+      composed: true,
+      key: value.charAt(0),
+      code: 'Key' + value.charAt(0).toUpperCase()
     })
+    input.dispatchEvent(keydownEvent)
     
-    // Trigger InputEvent for modern frameworks
-    if (typeof InputEvent !== 'undefined') {
-      try {
-        const inputEvent = new InputEvent('input', {
-          bubbles: true,
-          cancelable: true,
-          composed: true,
-          data: value,
-          inputType: 'insertText'
-        })
-        input.dispatchEvent(inputEvent)
-      } catch (e) {
-        // Fallback if InputEvent not supported
-      }
-    }
+    // Trigger beforeinput event (CRITICAL for React 16+)
+    const inputEventBefore = new Event('beforeinput', { 
+      bubbles: true, 
+      cancelable: true 
+    })
+    input.dispatchEvent(inputEventBefore)
     
-    // Blur to trigger validation
-    input.blur()
+    // Trigger InputEvent for modern frameworks (with proper data)
+    const inputEvent = new InputEvent('input', {
+      bubbles: true,
+      cancelable: false,  // input event cannot be cancelled
+      composed: true,
+      data: value,
+      inputType: 'insertText',
+      isComposing: false
+    })
+    input.dispatchEvent(inputEvent)
+    
+    // Trigger keyup
+    const keyupEvent = new KeyboardEvent('keyup', { 
+      bubbles: true, 
+      cancelable: true,
+      composed: true,
+      key: value.charAt(value.length - 1)
+    })
+    input.dispatchEvent(keyupEvent)
+    
+    // Trigger change event (for form validation)
+    const changeEvent = new Event('change', { 
+      bubbles: true, 
+      cancelable: false 
+    })
+    input.dispatchEvent(changeEvent)
+    
+    // DON'T blur immediately - keep focus for React state updates
+    // Wait a bit for React to process, then blur
+    setTimeout(() => {
+      input.blur()
+      
+      // Trigger blur event explicitly
+      const blurEvent = new FocusEvent('blur', { bubbles: true })
+      input.dispatchEvent(blurEvent)
+    }, 50)  // 50ms delay for React to process
     
     // Final verification
     log.info(`Filled ${input.name || input.id}: ${input.value.substring(0, 3)}***`)
