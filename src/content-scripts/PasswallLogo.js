@@ -9,7 +9,7 @@ const LOGO_CONFIG = {
 }
 
 // Development logging
-const DEV_MODE = true
+const DEV_MODE = false // Production mode
 const log = {
   info: (...args) => DEV_MODE && console.log('🔵 [Logo]', ...args),
   success: (...args) => DEV_MODE && console.log('✅ [Logo]', ...args),

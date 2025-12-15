@@ -45,7 +45,7 @@ const FIELD_TYPES = {
 }
 
 // Development mode logging
-const DEV_MODE = true // Set to true for debugging
+const DEV_MODE = false // Production mode
 const log = {
   info: (...args) => DEV_MODE && console.log('🔵 [Passwall]', ...args),
   success: (...args) => DEV_MODE && console.log('✅ [Passwall]', ...args),
@@ -942,8 +942,14 @@ class ContentScriptInjector {
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    new ContentScriptInjector()
+    // Small delay for dynamic sites (GitHub, etc.)
+    setTimeout(() => {
+      new ContentScriptInjector()
+    }, 100)
   })
 } else {
-  new ContentScriptInjector()
+  // Already loaded - add small delay for dynamic content
+  setTimeout(() => {
+    new ContentScriptInjector()
+  }, 100)
 }
