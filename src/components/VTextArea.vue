@@ -87,6 +87,7 @@ export default {
 
   textarea {
     width: 100%;
+    min-width: 280px;
     resize: none;
     color: $color-white;
     border-radius: 12px;

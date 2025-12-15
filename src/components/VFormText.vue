@@ -79,6 +79,7 @@ export default {
 
   .form-text {
     width: 100%;
+    min-width: 280px;
     color: #fff;
     border: 0;
 
