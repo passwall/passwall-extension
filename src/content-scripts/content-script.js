@@ -3,6 +3,7 @@ import { EVENT_TYPES } from '@/utils/constants'
 import { getHostName, getDomain, PFormParseError, sendPayload } from '@/utils/helpers'
 import { shouldExcludeField, getPlatformInfo } from '@/utils/platform-rules'
 import { checkCurrentPageSecurity, SECURITY_WARNINGS } from '@/utils/security-checks'
+import Storage from '@/utils/storage'
 import { LoginAsPopup } from './LoginAsPopup'
 import { PasswallLogo } from './PasswallLogo'
 
@@ -45,7 +46,7 @@ const FIELD_TYPES = {
 }
 
 // Development mode logging
-const DEV_MODE = false // Production mode
+const DEV_MODE = false // Set to false for production
 const log = {
   info: (...args) => DEV_MODE && console.log('🔵 [Passwall]', ...args),
   success: (...args) => DEV_MODE && console.log('✅ [Passwall]', ...args),
@@ -69,6 +70,8 @@ class ContentScriptInjector {
     this.mutationObserver = null // Enhanced: For dynamic content
     this.rescanTimeout = null // Enhanced: Debounce rescans
     this.processedFields = new WeakSet() // Enhanced: Track processed fields
+    this.submittedFormData = null // Track form submissions for save detection
+    this.saveNotificationShown = false // Prevent duplicate notifications
     
     this.initialize()
   }
@@ -98,6 +101,12 @@ class ContentScriptInjector {
     
     // Enhanced: Setup mutation observer for dynamic content
     this.setupMutationObserver()
+    
+    // NEW: Setup form submission detection
+    this.setupFormSubmissionDetection()
+    
+    // NEW: Check for pending credentials from previous page (after redirect)
+    this.checkPendingCredentials()
     
     // Scan page for login forms on initialization
     this.detectAndInjectLogos()
@@ -936,6 +945,629 @@ class ContentScriptInjector {
     this.loginFields = []
     this.popupMessageListeners = []
     this.processedFields = new WeakSet()
+    this.submittedFormData = null
+    this.saveNotificationShown = false
+  }
+
+  /**
+   * Store pending credentials for post-redirect check
+   * @param {Object} credentials - {username, password, url}
+   * @private
+   */
+  async storePendingCredentials(credentials) {
+    try {
+      await Storage.setItem('pending_credentials', {
+        ...credentials,
+        timestamp: Date.now(),
+        domain: this.domain
+      })
+      log.info('💾 Credentials stored for post-redirect check')
+    } catch (error) {
+      log.error('Failed to store pending credentials:', error)
+    }
+  }
+
+  /**
+   * Check for pending credentials after page load (post-redirect)
+   * @private
+   */
+  async checkPendingCredentials() {
+    try {
+      const pending = await Storage.getItem('pending_credentials')
+      
+      if (!pending) {
+        return
+      }
+      
+      // Check if credentials are still fresh (< 10 seconds old)
+      const age = Date.now() - pending.timestamp
+      if (age > 10000) {
+        log.info('Pending credentials too old, clearing')
+        await Storage.removeItem('pending_credentials')
+        return
+      }
+      
+      log.info('🔄 Found pending credentials, showing save notification')
+      
+      // Clear from storage
+      await Storage.removeItem('pending_credentials')
+      
+      // Show save notification
+      await this.checkIfShouldOfferSave({
+        username: pending.username,
+        password: pending.password,
+        url: pending.url
+      })
+      
+    } catch (error) {
+      log.error('Error checking pending credentials:', error)
+    }
+  }
+
+  /**
+   * Setup form submission detection
+   * Listens for form submissions to detect new credentials
+   * @private
+   */
+  setupFormSubmissionDetection() {
+    // Listen for form submit events
+    document.addEventListener('submit', this.handleFormSubmit.bind(this), true)
+    
+    // Also listen for click events on submit buttons (for formless submissions)
+    document.addEventListener('click', this.handleSubmitButtonClick.bind(this), true)
+    
+    log.success('Form submission detection initialized')
+  }
+
+  /**
+   * Handle form submit event
+   * @param {Event} event - Submit event
+   * @private
+   */
+  async handleFormSubmit(event) {
+    const form = event.target
+    
+    if (!form || !form.elements) {
+      return
+    }
+    
+    log.info('🔍 Form submitted, analyzing...')
+    
+    // Extract credentials from form IMMEDIATELY (before form clears)
+    const credentials = this.extractCredentialsFromForm(form)
+    
+    if (credentials) {
+      log.info('✅ Credentials detected:', { 
+        username: credentials.username, 
+        hasPassword: !!credentials.password,
+        url: credentials.url 
+      })
+      
+      // Store credentials immediately (in case of redirect)
+      this.storePendingCredentials(credentials)
+      
+      // Also try to show immediately (if no redirect)
+      setTimeout(() => {
+        this.checkIfShouldOfferSave(credentials)
+      }, 1000)
+    } else {
+      log.warn('❌ No credentials found in form')
+    }
+  }
+
+  /**
+   * Handle submit button click (for formless submissions)
+   * @param {Event} event - Click event
+   * @private
+   */
+  async handleSubmitButtonClick(event) {
+    const element = event.target
+    
+    // Check if this looks like a submit button
+    if (!this.isSubmitButton(element)) {
+      return
+    }
+    
+    log.info('🔍 Submit button clicked, analyzing...')
+    
+    // Find the nearest form or container
+    const container = element.closest('form, div, section, main') || document.body
+    
+    // Extract credentials from container
+    const credentials = this.extractCredentialsFromContainer(container)
+    
+    if (credentials) {
+      log.info('✅ Credentials detected:', { username: credentials.username, hasPassword: !!credentials.password })
+      
+      // Wait a bit for the submission to complete
+      setTimeout(() => {
+        this.checkIfShouldOfferSave(credentials)
+      }, 1000)
+    }
+  }
+
+  /**
+   * Check if element is a submit button
+   * @param {HTMLElement} element
+   * @returns {boolean}
+   * @private
+   */
+  isSubmitButton(element) {
+    if (!element) return false
+    
+    const tagName = element.tagName.toLowerCase()
+    const type = (element.type || '').toLowerCase()
+    const role = (element.getAttribute('role') || '').toLowerCase()
+    
+    // Check if it's a submit input or button
+    if (type === 'submit') return true
+    if (tagName === 'button' && type !== 'button' && type !== 'reset') return true
+    if (role === 'button') {
+      // Check button text for login/submit keywords
+      const text = (element.textContent || '').toLowerCase()
+      const submitKeywords = ['login', 'sign in', 'log in', 'submit', 'continue', 'next', 'giriş', 'devam']
+      return submitKeywords.some(keyword => text.includes(keyword))
+    }
+    
+    return false
+  }
+
+  /**
+   * Extract credentials from form element
+   * @param {HTMLFormElement} form
+   * @returns {Object|null} - {username, password, url}
+   * @private
+   */
+  extractCredentialsFromForm(form) {
+    const formInputs = Array.from(form.elements).filter(el => 
+      el.tagName === 'INPUT' && this.isFieldVisible(el)
+    )
+    
+    return this.extractCredentialsFromInputs(formInputs)
+  }
+
+  /**
+   * Extract credentials from container element
+   * @param {HTMLElement} container
+   * @returns {Object|null} - {username, password, url}
+   * @private
+   */
+  extractCredentialsFromContainer(container) {
+    const inputs = Array.from(container.querySelectorAll('input')).filter(el => 
+      this.isFieldVisible(el)
+    )
+    
+    return this.extractCredentialsFromInputs(inputs)
+  }
+
+  /**
+   * Extract credentials from input elements
+   * @param {HTMLInputElement[]} inputs
+   * @returns {Object|null} - {username, password, url}
+   * @private
+   */
+  extractCredentialsFromInputs(inputs) {
+    // Find password field (including common name variations)
+    const passwordField = inputs.find(input => {
+      if (input.type !== 'password') return false
+      if (!input.value) return false
+      
+      // Common password field names
+      const name = (input.name || '').toLowerCase()
+      const id = (input.id || '').toLowerCase()
+      
+      // Accept any password field with value
+      return true
+    })
+    
+    if (!passwordField || !passwordField.value) {
+      log.info('No password field found with value')
+      return null
+    }
+    
+    log.info('Password field found:', { 
+      name: passwordField.name, 
+      id: passwordField.id,
+      hasValue: !!passwordField.value 
+    })
+    
+    // Find username field with priority order
+    // 1. Email type inputs
+    // 2. Inputs with username-related names (WordPress: user_login, log, etc.)
+    // 3. Any text/tel input
+    const usernameFields = inputs.filter(input => 
+      ['email', 'text', 'tel'].includes(input.type) &&
+      input.value &&
+      input !== passwordField &&
+      !shouldExcludeField(input, this.domain)
+    )
+    
+    if (usernameFields.length === 0) {
+      log.info('No username field found with value')
+      return null
+    }
+    
+    // Prioritize by field name/id patterns
+    const usernamePatterns = [
+      /^email$/i,
+      /^e-?mail$/i,
+      /^user_?login$/i, // WordPress
+      /^log$/i, // WordPress short form
+      /^user_?name$/i,
+      /^username$/i,
+      /^user$/i,
+      /^login$/i,
+      /^account$/i
+    ]
+    
+    let usernameField = null
+    
+    // Try to find field by pattern
+    for (const pattern of usernamePatterns) {
+      usernameField = usernameFields.find(input => 
+        pattern.test(input.name) || pattern.test(input.id)
+      )
+      if (usernameField) {
+        log.info('Username field found by pattern:', { 
+          name: usernameField.name, 
+          id: usernameField.id,
+          pattern: pattern.toString()
+        })
+        break
+      }
+    }
+    
+    // If no pattern match, use the first visible text/email field
+    if (!usernameField) {
+      usernameField = usernameFields[0]
+      log.info('Username field found (first available):', { 
+        name: usernameField.name, 
+        id: usernameField.id 
+      })
+    }
+    
+    if (!usernameField || !usernameField.value) {
+      log.info('No valid username field')
+      return null
+    }
+    
+    const result = {
+      username: usernameField.value,
+      password: passwordField.value,
+      url: window.location.href
+    }
+    
+    log.success('✅ Credentials extracted:', { 
+      username: result.username,
+      passwordLength: result.password.length,
+      url: result.url
+    })
+    
+    return result
+  }
+
+  /**
+   * Check if we should offer to save these credentials
+   * @param {Object} credentials - {username, password, url}
+   * @private
+   */
+  async checkIfShouldOfferSave(credentials) {
+    log.info('🔍 Checking if should offer save...')
+    
+    // Don't show notification multiple times
+    if (this.saveNotificationShown) {
+      log.info('⏭️ Save notification already shown, skipping')
+      return
+    }
+    
+    // Security check
+    const securityCheck = checkCurrentPageSecurity()
+    if (!securityCheck.allowed) {
+      log.warn('🔒 Security check failed, not offering to save:', securityCheck.reason)
+      return
+    }
+    
+    log.info('🔐 Security check passed, proceeding...')
+    
+    // Check if we already have this login
+    try {
+      log.info('📡 Fetching existing logins for domain:', this.domain)
+      
+      const existingLogins = await sendPayload({
+        type: EVENT_TYPES.REQUEST_LOGINS,
+        payload: this.domain
+      })
+      
+      log.info(`📦 Found ${existingLogins.length} existing login(s)`)
+      
+      // Check if exact match exists (same username AND password)
+      const exactMatch = existingLogins.find(login => 
+        login.username === credentials.username &&
+        login.password === credentials.password
+      )
+      
+      if (exactMatch) {
+        log.info('✅ Exact login already exists (same username + password), not offering to save')
+        return
+      }
+      
+      // Check if username exists but password is different (UPDATE scenario)
+      const usernameMatch = existingLogins.find(login => 
+        login.username === credentials.username
+      )
+      
+      if (usernameMatch) {
+        log.success(`🔄 Username exists but password is DIFFERENT - offering UPDATE`)
+        log.info('Existing login:', { id: usernameMatch.id, title: usernameMatch.title })
+        // Pass existing login data to popup (including title)
+        this.showSaveNotification(credentials, 'update', usernameMatch.id, usernameMatch)
+        return
+      }
+      
+      // New login - offer to save
+      log.success('🆕 New login detected - offering to SAVE')
+      this.showSaveNotification(credentials, 'add')
+      
+    } catch (error) {
+      log.error('❌ Error checking existing logins:', error)
+      
+      // If not authenticated or no logins, still offer to save
+      if (error.type === 'NO_AUTH') {
+        log.warn('⚠️ User not authenticated, but still offering to save')
+        this.showSaveNotification(credentials, 'add')
+      } else if (error.type === 'NO_LOGINS') {
+        log.info('ℹ️ No existing logins for this domain, offering to save new')
+        this.showSaveNotification(credentials, 'add')
+      } else {
+        log.error('💥 Unexpected error:', error.message || error)
+      }
+    }
+  }
+
+  /**
+   * Show save notification popup
+   * @param {Object} credentials - {username, password, url}
+   * @param {string} action - 'add' or 'update'
+   * @param {string} loginId - ID of login to update (if action is 'update')
+   * @param {Object} existingLogin - Existing login data (for update, to show current title)
+   * @private
+   */
+  async showSaveNotification(credentials, action = 'add', loginId = null, existingLogin = null) {
+    this.saveNotificationShown = true
+    this.submittedFormData = { credentials, action, loginId, existingLogin }
+    
+    // Create iframe for save notification
+    const iframe = document.createElement('iframe')
+    iframe.id = 'passwall-save-notification'
+    iframe.src = browser.runtime.getURL('src/popup/index.html#/Inject/savePassword')
+    iframe.style.cssText = `
+      position: fixed !important;
+      top: 20px !important;
+      right: 20px !important;
+      width: 380px !important;
+      max-height: 90vh !important;
+      height: auto !important;
+      min-height: 200px !important;
+      border: none !important;
+      border-radius: 12px !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15) !important;
+      z-index: 2147483647 !important;
+      opacity: 0 !important;
+      transform: translateY(-20px) !important;
+      transition: opacity 0.3s ease, transform 0.3s ease, height 0.3s ease !important;
+    `
+    
+    document.body.appendChild(iframe)
+    
+    // Fade in animation
+    setTimeout(() => {
+      iframe.style.opacity = '1'
+      iframe.style.transform = 'translateY(0)'
+    }, 100)
+    
+    // Send data to iframe when it's ready
+    const sendDataToIframe = () => {
+      try {
+        // Use existing login's title for update, or domain for new
+        const displayTitle = existingLogin?.title || this.domain
+        
+        iframe.contentWindow.postMessage({
+          type: 'PASSWALL_SAVE_INIT',
+          data: {
+            username: credentials.username,
+            password: credentials.password, // Send password to iframe
+            url: credentials.url,
+            domain: this.domain,
+            title: displayTitle, // Use existing title for update
+            action,
+            loginId
+          }
+        }, '*')
+        log.success('📤 Data sent to iframe with title:', displayTitle)
+      } catch (error) {
+        log.error('Error sending data to iframe:', error)
+      }
+    }
+    
+    // Listen for iframe ready message
+    const handleIframeMessage = (event) => {
+      if (event.data?.type === 'PASSWALL_SAVE_READY') {
+        sendDataToIframe()
+      } else if (event.data?.type === 'PASSWALL_SAVE_RESIZE') {
+        // Resize iframe dynamically
+        const height = event.data?.data?.height
+        if (height && iframe) {
+          iframe.style.height = `${height}px`
+        }
+      } else if (event.data?.type === 'PASSWALL_SAVE_CONFIRMED') {
+        // User clicked save - send to background
+        log.info('📨 Received SAVE_CONFIRMED from iframe:', event.data.data)
+        this.handleSaveConfirmed(event)
+      } else if (event.data?.type === 'PASSWALL_SAVE_CANCELLED') {
+        // User clicked cancel
+        this.handleSaveCancelled()
+      }
+    }
+    
+    window.addEventListener('message', handleIframeMessage)
+    
+    // Cleanup after 30 seconds if not interacted
+    setTimeout(() => {
+      const existingIframe = document.getElementById('passwall-save-notification')
+      if (existingIframe) {
+        existingIframe.style.opacity = '0'
+        existingIframe.style.transform = 'translateY(-20px)'
+        setTimeout(() => {
+          existingIframe.remove()
+          this.saveNotificationShown = false
+        }, 300)
+      }
+      window.removeEventListener('message', handleIframeMessage)
+    }, 30000)
+    
+    log.success('Save notification displayed')
+  }
+
+  /**
+   * Handle save confirmed by user
+   * @private
+   */
+  async handleSaveConfirmed(event) {
+    // Extract data from message event - ALWAYS use event data (from popup)
+    const data = event?.data?.data
+    
+    if (!data) {
+      log.error('❌ No data to save from popup')
+      return
+    }
+    
+    log.info('💾 User confirmed save, sending to background...')
+    
+    try {
+      const payloadToSend = {
+        username: data.username,
+        password: data.password,
+        url: data.url,
+        domain: data.domain || this.domain,
+        action: data.action,
+        loginId: data.loginId
+      }
+      
+      const result = await sendPayload({
+        type: EVENT_TYPES.SAVE_CREDENTIALS,
+        payload: payloadToSend
+      })
+      
+      log.success('✅ Credentials saved successfully!')
+      this.showSaveSuccessMessage()
+    } catch (error) {
+      log.error('❌ Error saving credentials:', error)
+      this.showSaveErrorMessage()
+    } finally {
+      this.removeSaveNotification()
+    }
+  }
+
+  /**
+   * Handle save cancelled by user
+   * @private
+   */
+  handleSaveCancelled() {
+    log.info('User cancelled save')
+    this.removeSaveNotification()
+  }
+
+  /**
+   * Remove save notification
+   * @private
+   */
+  removeSaveNotification() {
+    const iframe = document.getElementById('passwall-save-notification')
+    if (iframe) {
+      iframe.style.opacity = '0'
+      iframe.style.transform = 'translateY(-20px)'
+      setTimeout(() => {
+        iframe.remove()
+        this.saveNotificationShown = false
+        this.submittedFormData = null
+      }, 300)
+    }
+  }
+
+  /**
+   * Show success message after save
+   * @private
+   */
+  showSaveSuccessMessage() {
+    const message = document.createElement('div')
+    message.style.cssText = `
+      position: fixed !important;
+      top: 20px !important;
+      right: 20px !important;
+      padding: 16px 24px !important;
+      background: #10b981 !important;
+      color: white !important;
+      border-radius: 8px !important;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+      z-index: 2147483647 !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+      font-size: 14px !important;
+      font-weight: 500 !important;
+      opacity: 0 !important;
+      transform: translateY(-20px) !important;
+      transition: opacity 0.3s ease, transform 0.3s ease !important;
+    `
+    message.textContent = '✓ Password saved successfully!'
+    document.body.appendChild(message)
+    
+    setTimeout(() => {
+      message.style.opacity = '1'
+      message.style.transform = 'translateY(0)'
+    }, 100)
+    
+    setTimeout(() => {
+      message.style.opacity = '0'
+      message.style.transform = 'translateY(-20px)'
+      setTimeout(() => message.remove(), 300)
+    }, 3000)
+  }
+
+  /**
+   * Show error message after failed save
+   * @private
+   */
+  showSaveErrorMessage() {
+    const message = document.createElement('div')
+    message.style.cssText = `
+      position: fixed !important;
+      top: 20px !important;
+      right: 20px !important;
+      padding: 16px 24px !important;
+      background: #ef4444 !important;
+      color: white !important;
+      border-radius: 8px !important;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+      z-index: 2147483647 !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+      font-size: 14px !important;
+      font-weight: 500 !important;
+      opacity: 0 !important;
+      transform: translateY(-20px) !important;
+      transition: opacity 0.3s ease, transform 0.3s ease !important;
+    `
+    message.textContent = '✗ Failed to save password'
+    document.body.appendChild(message)
+    
+    setTimeout(() => {
+      message.style.opacity = '1'
+      message.style.transform = 'translateY(0)'
+    }, 100)
+    
+    setTimeout(() => {
+      message.style.opacity = '0'
+      message.style.transform = 'translateY(-20px)'
+      setTimeout(() => message.remove(), 300)
+    }, 3000)
   }
 }
 

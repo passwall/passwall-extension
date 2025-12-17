@@ -3,9 +3,16 @@
     <header class="d-flex flex-items-center flex-justify-between">
       <div class="d-flex flex-row flex-items-center">
         <VIcon name="passwall-logo" size="32px" />
-        <p class="fs-medium fw-bold ml-2">SAVE NEW PASSWORD?</p>
+        <p class="fs-medium fw-bold ml-2">
+          {{ action === 'update' ? 'UPDATE PASSWORD?' : 'SAVE NEW PASSWORD?' }}
+        </p>
       </div>
-      <VIcon name="cross" size="20px" class="c-gray-300 mr-2 c-pointer" />
+      <VIcon 
+        name="cross" 
+        size="20px" 
+        class="c-gray-300 mr-2 c-pointer" 
+        @click="onCancel"
+      />
     </header>
     <ul class="mt-2">
       <li
@@ -13,16 +20,21 @@
         @click="showContent = !showContent"
       >
         <div class="d-flex flex-row">
-          <CompanyLogo :url="'https://github.com/session'" check />
+          <CompanyLogo :url="form.url" check />
           <div class="ml-2">
-            <p>Github</p>
-            <p class="c-gray-300">ooruc471@yandex.com</p>
+            <p>{{ form.title }}</p>
+            <p class="c-gray-300">{{ form.username }}</p>
           </div>
         </div>
-        <VIcon name="down-arrow" size="24px" class="c-gray-300" />
+        <VIcon 
+          name="down-arrow" 
+          size="24px" 
+          class="c-gray-300" 
+          :style="{ transform: showContent ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }"
+        />
       </li>
       <div v-show="showContent" class="content bg-black">
-        <FormRowText v-model="form.title" title="title" :show-icons="false"> </FormRowText>
+        <FormRowText v-model="form.title" title="title" :show-icons="false" />
         <FormRowText v-model="form.username" title="username" :show-icons="false">
           <template v-slot:second-icon> <div /> </template>
         </FormRowText>
@@ -34,16 +46,16 @@
         </FormRowText>
       </div>
     </ul>
-    <footer class="d-flex flex-row mt-3 flex-row-reverse flex-items-center flex-justify-between">
+    <footer class="d-flex flex-row mt-3 flex-row-reverse flex-items-center" :class="action === 'update' ? 'flex-justify-end' : 'flex-justify-between'">
       <div class="d-flex flex-row-reverse flex-items-center">
-        <VButton>
-          <span class="fs-medium fw-bold">SAVE</span>
+        <VButton @click="onSave" :disabled="saving">
+          <span class="fs-medium fw-bold">{{ saving ? 'SAVING...' : (action === 'update' ? 'UPDATE' : 'SAVE') }}</span>
         </VButton>
-        <VButton theme="text">
-          <span class="fs-medium fw-bold c-gray-300">LATER</span>
+        <VButton theme="text" @click="onCancel">
+          <span class="fs-medium fw-bold c-gray-300">CANCEL</span>
         </VButton>
       </div>
-      <VButton theme="text">
+      <VButton v-if="action !== 'update'" theme="text" @click="onNever">
         <span class="fs-medium fw-bold c-danger">NEVER</span>
       </VButton>
     </footer>
@@ -53,103 +65,165 @@
 <script>
 import { useLoginsStore } from '@/stores/logins'
 import Storage from '@/utils/storage'
+import { getDomain } from '@/utils/helpers'
 
 export default {
   name: 'SavePassword',
   setup() {
     const loginsStore = useLoginsStore()
     return {
-      createLogin: loginsStore.create
+      createLogin: loginsStore.create,
+      updateLogin: loginsStore.update
     }
   },
   data() {
     return {
       showContent: false,
-      showPass: false,
+      saving: false,
       form: {
-        title: 'Github',
-        username: 'ooruc471@yandex.com',
-        password: 'test1234',
-        url: 'https://news.ycombinator.com/login',
+        title: '',
+        username: '',
+        password: '',
+        url: '',
         extra: ''
       },
-      action: '',
-      listener: null
+      action: 'add', // 'add' or 'update'
+      loginId: null, // For update action
+      domain: '',
+      resizeObserver: null
     }
   },
 
-  async created() {
-    console.log('Passwall save password iframe initialized successfully.')
-
-    const storageFormData = await Storage.getItem('create_form')
-    if (storageFormData === null) {
-      this.$browser.tabs.query({ active: true, currentWindow: true }).then(tabs => {
-        console.log(tabs)
-        /*   this.form.title = tabs[0].title
-        this.form.url = tabs[0].url */
-      })
-    } else {
-      this.form = storageFormData
-    }
-
-    // Report iframe loaded
-    //this.tell('iframe-loaded')
-
-    // Listen incoming messages
-    this.$browser.runtime.onMessage.addListener(this.background_onMessage)
-  },
-  mounted() {
-    // Tell dynamic height to content scirpt.
-    const resizeObserver = new ResizeObserver(([box]) => {
-      const currentHeight = box.borderBoxSize[0].blockSize
-      console.log(box)
-      this.tell('iframe-resize', { height: currentHeight })
+  created() {
+    // Listen for messages from content script
+    window.addEventListener('message', this.handleMessage)
+    
+    // Notify content script that iframe is ready
+    this.tellParent({
+      type: 'PASSWALL_SAVE_READY'
     })
-    resizeObserver.observe(this.$refs.window)
   },
+
+  mounted() {
+    // Setup ResizeObserver to adjust iframe height dynamically
+    this.setupResizeObserver()
+  },
+
+  beforeUnmount() {
+    window.removeEventListener('message', this.handleMessage)
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect()
+    }
+  },
+
   methods: {
-
-    async onSubmit() {
-      if (!(await this.$validator.validateAll())) return
-      const onSuccess = async () => {
-        await this.createLogin({ ...this.form })
-        this.tell('close-iframe')
+    /**
+     * Handle messages from content script
+     */
+    handleMessage(event) {
+      const { type, data } = event.data || {}
+      
+      if (type === 'PASSWALL_SAVE_INIT') {
+        this.initializeForm(data)
       }
-      this.$request(onSuccess, this.$waiters.Logins.Create)
     },
 
-    saveForm: function(event) {
-      Storage.setItem('create_form', this.form)
+    /**
+     * Initialize form with data from content script
+     */
+    initializeForm(data) {
+      this.form.username = data.username || ''
+      this.form.password = data.password || ''
+      this.form.url = data.url || ''
+      this.action = data.action || 'add'
+      this.loginId = data.loginId || null
+      this.domain = data.domain || ''
+      
+      // Use title from data if provided (for update), otherwise use domain
+      this.form.title = data.title || this.domain || getDomain(this.form.url) || 'New Login'
     },
 
-    cancel: function() {
-      this.tell('close-iframe')
+    /**
+     * Handle save button click
+     */
+    async onSave() {
+      if (this.saving) return
+      
+      if (!this.form.username || !this.form.password) {
+        return
+      }
+      
+      this.saving = true
+      
+      const dataToSend = {
+        username: this.form.username,
+        password: this.form.password,
+        url: this.form.url,
+        title: this.form.title,
+        action: this.action,
+        loginId: this.loginId,
+        domain: this.domain
+      }
+      
+      // Notify content script that user confirmed save
+      // Content script will handle the actual save via background script
+      this.tellParent({
+        type: 'PASSWALL_SAVE_CONFIRMED',
+        data: dataToSend
+      })
     },
 
-    background_onMessage: function(request, sender, sendResponse) {
-      // make sure the message was for this view (you can use the "*" wildcard to target all views)
-      // if (!request.message || !request.data.view || (request.data.view != this.view && request.data.view != '*')) return;
-
-      console.log("iframe'e gelen:" + request.message)
-
-      this.processMessage(request.data)
+    /**
+     * Handle cancel button click
+     */
+    onCancel() {
+      this.tellParent({
+        type: 'PASSWALL_SAVE_CANCELLED'
+      })
     },
 
-    processMessage: function(data) {
-      this.form.username = data.username
-      this.form.password = data.password
+    /**
+     * Handle never button click
+     * TODO: Add domain to never save list
+     */
+    async onNever() {
+      // TODO: Implement domain blacklist
+      // await Storage.addToNeverSaveList(this.domain)
+      
+      this.tellParent({
+        type: 'PASSWALL_SAVE_CANCELLED'
+      })
     },
 
-    tell: function(message, data) {
-      var data = data || {}
+    /**
+     * Send message to parent (content script)
+     */
+    tellParent(message) {
+      window.parent.postMessage(message, '*')
+    },
 
-      window.parent.postMessage(
-        {
-          message: message,
-          data: data
-        },
-        '*'
-      )
+    /**
+     * Setup ResizeObserver to notify parent of height changes
+     */
+    setupResizeObserver() {
+      this.resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const height = entry.contentRect.height
+          // Notify parent iframe to adjust height
+          this.tellParent({
+            type: 'PASSWALL_SAVE_RESIZE',
+            data: {
+              height: Math.ceil(height) + 50 // Increased padding for expanded state
+            }
+          })
+        }
+      })
+
+      // Observe the root element
+      const root = this.$el
+      if (root) {
+        this.resizeObserver.observe(root)
+      }
     }
   }
 }

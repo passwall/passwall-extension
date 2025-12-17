@@ -132,6 +132,9 @@ class BackgroundAgent {
       case EVENT_TYPES.REQUEST_LOGINS:
         return await this.fetchLoginsByDomain(request.payload)
         
+      case EVENT_TYPES.SAVE_CREDENTIALS:
+        return await this.saveCredentials(request.payload)
+        
       default:
         return null
     }
@@ -287,21 +290,96 @@ class BackgroundAgent {
       // Bitwarden-style blacklist check
       // Even if domains match/equivalent, exclude certain subdomains
       if (isHostnameBlacklisted(currentHostname, currentDomain)) {
-        console.log(`❌ Hostname blacklisted: ${currentHostname} (domain: ${currentDomain})`)
         return false
-      }
-
-      // Debug logging
-      if (currentDomain === savedDomain) {
-        console.log(`✅ Domain match: ${currentDomain} === ${savedDomain}`)
-      } else {
-        console.log(`✅ Equivalent domain match: ${currentDomain} ≈ ${savedDomain}`)
       }
 
       return true
     } catch (error) {
       console.error('Error matching domain:', error, { item, currentHostname })
       return false
+    }
+  }
+
+  /**
+   * Save or update credentials
+   * @param {Object} payload - Credentials to save
+   * @param {string} payload.username - Username
+   * @param {string} payload.password - Password
+   * @param {string} payload.url - URL
+   * @param {string} payload.domain - Domain
+   * @param {string} payload.action - 'add' or 'update'
+   * @param {string} payload.loginId - Login ID (for update)
+   * @returns {Promise<Object>}
+   * @private
+   */
+  async saveCredentials(payload) {
+    if (!this.isAuthenticated) {
+      throw new RequestError('Passwall authentication is needed!', 'NO_AUTH')
+    }
+
+    const { username, password, url, domain, action, loginId } = payload
+
+    // Validate required fields
+    if (!username || !password) {
+      throw new RequestError('Username and password are required', 'VALIDATION_ERROR')
+    }
+
+    try {
+      let result
+      
+      if (action === 'update' && loginId) {
+        // UPDATE: Fetch existing login to preserve title and other fields
+        try {
+          // Fetch existing login
+          const existingLoginResponse = await LoginsService.Get(loginId)
+          const existingLogin = existingLoginResponse.data
+          
+          // Decrypt existing data to get current title
+          CryptoUtils.decryptFields(existingLogin, ENCRYPTED_FIELDS)
+          
+          // Prepare update data - preserve title, update credentials
+          const loginData = {
+            username,
+            password,
+            url: existingLogin.url || url, // Preserve existing URL
+            title: existingLogin.title || domain || getHostName(url) || 'Untitled' // Preserve existing title
+          }
+          
+          // Encrypt sensitive fields
+          CryptoUtils.encryptFields(loginData, ENCRYPTED_FIELDS)
+          
+          result = await LoginsService.Update(loginId, loginData)
+        } catch (fetchError) {
+          console.error('Failed to fetch existing login, creating new instead:', fetchError)
+          // Fallback to create if fetch fails
+          const loginData = {
+            username,
+            password,
+            url,
+            title: domain || getHostName(url) || 'Untitled'
+          }
+          CryptoUtils.encryptFields(loginData, ENCRYPTED_FIELDS)
+          result = await LoginsService.Create(loginData)
+        }
+      } else {
+        // CREATE new login
+        const loginData = {
+          username,
+          password,
+          url,
+          title: domain || getHostName(url) || 'Untitled'
+        }
+        
+        // Encrypt sensitive fields
+        CryptoUtils.encryptFields(loginData, ENCRYPTED_FIELDS)
+        
+        result = await LoginsService.Create(loginData)
+      }
+
+      return { success: true, data: result.data }
+    } catch (error) {
+      console.error('Failed to save credentials:', error)
+      throw new RequestError('Failed to save credentials', 'SAVE_ERROR')
     }
   }
 }
