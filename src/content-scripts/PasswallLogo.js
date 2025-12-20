@@ -1,9 +1,13 @@
 import { getOffset } from '@/utils/helpers'
-import { PASSWALL_ICON_BS64 } from '@/utils/constants'
+
+// Use extension's 48px icon for crisp appearance
+const PASSWALL_LOGO_URL = chrome.runtime.getURL('icons/48.png')
 
 const LOGO_CONFIG = {
   ID: 'passwall-input-icon',
   SIZE_RATIO: 0.7,
+  MAX_SIZE: 32, // Maximum logo size in pixels (fixed)
+  MIN_SIZE: 20, // Minimum logo size in pixels
   OFFSET: 5,
   Z_INDEX: 99999
 }
@@ -51,7 +55,7 @@ export class PasswallLogo {
     
     img.setAttribute('id', LOGO_CONFIG.ID)
     img.alt = 'Passwall'
-    img.src = PASSWALL_ICON_BS64
+    img.src = PASSWALL_LOGO_URL
     
     // Apply all styles directly to ensure they work
     Object.assign(img.style, {
@@ -59,7 +63,12 @@ export class PasswallLogo {
       position: 'absolute',
       zIndex: LOGO_CONFIG.Z_INDEX.toString(),
       pointerEvents: 'auto',
-      display: 'block'
+      display: 'block',
+      // Smooth rendering for crisp logo appearance
+      imageRendering: 'auto',
+      // Prevent image dragging
+      userSelect: 'none',
+      WebkitUserDrag: 'none'
     })
     
     if (this.onClick) {
@@ -155,8 +164,20 @@ export class PasswallLogo {
     }
     
     const { top, left, height, width } = getOffset(this.input)
-    const size = height * LOGO_CONFIG.SIZE_RATIO
-    const topPosition = top + (height * (1 - LOGO_CONFIG.SIZE_RATIO)) / 2
+    
+    // Calculate logo size with fixed maximum and minimum
+    let size = height * LOGO_CONFIG.SIZE_RATIO
+    
+    // Enforce size constraints for consistent appearance
+    if (size > LOGO_CONFIG.MAX_SIZE) {
+      size = LOGO_CONFIG.MAX_SIZE
+      log.info(`Logo size capped at MAX_SIZE: ${LOGO_CONFIG.MAX_SIZE}px (input height: ${height}px)`)
+    } else if (size < LOGO_CONFIG.MIN_SIZE) {
+      size = LOGO_CONFIG.MIN_SIZE
+      log.info(`Logo size increased to MIN_SIZE: ${LOGO_CONFIG.MIN_SIZE}px (input height: ${height}px)`)
+    }
+    
+    const topPosition = top + (height - size) / 2 // Center vertically
     
     // Detect existing icons and adjust position
     const existingIconOffset = this.detectExistingIcons()

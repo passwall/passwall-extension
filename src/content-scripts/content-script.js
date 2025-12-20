@@ -169,6 +169,14 @@ class ContentScriptInjector {
    * @private
    */
   async detectAndInjectLogos() {
+    // Clean up old logos first (important for SPA navigation / multi-step forms)
+    // This prevents old logos from "floating" on the page after URL changes
+    if (this.logos.length > 0) {
+      log.info(`🧹 Cleaning up ${this.logos.length} old logo(s) before re-injection`)
+      this.logos.forEach(logo => logo.destroy())
+      this.logos = []
+    }
+    
     // Security check first (Bitwarden-style)
     const securityCheck = checkCurrentPageSecurity()
     
@@ -570,6 +578,21 @@ class ContentScriptInjector {
         this.processedFields.add(usernameField)
 
         log.success(`✅ Formless login detected: ${usernameField.name || usernameField.id || 'unnamed'} + password`)
+      } else {
+        // SPECIAL CASE: Password-only page (multi-step login 2nd stage)
+        // Examples: Disney Plus, some Google flows, certain banking sites
+        // When no username field found, treat as password-only page
+        log.info(`🔍 Password-only page detected (formless multi-step 2nd stage)`)
+        
+        loginFields.push({
+          username: passwordField, // Use password field as target for logo
+          password: passwordField,
+          form: passwordField.closest('form'),
+          detectMethod: 'formless-password-page'
+        })
+        
+        this.processedFields.add(passwordField)
+        log.success(`✅ Password-only page detected (formless): ${passwordField.name || passwordField.id || 'unnamed password'}`)
       }
     })
 
@@ -744,9 +767,11 @@ class ContentScriptInjector {
    * @throws {PFormParseError} If no password fields found
    */
   findLoginForms() {
-    // Check if any password fields exist (including Shadow DOM)
+    // Check if any VISIBLE password fields exist (including Shadow DOM)
     const allInputs = this.findAllInputs()
-    const passwordInputExists = allInputs.some(input => input.type === 'password')
+    const passwordInputExists = allInputs.some(input => 
+      input.type === 'password' && this.isFieldVisible(input)
+    )
     
     if (!passwordInputExists) {
       throw new PFormParseError('No password field found', 'NO_PASSWORD_FIELD')
@@ -818,7 +843,37 @@ class ContentScriptInjector {
         return true // This is a valid username field
       })
       
-      if (usernameField) {
+      // SPECIAL CASE: Multi-step password page (e.g. Amazon 2nd step)
+      // If no visible username found, check for hidden/readonly username
+      let isPasswordPage = false
+      if (!usernameField) {
+        const allFormInputs = form.querySelectorAll('input')
+        const hiddenOrReadonlyUsername = [...allFormInputs].find(input => {
+          if (![INPUT_TYPES.TEXT, INPUT_TYPES.EMAIL, INPUT_TYPES.TEL, INPUT_TYPES.NUMBER].includes(input.type)) {
+            return false
+          }
+          // Must be hidden OR readonly with a value (pre-filled from step 1)
+          return (!this.isFieldVisible(input) || input.readOnly) && input.value
+        })
+        
+        if (hiddenOrReadonlyUsername) {
+          log.info(`🔍 Password page detected (multi-step 2nd stage) - username is ${hiddenOrReadonlyUsername.readOnly ? 'readonly' : 'hidden'}`)
+          isPasswordPage = true
+          
+          // Inject logo on password field for password-only pages
+          loginFields.push({
+            username: passwordField, // Use password field as target for logo
+            password: passwordField,
+            form: form,
+            detectMethod: 'form-based-password-page'
+          })
+          
+          this.processedFields.add(passwordField)
+          log.success(`✅ Password page detected: ${form.name || form.id || 'unnamed form'}`)
+        }
+      }
+      
+      if (usernameField && !isPasswordPage) {
         loginFields.push({
           username: usernameField,
           password: passwordField,
