@@ -27,7 +27,7 @@ const MESSAGE_TYPES = {
 }
 
 // Development logging
-const DEV_MODE = true // Production mode
+const DEV_MODE = false // Production mode
 const log = {
   info: (...args) => DEV_MODE && console.log('🔵 [Popup]', ...args),
   success: (...args) => DEV_MODE && console.log('✅ [Popup]', ...args),
