@@ -1629,14 +1629,10 @@ class ContentScriptInjector {
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    // Small delay for dynamic sites (GitHub, etc.)
-    setTimeout(() => {
-      new ContentScriptInjector()
-    }, 100)
+    // Immediately inject - no delay
+    new ContentScriptInjector()
   })
 } else {
-  // Already loaded - add small delay for dynamic content
-  setTimeout(() => {
-    new ContentScriptInjector()
-  }, 100)
+  // Already loaded - inject immediately
+  new ContentScriptInjector()
 }
