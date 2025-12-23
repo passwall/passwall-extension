@@ -2,6 +2,7 @@
   <div class="d-flex flex-items-center flex-justify-between header px-3" v-bind="$attrs">
     <slot name="content">
       <div
+        v-if="user"
         class="d-flex flex-items-center c-pointer"
         data-testid="settings-click"
         @click="$emit('header-click')"

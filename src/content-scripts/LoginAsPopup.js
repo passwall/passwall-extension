@@ -27,7 +27,7 @@ const MESSAGE_TYPES = {
 }
 
 // Development logging
-const DEV_MODE = false // Production mode
+const DEV_MODE = true // Production mode
 const log = {
   info: (...args) => DEV_MODE && console.log('🔵 [Popup]', ...args),
   success: (...args) => DEV_MODE && console.log('✅ [Popup]', ...args),
@@ -49,7 +49,11 @@ export class LoginAsPopup {
       throw new Error('LoginAsPopup requires targetInput and forms')
     }
 
-    log.info(`🎯 LoginAsPopup constructor called with ${logins?.length || 0} logins, authError: ${authError}`)
+    log.info(
+      `🎯 LoginAsPopup constructor called with ${
+        logins?.length || 0
+      } logins, authError: ${authError}`
+    )
 
     this.targetInput = targetInput
     this.logins = logins || []
@@ -84,7 +88,7 @@ export class LoginAsPopup {
    */
   async messageHandler(messageData) {
     let message
-    
+
     try {
       message = JSON.parse(messageData)
     } catch (error) {
@@ -96,15 +100,15 @@ export class LoginAsPopup {
       case MESSAGE_TYPES.RESIZE:
         this.handleResize(message.payload)
         break
-        
+
       case MESSAGE_TYPES.FETCH:
         this.handleFetchRequest()
         break
-        
+
       case MESSAGE_TYPES.FILL_FORM:
         this.handleFillForm(message.payload)
         break
-        
+
       case MESSAGE_TYPES.CLOSE:
         this.destroy()
         break
@@ -135,14 +139,14 @@ export class LoginAsPopup {
       log.info('📬 Message queued (iframe not created yet):', message.type)
       return
     }
-    
+
     // If iframe not fully loaded yet, queue the message
     if (!this.iframeReady) {
       this.pendingMessages.push(message)
       log.info('📬 Message queued (iframe loading):', message.type)
       return
     }
-    
+
     // Iframe ready - send message immediately
     if (this.iframeElement.contentWindow) {
       this.iframeElement.contentWindow.postMessage(JSON.stringify(message), '*')
@@ -151,7 +155,7 @@ export class LoginAsPopup {
       this.pendingMessages.push(message)
     }
   }
-  
+
   /**
    * Flush pending messages after iframe is ready
    * @private
@@ -159,7 +163,7 @@ export class LoginAsPopup {
   flushPendingMessages() {
     if (this.pendingMessages.length > 0) {
       log.success(`📤 Flushing ${this.pendingMessages.length} queued message(s)`)
-      this.pendingMessages.forEach(message => {
+      this.pendingMessages.forEach((message) => {
         this.iframeElement.contentWindow.postMessage(JSON.stringify(message), '*')
         log.info(`  ✉️ Sent queued message: ${message.type}`)
       })
@@ -196,32 +200,37 @@ export class LoginAsPopup {
       log.error('No form available to fill')
       return
     }
-    
+
     let usernameFilled = false
-    
-    this.forms[0].inputs.forEach(input => {
+
+    this.forms[0].inputs.forEach((input) => {
       // Skip captcha fields
       if (this.isCaptchaField(input)) {
         return
       }
-      
+
       // Skip platform-specific excluded fields (AWS account ID, Azure tenant ID, etc.)
       if (shouldExcludeField(input, this.domain)) {
         log.info(`Skipping excluded field (platform rule): ${input.name || input.id}`)
         return
       }
-      
+
       // Fill password fields
       if (input.type === INPUT_TYPES.PASSWORD) {
         this.fillInputWithEvents(input, password)
-      } 
+      }
       // Fill first username field only
-      else if (!usernameFilled && [INPUT_TYPES.TEXT, INPUT_TYPES.EMAIL, INPUT_TYPES.NUMBER, INPUT_TYPES.TEL].includes(input.type)) {
+      else if (
+        !usernameFilled &&
+        [INPUT_TYPES.TEXT, INPUT_TYPES.EMAIL, INPUT_TYPES.NUMBER, INPUT_TYPES.TEL].includes(
+          input.type
+        )
+      ) {
         this.fillInputWithEvents(input, username)
         usernameFilled = true
       }
     })
-    
+
     log.success(`Form auto-filled for: ${username}`)
     this.destroy()
   }
@@ -237,92 +246,92 @@ export class LoginAsPopup {
   fillInputWithEvents(input, value) {
     // Store initial state
     const initialValue = input.value
-    
+
     // Trigger focus event FIRST (critical for React)
     const focusEvent = new FocusEvent('focus', { bubbles: true })
     input.dispatchEvent(focusEvent)
-    
+
     // Focus the input (critical for many forms)
     input.focus()
-    
+
     // Click to ensure focus
-    const clickEvent = new MouseEvent('click', { 
-      bubbles: true, 
+    const clickEvent = new MouseEvent('click', {
+      bubbles: true,
       cancelable: true,
-      view: window 
+      view: window
     })
     input.dispatchEvent(clickEvent)
-    
+
     // Clear existing value first
     input.value = ''
-    
+
     // Use native property descriptor for React/Vue compatibility
     const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
       window.HTMLInputElement.prototype,
       'value'
     )?.set
-    
+
     // Set value using native setter if available (React requires this)
     if (nativeInputValueSetter) {
       nativeInputValueSetter.call(input, value)
     } else {
       input.value = value
     }
-    
+
     // Trigger KeyboardEvent (more realistic than Event)
-    const keydownEvent = new KeyboardEvent('keydown', { 
-      bubbles: true, 
+    const keydownEvent = new KeyboardEvent('keydown', {
+      bubbles: true,
       cancelable: true,
       composed: true,
       key: value.charAt(0),
       code: 'Key' + value.charAt(0).toUpperCase()
     })
     input.dispatchEvent(keydownEvent)
-    
+
     // Trigger beforeinput event (CRITICAL for React 16+)
-    const inputEventBefore = new Event('beforeinput', { 
-      bubbles: true, 
-      cancelable: true 
+    const inputEventBefore = new Event('beforeinput', {
+      bubbles: true,
+      cancelable: true
     })
     input.dispatchEvent(inputEventBefore)
-    
+
     // Trigger InputEvent for modern frameworks (with proper data)
     const inputEvent = new InputEvent('input', {
       bubbles: true,
-      cancelable: false,  // input event cannot be cancelled
+      cancelable: false, // input event cannot be cancelled
       composed: true,
       data: value,
       inputType: 'insertText',
       isComposing: false
     })
     input.dispatchEvent(inputEvent)
-    
+
     // Trigger keyup
-    const keyupEvent = new KeyboardEvent('keyup', { 
-      bubbles: true, 
+    const keyupEvent = new KeyboardEvent('keyup', {
+      bubbles: true,
       cancelable: true,
       composed: true,
       key: value.charAt(value.length - 1)
     })
     input.dispatchEvent(keyupEvent)
-    
+
     // Trigger change event (for form validation)
-    const changeEvent = new Event('change', { 
-      bubbles: true, 
-      cancelable: false 
+    const changeEvent = new Event('change', {
+      bubbles: true,
+      cancelable: false
     })
     input.dispatchEvent(changeEvent)
-    
+
     // DON'T blur immediately - keep focus for React state updates
     // Wait a bit for React to process, then blur
     setTimeout(() => {
       input.blur()
-      
+
       // Trigger blur event explicitly
       const blurEvent = new FocusEvent('blur', { bubbles: true })
       input.dispatchEvent(blurEvent)
-    }, 50)  // 50ms delay for React to process
-    
+    }, 50) // 50ms delay for React to process
+
     // Final verification
     log.info(`Filled ${input.name || input.id}: ${input.value.substring(0, 3)}***`)
   }
@@ -335,18 +344,17 @@ export class LoginAsPopup {
    */
   isCaptchaField(input) {
     const nameOrId = (input.name + input.id).toLowerCase()
-    
+
     // Check for captcha-related keywords
     const captchaKeywords = ['captcha', 'security', 'verification', 'code', 'güvenlik']
-    const hasCaptchaKeyword = captchaKeywords.some(keyword => nameOrId.includes(keyword))
-    
+    const hasCaptchaKeyword = captchaKeywords.some((keyword) => nameOrId.includes(keyword))
+
     // Captcha fields are usually short (4-6 characters)
     const isShortField = input.maxLength > 0 && input.maxLength <= 6
-    
+
     // If it has captcha keyword OR is a short text field, likely captcha
     return hasCaptchaKeyword || (isShortField && input.type === INPUT_TYPES.TEXT)
   }
-
 
   /**
    * Handle click outside popup
@@ -355,7 +363,7 @@ export class LoginAsPopup {
    */
   handleClickOutside(event) {
     const isClickInsidePopup = event.target.className?.includes(this.className)
-    
+
     if (!isClickInsidePopup && this.canDestroy) {
       this.destroy()
     }
@@ -368,7 +376,7 @@ export class LoginAsPopup {
   createIframe() {
     const iframe = document.createElement('iframe')
     const popupUrl = browser.runtime.getURL('src/popup/index.html#/Inject/loginAsPopup')
-    
+
     iframe.setAttribute('id', POPUP_CONFIG.ID)
     iframe.setAttribute('src', popupUrl)
     iframe.setAttribute('scrolling', 'no')
@@ -377,26 +385,26 @@ export class LoginAsPopup {
     iframe.style.border = POPUP_CONFIG.BORDER
     iframe.style.borderRadius = POPUP_CONFIG.BORDER_RADIUS
     iframe.style.zIndex = POPUP_CONFIG.Z_INDEX
-    
+
     this.iframeElement = iframe
     document.body.appendChild(iframe)
-    
+
     // Error handler for iframe
     iframe.addEventListener('error', (e) => {
       log.error('Iframe load error:', e)
     })
-    
+
     // Wait for iframe to load before allowing messages
     iframe.addEventListener('load', () => {
       log.success(`Iframe loaded! src: ${iframe.src}`)
-      
+
       // Mark iframe as ready for communication
       this.iframeReady = true
-      
+
       // Flush any messages that were queued while loading
       this.flushPendingMessages()
     })
-    
+
     // Setup click outside handler
     this.boundClickHandler = this.handleClickOutside.bind(this)
     window.addEventListener('click', this.boundClickHandler, true)
@@ -408,9 +416,9 @@ export class LoginAsPopup {
    */
   updatePosition() {
     if (!this.iframeElement) return
-    
+
     const { top, left, height } = getOffset(this.targetInput)
-    
+
     Object.assign(this.iframeElement.style, {
       top: `${top + height + 1}px`,
       left: `${left}px`,
@@ -435,12 +443,12 @@ export class LoginAsPopup {
       this.iframeElement.remove()
       this.iframeElement = null
     }
-    
+
     if (this.boundClickHandler) {
       window.removeEventListener('click', this.boundClickHandler, true)
       this.boundClickHandler = null
     }
-    
+
     // Clear pending messages
     this.pendingMessages = []
     this.iframeReady = false

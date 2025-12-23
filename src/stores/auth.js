@@ -51,24 +51,26 @@ export const useAuthStore = defineStore('auth', {
       if (server) {
         HTTPClient.setBaseURL(server)
       }
-      
+
       if (access_token) {
         HTTPClient.setHeader('Authorization', `Bearer ${access_token}`)
       }
 
       // Set pro status
       if (this.user !== null) {
-        this.pro = this.user.type === 'pro'
+        // Backend sends role field (backward compatible)
+        // For now, all users are considered pro
+        this.pro = true
       }
     },
 
     async refreshToken() {
       const token = await Storage.getItem('refresh_token')
-      
+
       if (!token) {
         throw new Error('No refresh token available')
       }
-      
+
       const { data } = await AuthService.Refresh({ refresh_token: token })
 
       this.access_token = data.access_token
@@ -93,7 +95,7 @@ export const useAuthStore = defineStore('auth', {
     async login(payload) {
       // Hash master password for API
       const hashedPassword = CryptoUtils.sha256Encrypt(payload.master_password)
-      
+
       const { data } = await AuthService.Login({
         ...payload,
         master_password: hashedPassword
@@ -104,7 +106,8 @@ export const useAuthStore = defineStore('auth', {
       this.access_token = data.access_token
       this.refresh_token = data.refresh_token
       this.user = data
-      this.pro = this.user.type === 'pro'
+      // For now, all users are considered pro
+      this.pro = true
 
       // Configure crypto and HTTP client
       CryptoUtils.encryptKey = this.master_hash
@@ -136,18 +139,15 @@ export const useAuthStore = defineStore('auth', {
       this.searchQuery = ''
       CryptoUtils.encryptKey = null
       HTTPClient.setHeader('Authorization', '')
-      
+
       // Preserve email and server for convenience
       const email = await Storage.getItem('email')
       const server = await Storage.getItem('server')
-      
+
       await Storage.clear()
-      
-      await Promise.all([
-        Storage.setItem('email', email),
-        Storage.setItem('server', server)
-      ])
-      
+
+      await Promise.all([Storage.setItem('email', email), Storage.setItem('server', server)])
+
       Helpers.messageToBackground({ type: EVENT_TYPES.LOGOUT })
     },
 
@@ -158,7 +158,8 @@ export const useAuthStore = defineStore('auth', {
     async loadStore() {
       this.user = await Storage.getItem('user')
       if (this.user !== null) {
-        this.pro = this.user.type === 'pro'
+        // For now, all users are considered pro
+        this.pro = true
       }
     },
 
@@ -167,4 +168,3 @@ export const useAuthStore = defineStore('auth', {
     }
   }
 })
-

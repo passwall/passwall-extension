@@ -46,7 +46,7 @@ const FIELD_TYPES = {
 }
 
 // Development mode logging
-const DEV_MODE = false // Set to false for production
+const DEV_MODE = true // Set to false for production
 const log = {
   info: (...args) => DEV_MODE && console.log('🔵 [Passwall]', ...args),
   success: (...args) => DEV_MODE && console.log('✅ [Passwall]', ...args),
@@ -72,7 +72,7 @@ class ContentScriptInjector {
     this.processedFields = new WeakSet() // Enhanced: Track processed fields
     this.submittedFormData = null // Track form submissions for save detection
     this.saveNotificationShown = false // Prevent duplicate notifications
-    
+
     this.initialize()
   }
 
@@ -83,31 +83,31 @@ class ContentScriptInjector {
   initialize() {
     // Set domain first
     this.domain = getHostName(window.location.href)
-    
+
     // Log platform-specific rules if any
     const platformInfo = getPlatformInfo(this.domain)
     if (platformInfo.hasPlatformRules) {
       log.info(`🎯 Platform detected: ${platformInfo.platform} - ${platformInfo.description}`)
     }
-    
+
     // Listen to messages from background script
     browser.runtime.onMessage.addListener(this.handleBackgroundMessage.bind(this))
-    
+
     // Listen to messages from popup windows
     window.addEventListener('message', this.handlePopupMessage.bind(this))
-    
+
     // Handle window resize - reposition logos
     window.addEventListener('resize', this.handleWindowResize.bind(this))
-    
+
     // Enhanced: Setup mutation observer for dynamic content
     this.setupMutationObserver()
-    
+
     // NEW: Setup form submission detection
     this.setupFormSubmissionDetection()
-    
+
     // NEW: Check for pending credentials from previous page (after redirect)
     this.checkPendingCredentials()
-    
+
     // Scan page for login forms on initialization
     this.detectAndInjectLogos()
   }
@@ -118,7 +118,7 @@ class ContentScriptInjector {
    */
   handleWindowResize() {
     if (this.hasLoginForms) {
-      this.logos.forEach(logo => {
+      this.logos.forEach((logo) => {
         logo.destroy()
         logo.render()
       })
@@ -141,13 +141,13 @@ class ContentScriptInjector {
    */
   async handleBackgroundMessage(request, sender, sendResponse) {
     this.domain = getHostName(window.location.href)
-    
+
     switch (request.type) {
       case EVENT_TYPES.REFRESH_TOKENS:
       case EVENT_TYPES.TAB_UPDATE:
         await this.detectAndInjectLogos()
         break
-        
+
       case EVENT_TYPES.LOGOUT:
         this.cleanup()
         break
@@ -159,7 +159,7 @@ class ContentScriptInjector {
    * @param {MessageEvent} event
    */
   async handlePopupMessage(event) {
-    this.popupMessageListeners.forEach(listener => listener(event.data))
+    this.popupMessageListeners.forEach((listener) => listener(event.data))
   }
 
   /**
@@ -173,29 +173,29 @@ class ContentScriptInjector {
     // This prevents old logos from "floating" on the page after URL changes
     if (this.logos.length > 0) {
       log.info(`🧹 Cleaning up ${this.logos.length} old logo(s) before re-injection`)
-      this.logos.forEach(logo => logo.destroy())
+      this.logos.forEach((logo) => logo.destroy())
       this.logos = []
     }
-    
+
     // Security check first (Bitwarden-style)
     const securityCheck = checkCurrentPageSecurity()
-    
+
     if (!securityCheck.allowed) {
       log.warn(`🔒 Security check failed: ${securityCheck.reason}`)
       // Still detect forms but show security warning in popup
       this.authError = securityCheck.warningType
     }
-    
+
     try {
       this.forms = this.findLoginForms()
-      
+
       if (!this.hasLoginForms) {
         // Enhanced: Check for potential multi-step login fields
         // (email/username fields without password - like Google)
         this.checkForMultiStepLogin()
         return
       }
-      
+
       // If security check failed, still inject logo but with security warning
       if (!securityCheck.allowed) {
         this.logins = []
@@ -204,18 +204,18 @@ class ContentScriptInjector {
         log.warn(`Logo injected with security warning: ${securityCheck.warningType}`)
         return
       }
-      
+
       // Request matching logins from background script
       try {
         const logins = await sendPayload({
           type: EVENT_TYPES.REQUEST_LOGINS,
           payload: this.domain
         })
-        
+
         this.logins = logins
         this.authError = null
         this.injectLogo()
-        
+
         log.success(`Passwall ready: ${logins.length} login(s) for ${this.domain}`)
       } catch (error) {
         // Handle authentication and no logins errors
@@ -236,7 +236,6 @@ class ContentScriptInjector {
           log.error('Failed to fetch logins:', error)
         }
       }
-      
     } catch (error) {
       if (error instanceof PFormParseError && error.type === 'NO_PASSWORD_FIELD') {
         // Enhanced: No password field found - check for multi-step login
@@ -265,18 +264,19 @@ class ContentScriptInjector {
           for (const node of mutation.addedNodes) {
             if (node.nodeType === Node.ELEMENT_NODE) {
               // Check if added node is or contains password input
-              if (node.matches && (
-                node.matches('input[type="password"]') ||
-                node.matches('form') ||
-                node.querySelector('input[type="password"]')
-              )) {
+              if (
+                node.matches &&
+                (node.matches('input[type="password"]') ||
+                  node.matches('form') ||
+                  node.querySelector('input[type="password"]'))
+              ) {
                 shouldRescan = true
                 break
               }
             }
           }
         }
-        
+
         if (shouldRescan) break
       }
 
@@ -347,10 +347,7 @@ class ContentScriptInjector {
     let parent = element.parentElement
     while (parent && parent !== document.body) {
       const parentStyle = window.getComputedStyle(parent)
-      if (
-        parentStyle.display === 'none' ||
-        parentStyle.visibility === 'hidden'
-      ) {
+      if (parentStyle.display === 'none' || parentStyle.visibility === 'hidden') {
         return false
       }
       parent = parent.parentElement
@@ -373,7 +370,7 @@ class ContentScriptInjector {
 
     // Check for Shadow DOM
     const elementsWithShadow = root.querySelectorAll('*')
-    elementsWithShadow.forEach(element => {
+    elementsWithShadow.forEach((element) => {
       if (element.shadowRoot) {
         // Recursively search shadow roots
         inputs.push(...this.findAllInputs(element.shadowRoot))
@@ -432,7 +429,9 @@ class ContentScriptInjector {
     // Username detection
     if (
       attributes.autocomplete === 'username' ||
-      /iam.?user|user.?name|username|login|usuario|benutzername|gebruiker|utilisateur|ユーザー名/.test(allText)
+      /iam.?user|user.?name|username|login|usuario|benutzername|gebruiker|utilisateur|ユーザー名/.test(
+        allText
+      )
     ) {
       return FIELD_TYPES.USERNAME
     }
@@ -476,7 +475,8 @@ class ContentScriptInjector {
    */
   findUsernameFieldNear(passwordField) {
     // Find a common container (form, div, section, main, or body)
-    const container = passwordField.closest('form, div, section, main, article, aside') || document.body
+    const container =
+      passwordField.closest('form, div, section, main, article, aside') || document.body
 
     // Build selectors for potential username fields
     const selectors = [
@@ -508,7 +508,7 @@ class ContentScriptInjector {
       if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
         // Calculate DOM distance (simple heuristic)
         const distance = this.calculateDOMDistance(field, passwordField)
-        
+
         if (distance < shortestDistance) {
           shortestDistance = distance
           bestCandidate = field
@@ -547,17 +547,17 @@ class ContentScriptInjector {
    */
   findFormlessLogins() {
     const loginFields = []
-    
+
     // Find all password fields (including Shadow DOM)
     const allInputs = this.findAllInputs()
-    const passwordFields = allInputs.filter(input => 
-      input.type === 'password' && this.isFieldVisible(input)
+    const passwordFields = allInputs.filter(
+      (input) => input.type === 'password' && this.isFieldVisible(input)
     )
 
     log.info(`Found ${passwordFields.length} password field(s)`)
 
     // For each password field, find associated username field
-    passwordFields.forEach(passwordField => {
+    passwordFields.forEach((passwordField) => {
       // Skip if already processed
       if (this.processedFields.has(passwordField)) return
 
@@ -577,22 +577,30 @@ class ContentScriptInjector {
         this.processedFields.add(passwordField)
         this.processedFields.add(usernameField)
 
-        log.success(`✅ Formless login detected: ${usernameField.name || usernameField.id || 'unnamed'} + password`)
+        log.success(
+          `✅ Formless login detected: ${
+            usernameField.name || usernameField.id || 'unnamed'
+          } + password`
+        )
       } else {
         // SPECIAL CASE: Password-only page (multi-step login 2nd stage)
         // Examples: Disney Plus, some Google flows, certain banking sites
         // When no username field found, treat as password-only page
         log.info(`🔍 Password-only page detected (formless multi-step 2nd stage)`)
-        
+
         loginFields.push({
           username: passwordField, // Use password field as target for logo
           password: passwordField,
           form: passwordField.closest('form'),
           detectMethod: 'formless-password-page'
         })
-        
+
         this.processedFields.add(passwordField)
-        log.success(`✅ Password-only page detected (formless): ${passwordField.name || passwordField.id || 'unnamed password'}`)
+        log.success(
+          `✅ Password-only page detected (formless): ${
+            passwordField.name || passwordField.id || 'unnamed password'
+          }`
+        )
       }
     })
 
@@ -630,33 +638,35 @@ class ContentScriptInjector {
    */
   async checkForMultiStepLogin() {
     const allInputs = this.findAllInputs()
-    
+
     // Find potential username/email fields
-    const potentialLoginFields = allInputs.filter(input => {
+    const potentialLoginFields = allInputs.filter((input) => {
       if (!this.isFieldVisible(input)) return false
-      
+
       // EXCLUDE: Platform-specific fields (account IDs, organization IDs, etc.)
       if (shouldExcludeField(input, this.domain)) {
         log.info(`Excluding platform-specific field: ${input.name || input.id || 'unnamed'}`)
         return false
       }
-      
+
       const fieldType = this.identifyFieldType(input)
-      
+
       return (
         fieldType === FIELD_TYPES.EMAIL ||
         fieldType === FIELD_TYPES.USERNAME ||
-        (input.type === 'text' || input.type === 'email' || input.type === 'tel')
+        input.type === 'text' ||
+        input.type === 'email' ||
+        input.type === 'tel'
       )
     })
-    
+
     if (potentialLoginFields.length === 0) {
       log.info('No multi-step login fields found')
       return
     }
-    
+
     // Filter to most likely login fields using heuristics
-    const likelyLoginFields = potentialLoginFields.filter(input => {
+    const likelyLoginFields = potentialLoginFields.filter((input) => {
       const attributes = {
         name: (input.name || '').toLowerCase(),
         id: (input.id || '').toLowerCase(),
@@ -666,10 +676,10 @@ class ContentScriptInjector {
         role: (input.getAttribute('role') || '').toLowerCase(),
         type: input.type || 'text'
       }
-      
+
       const label = this.getAssociatedLabel(input)
       const labelText = label ? (label.textContent || '').toLowerCase() : ''
-      
+
       const allText = [
         attributes.name,
         attributes.id,
@@ -677,7 +687,7 @@ class ContentScriptInjector {
         attributes.ariaLabel,
         labelText
       ].join(' ')
-      
+
       // EXCLUDE: Search boxes, search bars (Gmail, etc.)
       if (
         /search|query|q\b|buscar|suche|recherche|検索/.test(allText) ||
@@ -690,7 +700,7 @@ class ContentScriptInjector {
         log.info(`Skipping search field: ${input.name || input.id || 'unnamed'}`)
         return false
       }
-      
+
       // Check if it looks like a login field
       return (
         /email|e-mail|mail|correo/.test(allText) ||
@@ -700,31 +710,31 @@ class ContentScriptInjector {
         attributes.autocomplete === 'email'
       )
     })
-    
+
     if (likelyLoginFields.length === 0) {
       log.info('No likely login fields detected in multi-step form')
       return
     }
-    
+
     log.success(`🔍 Multi-step login detected: ${likelyLoginFields.length} field(s)`)
-    
+
     // Create pseudo login fields for multi-step
-    this.loginFields = likelyLoginFields.map(field => ({
+    this.loginFields = likelyLoginFields.map((field) => ({
       username: field,
       password: null, // No password yet (multi-step)
       form: field.closest('form'),
       detectMethod: 'multi-step'
     }))
-    
+
     // Update forms for backward compatibility
-    this.forms = this.loginFields.map(loginField => ({
+    this.forms = this.loginFields.map((loginField) => ({
       form: loginField.form,
       inputs: [loginField.username].filter(Boolean)
     }))
-    
+
     // Security check (Bitwarden-style)
     const securityCheck = checkCurrentPageSecurity()
-    
+
     if (!securityCheck.allowed) {
       // Security check failed - show warning instead of logins
       this.logins = []
@@ -733,14 +743,14 @@ class ContentScriptInjector {
       log.warn(`Multi-step logo injected with security warning: ${securityCheck.warningType}`)
       return
     }
-    
+
     // Try to fetch logins
     try {
       const logins = await sendPayload({
         type: EVENT_TYPES.REQUEST_LOGINS,
         payload: this.domain
       })
-      
+
       this.logins = logins
       this.authError = null
       log.success(`Passwall ready (multi-step): ${logins.length} login(s) for ${this.domain}`)
@@ -755,7 +765,7 @@ class ContentScriptInjector {
         log.info('No logins found for this domain (multi-step)')
       }
     }
-    
+
     // Inject logos on username/email fields
     this.injectLogo()
   }
@@ -769,43 +779,45 @@ class ContentScriptInjector {
   findLoginForms() {
     // Check if any VISIBLE password fields exist (including Shadow DOM)
     const allInputs = this.findAllInputs()
-    const passwordInputExists = allInputs.some(input => 
-      input.type === 'password' && this.isFieldVisible(input)
+    const passwordInputExists = allInputs.some(
+      (input) => input.type === 'password' && this.isFieldVisible(input)
     )
-    
+
     if (!passwordInputExists) {
       throw new PFormParseError('No password field found', 'NO_PASSWORD_FIELD')
     }
-    
+
     // Clear processed fields for fresh scan
     this.processedFields = new WeakSet()
-    
+
     // 1. Traditional form-based approach
     const formBasedLogins = this.findFormBasedLogins()
-    
+
     // 2. Modern formless approach (for SPA, React, Vue, etc.)
     const formlessLogins = this.findFormlessLogins()
-    
+
     // Combine and deduplicate
     this.loginFields = this.deduplicateFields([...formBasedLogins, ...formlessLogins])
-    
-    log.info(`📊 Total unique login fields: ${this.loginFields.length} (${formBasedLogins.length} form-based, ${formlessLogins.length} formless)`)
-    
+
+    log.info(
+      `📊 Total unique login fields: ${this.loginFields.length} (${formBasedLogins.length} form-based, ${formlessLogins.length} formless)`
+    )
+
     // Convert to old format for backward compatibility
     const loginForms = []
-    this.loginFields.forEach(loginField => {
+    this.loginFields.forEach((loginField) => {
       if (loginField.form) {
         const inputs = this.getFormInputs(loginField.form)
         loginForms.push({ form: loginField.form, inputs })
       } else {
         // For formless, create a pseudo-form structure
-        loginForms.push({ 
-          form: null, 
+        loginForms.push({
+          form: null,
           inputs: [loginField.username, loginField.password].filter(Boolean)
         })
       }
     })
-    
+
     return loginForms
   }
 
@@ -817,49 +829,61 @@ class ContentScriptInjector {
   findFormBasedLogins() {
     const loginFields = []
     const forms = document.querySelectorAll('form')
-    
-    forms.forEach(form => {
+
+    forms.forEach((form) => {
       const inputs = this.getFormInputs(form)
-      
+
       // Valid login form must have at least one password field
-      const passwordField = inputs.find(input => input.type === INPUT_TYPES.PASSWORD)
+      const passwordField = inputs.find((input) => input.type === INPUT_TYPES.PASSWORD)
       if (!passwordField) return
-      
+
       // Skip if already processed
       if (this.processedFields.has(passwordField)) return
-      
+
       // Find username field (text, email, tel, number) - use platform-specific exclusions
-      const usernameField = inputs.find(input => {
-        if (![INPUT_TYPES.TEXT, INPUT_TYPES.EMAIL, INPUT_TYPES.TEL, INPUT_TYPES.NUMBER].includes(input.type)) {
+      const usernameField = inputs.find((input) => {
+        if (
+          ![INPUT_TYPES.TEXT, INPUT_TYPES.EMAIL, INPUT_TYPES.TEL, INPUT_TYPES.NUMBER].includes(
+            input.type
+          )
+        ) {
           return false
         }
-        
+
         // Check platform-specific exclusions (AWS account ID, Azure tenant ID, etc.)
         if (shouldExcludeField(input, this.domain)) {
           log.info(`Skipping platform-excluded field: ${input.name || input.id}`)
           return false
         }
-        
+
         return true // This is a valid username field
       })
-      
+
       // SPECIAL CASE: Multi-step password page (e.g. Amazon 2nd step)
       // If no visible username found, check for hidden/readonly username
       let isPasswordPage = false
       if (!usernameField) {
         const allFormInputs = form.querySelectorAll('input')
-        const hiddenOrReadonlyUsername = [...allFormInputs].find(input => {
-          if (![INPUT_TYPES.TEXT, INPUT_TYPES.EMAIL, INPUT_TYPES.TEL, INPUT_TYPES.NUMBER].includes(input.type)) {
+        const hiddenOrReadonlyUsername = [...allFormInputs].find((input) => {
+          if (
+            ![INPUT_TYPES.TEXT, INPUT_TYPES.EMAIL, INPUT_TYPES.TEL, INPUT_TYPES.NUMBER].includes(
+              input.type
+            )
+          ) {
             return false
           }
           // Must be hidden OR readonly with a value (pre-filled from step 1)
           return (!this.isFieldVisible(input) || input.readOnly) && input.value
         })
-        
+
         if (hiddenOrReadonlyUsername) {
-          log.info(`🔍 Password page detected (multi-step 2nd stage) - username is ${hiddenOrReadonlyUsername.readOnly ? 'readonly' : 'hidden'}`)
+          log.info(
+            `🔍 Password page detected (multi-step 2nd stage) - username is ${
+              hiddenOrReadonlyUsername.readOnly ? 'readonly' : 'hidden'
+            }`
+          )
           isPasswordPage = true
-          
+
           // Inject logo on password field for password-only pages
           loginFields.push({
             username: passwordField, // Use password field as target for logo
@@ -867,12 +891,12 @@ class ContentScriptInjector {
             form: form,
             detectMethod: 'form-based-password-page'
           })
-          
+
           this.processedFields.add(passwordField)
           log.success(`✅ Password page detected: ${form.name || form.id || 'unnamed form'}`)
         }
       }
-      
+
       if (usernameField && !isPasswordPage) {
         loginFields.push({
           username: usernameField,
@@ -880,15 +904,15 @@ class ContentScriptInjector {
           form: form,
           detectMethod: 'form-based'
         })
-        
+
         // Mark as processed
         this.processedFields.add(passwordField)
         this.processedFields.add(usernameField)
-        
+
         log.success(`✅ Form-based login detected: ${form.name || form.id || 'unnamed form'}`)
       }
     })
-    
+
     return loginFields
   }
 
@@ -902,15 +926,15 @@ class ContentScriptInjector {
   getFormInputs(form) {
     const inputs = form.querySelectorAll('input')
     const relevantTypes = [
-      INPUT_TYPES.TEXT, 
-      INPUT_TYPES.EMAIL, 
-      INPUT_TYPES.PASSWORD, 
+      INPUT_TYPES.TEXT,
+      INPUT_TYPES.EMAIL,
+      INPUT_TYPES.PASSWORD,
       INPUT_TYPES.NUMBER,
       INPUT_TYPES.TEL
     ]
-    
-    return [...inputs].filter(input => 
-      relevantTypes.includes(input.type) && this.isFieldVisible(input)
+
+    return [...inputs].filter(
+      (input) => relevantTypes.includes(input.type) && this.isFieldVisible(input)
     )
   }
 
@@ -921,35 +945,30 @@ class ContentScriptInjector {
    */
   injectLogo() {
     if (!this.hasLoginForms && this.loginFields.length === 0) return
-    
+
     // Inject logo for each detected login field set
     this.loginFields.forEach((loginField, index) => {
       // For multi-step, username might be the only field
       const targetField = loginField.username
-      
+
       if (!targetField || !this.isFieldVisible(targetField)) {
         log.warn(`Skipping logo injection for login #${index + 1} - field not visible`)
         return
       }
-      
+
       // Check if we already have a logo for this field
-      const alreadyHasLogo = this.logos.some(logo => 
-        logo.targetElement === targetField
-    )
-    
+      const alreadyHasLogo = this.logos.some((logo) => logo.targetElement === targetField)
+
       if (alreadyHasLogo) {
         log.info(`Logo already exists for login #${index + 1}`)
         return
       }
-    
-    const logo = new PasswallLogo(
-        targetField, 
-        () => this.showLoginSelector(targetField)
-    )
-    
-    logo.render()
-    this.logos.push(logo)
-      
+
+      const logo = new PasswallLogo(targetField, () => this.showLoginSelector(targetField))
+
+      logo.render()
+      this.logos.push(logo)
+
       const methodLabel = loginField.detectMethod || 'unknown'
       log.success(`🎨 Logo injected for ${methodLabel} login #${index + 1}`)
     })
@@ -978,21 +997,21 @@ class ContentScriptInjector {
    */
   cleanup() {
     // Clean up logos
-    this.logos.forEach(logo => logo.destroy())
+    this.logos.forEach((logo) => logo.destroy())
     this.logos = []
-    
+
     // Clean up mutation observer
     if (this.mutationObserver) {
       this.mutationObserver.disconnect()
       this.mutationObserver = null
     }
-    
+
     // Clear rescan timeout
     if (this.rescanTimeout) {
       clearTimeout(this.rescanTimeout)
       this.rescanTimeout = null
     }
-    
+
     // Clear data
     this.logins = []
     this.authError = null
@@ -1029,11 +1048,11 @@ class ContentScriptInjector {
   async checkPendingCredentials() {
     try {
       const pending = await Storage.getItem('pending_credentials')
-      
+
       if (!pending) {
         return
       }
-      
+
       // Check if credentials are still fresh (< 10 seconds old)
       const age = Date.now() - pending.timestamp
       if (age > 10000) {
@@ -1041,19 +1060,18 @@ class ContentScriptInjector {
         await Storage.removeItem('pending_credentials')
         return
       }
-      
+
       log.info('🔄 Found pending credentials, showing save notification')
-      
+
       // Clear from storage
       await Storage.removeItem('pending_credentials')
-      
+
       // Show save notification
       await this.checkIfShouldOfferSave({
         username: pending.username,
         password: pending.password,
         url: pending.url
       })
-      
     } catch (error) {
       log.error('Error checking pending credentials:', error)
     }
@@ -1067,10 +1085,10 @@ class ContentScriptInjector {
   setupFormSubmissionDetection() {
     // Listen for form submit events
     document.addEventListener('submit', this.handleFormSubmit.bind(this), true)
-    
+
     // Also listen for click events on submit buttons (for formless submissions)
     document.addEventListener('click', this.handleSubmitButtonClick.bind(this), true)
-    
+
     log.success('Form submission detection initialized')
   }
 
@@ -1081,26 +1099,26 @@ class ContentScriptInjector {
    */
   async handleFormSubmit(event) {
     const form = event.target
-    
+
     if (!form || !form.elements) {
       return
     }
-    
+
     log.info('🔍 Form submitted, analyzing...')
-    
+
     // Extract credentials from form IMMEDIATELY (before form clears)
     const credentials = this.extractCredentialsFromForm(form)
-    
+
     if (credentials) {
-      log.info('✅ Credentials detected:', { 
-        username: credentials.username, 
+      log.info('✅ Credentials detected:', {
+        username: credentials.username,
         hasPassword: !!credentials.password,
-        url: credentials.url 
+        url: credentials.url
       })
-      
+
       // Store credentials immediately (in case of redirect)
       this.storePendingCredentials(credentials)
-      
+
       // Also try to show immediately (if no redirect)
       setTimeout(() => {
         this.checkIfShouldOfferSave(credentials)
@@ -1117,23 +1135,26 @@ class ContentScriptInjector {
    */
   async handleSubmitButtonClick(event) {
     const element = event.target
-    
+
     // Check if this looks like a submit button
     if (!this.isSubmitButton(element)) {
       return
     }
-    
+
     log.info('🔍 Submit button clicked, analyzing...')
-    
+
     // Find the nearest form or container
     const container = element.closest('form, div, section, main') || document.body
-    
+
     // Extract credentials from container
     const credentials = this.extractCredentialsFromContainer(container)
-    
+
     if (credentials) {
-      log.info('✅ Credentials detected:', { username: credentials.username, hasPassword: !!credentials.password })
-      
+      log.info('✅ Credentials detected:', {
+        username: credentials.username,
+        hasPassword: !!credentials.password
+      })
+
       // Wait a bit for the submission to complete
       setTimeout(() => {
         this.checkIfShouldOfferSave(credentials)
@@ -1149,21 +1170,30 @@ class ContentScriptInjector {
    */
   isSubmitButton(element) {
     if (!element) return false
-    
+
     const tagName = element.tagName.toLowerCase()
     const type = (element.type || '').toLowerCase()
     const role = (element.getAttribute('role') || '').toLowerCase()
-    
+
     // Check if it's a submit input or button
     if (type === 'submit') return true
     if (tagName === 'button' && type !== 'button' && type !== 'reset') return true
     if (role === 'button') {
       // Check button text for login/submit keywords
       const text = (element.textContent || '').toLowerCase()
-      const submitKeywords = ['login', 'sign in', 'log in', 'submit', 'continue', 'next', 'giriş', 'devam']
-      return submitKeywords.some(keyword => text.includes(keyword))
+      const submitKeywords = [
+        'login',
+        'sign in',
+        'log in',
+        'submit',
+        'continue',
+        'next',
+        'giriş',
+        'devam'
+      ]
+      return submitKeywords.some((keyword) => text.includes(keyword))
     }
-    
+
     return false
   }
 
@@ -1174,10 +1204,10 @@ class ContentScriptInjector {
    * @private
    */
   extractCredentialsFromForm(form) {
-    const formInputs = Array.from(form.elements).filter(el => 
-      el.tagName === 'INPUT' && this.isFieldVisible(el)
+    const formInputs = Array.from(form.elements).filter(
+      (el) => el.tagName === 'INPUT' && this.isFieldVisible(el)
     )
-    
+
     return this.extractCredentialsFromInputs(formInputs)
   }
 
@@ -1188,10 +1218,10 @@ class ContentScriptInjector {
    * @private
    */
   extractCredentialsFromContainer(container) {
-    const inputs = Array.from(container.querySelectorAll('input')).filter(el => 
+    const inputs = Array.from(container.querySelectorAll('input')).filter((el) =>
       this.isFieldVisible(el)
     )
-    
+
     return this.extractCredentialsFromInputs(inputs)
   }
 
@@ -1203,45 +1233,46 @@ class ContentScriptInjector {
    */
   extractCredentialsFromInputs(inputs) {
     // Find password field (including common name variations)
-    const passwordField = inputs.find(input => {
+    const passwordField = inputs.find((input) => {
       if (input.type !== 'password') return false
       if (!input.value) return false
-      
+
       // Common password field names
       const name = (input.name || '').toLowerCase()
       const id = (input.id || '').toLowerCase()
-      
+
       // Accept any password field with value
       return true
     })
-    
+
     if (!passwordField || !passwordField.value) {
       log.info('No password field found with value')
       return null
     }
-    
-    log.info('Password field found:', { 
-      name: passwordField.name, 
+
+    log.info('Password field found:', {
+      name: passwordField.name,
       id: passwordField.id,
-      hasValue: !!passwordField.value 
+      hasValue: !!passwordField.value
     })
-    
+
     // Find username field with priority order
     // 1. Email type inputs
     // 2. Inputs with username-related names (WordPress: user_login, log, etc.)
     // 3. Any text/tel input
-    const usernameFields = inputs.filter(input => 
-      ['email', 'text', 'tel'].includes(input.type) &&
-      input.value &&
-      input !== passwordField &&
-      !shouldExcludeField(input, this.domain)
+    const usernameFields = inputs.filter(
+      (input) =>
+        ['email', 'text', 'tel'].includes(input.type) &&
+        input.value &&
+        input !== passwordField &&
+        !shouldExcludeField(input, this.domain)
     )
-    
+
     if (usernameFields.length === 0) {
       log.info('No username field found with value')
       return null
     }
-    
+
     // Prioritize by field name/id patterns
     const usernamePatterns = [
       /^email$/i,
@@ -1254,50 +1285,50 @@ class ContentScriptInjector {
       /^login$/i,
       /^account$/i
     ]
-    
+
     let usernameField = null
-    
+
     // Try to find field by pattern
     for (const pattern of usernamePatterns) {
-      usernameField = usernameFields.find(input => 
-        pattern.test(input.name) || pattern.test(input.id)
+      usernameField = usernameFields.find(
+        (input) => pattern.test(input.name) || pattern.test(input.id)
       )
       if (usernameField) {
-        log.info('Username field found by pattern:', { 
-          name: usernameField.name, 
+        log.info('Username field found by pattern:', {
+          name: usernameField.name,
           id: usernameField.id,
           pattern: pattern.toString()
         })
         break
       }
     }
-    
+
     // If no pattern match, use the first visible text/email field
     if (!usernameField) {
       usernameField = usernameFields[0]
-      log.info('Username field found (first available):', { 
-        name: usernameField.name, 
-        id: usernameField.id 
+      log.info('Username field found (first available):', {
+        name: usernameField.name,
+        id: usernameField.id
       })
     }
-    
+
     if (!usernameField || !usernameField.value) {
       log.info('No valid username field')
       return null
     }
-    
+
     const result = {
       username: usernameField.value,
       password: passwordField.value,
       url: window.location.href
     }
-    
-    log.success('✅ Credentials extracted:', { 
+
+    log.success('✅ Credentials extracted:', {
       username: result.username,
       passwordLength: result.password.length,
       url: result.url
     })
-    
+
     return result
   }
 
@@ -1308,49 +1339,47 @@ class ContentScriptInjector {
    */
   async checkIfShouldOfferSave(credentials) {
     log.info('🔍 Checking if should offer save...')
-    
+
     // Don't show notification multiple times
     if (this.saveNotificationShown) {
       log.info('⏭️ Save notification already shown, skipping')
       return
     }
-    
+
     // Security check
     const securityCheck = checkCurrentPageSecurity()
     if (!securityCheck.allowed) {
       log.warn('🔒 Security check failed, not offering to save:', securityCheck.reason)
       return
     }
-    
+
     log.info('🔐 Security check passed, proceeding...')
-    
+
     // Check if we already have this login
     try {
       log.info('📡 Fetching existing logins for domain:', this.domain)
-      
+
       const existingLogins = await sendPayload({
         type: EVENT_TYPES.REQUEST_LOGINS,
         payload: this.domain
       })
-      
+
       log.info(`📦 Found ${existingLogins.length} existing login(s)`)
-      
+
       // Check if exact match exists (same username AND password)
-      const exactMatch = existingLogins.find(login => 
-        login.username === credentials.username &&
-        login.password === credentials.password
+      const exactMatch = existingLogins.find(
+        (login) =>
+          login.username === credentials.username && login.password === credentials.password
       )
-      
+
       if (exactMatch) {
         log.info('✅ Exact login already exists (same username + password), not offering to save')
         return
       }
-      
+
       // Check if username exists but password is different (UPDATE scenario)
-      const usernameMatch = existingLogins.find(login => 
-        login.username === credentials.username
-      )
-      
+      const usernameMatch = existingLogins.find((login) => login.username === credentials.username)
+
       if (usernameMatch) {
         log.success(`🔄 Username exists but password is DIFFERENT - offering UPDATE`)
         log.info('Existing login:', { id: usernameMatch.id, title: usernameMatch.title })
@@ -1358,14 +1387,13 @@ class ContentScriptInjector {
         this.showSaveNotification(credentials, 'update', usernameMatch.id, usernameMatch)
         return
       }
-      
+
       // New login - offer to save
       log.success('🆕 New login detected - offering to SAVE')
       this.showSaveNotification(credentials, 'add')
-      
     } catch (error) {
       log.error('❌ Error checking existing logins:', error)
-      
+
       // If not authenticated or no logins, still offer to save
       if (error.type === 'NO_AUTH') {
         log.warn('⚠️ User not authenticated, but still offering to save')
@@ -1390,7 +1418,7 @@ class ContentScriptInjector {
   async showSaveNotification(credentials, action = 'add', loginId = null, existingLogin = null) {
     this.saveNotificationShown = true
     this.submittedFormData = { credentials, action, loginId, existingLogin }
-    
+
     // Create iframe for save notification
     const iframe = document.createElement('iframe')
     iframe.id = 'passwall-save-notification'
@@ -1411,39 +1439,42 @@ class ContentScriptInjector {
       transform: translateY(-20px) !important;
       transition: opacity 0.3s ease, transform 0.3s ease, height 0.3s ease !important;
     `
-    
+
     document.body.appendChild(iframe)
-    
+
     // Fade in animation
     setTimeout(() => {
       iframe.style.opacity = '1'
       iframe.style.transform = 'translateY(0)'
     }, 100)
-    
+
     // Send data to iframe when it's ready
     const sendDataToIframe = () => {
       try {
         // Use existing login's title for update, or domain for new
         const displayTitle = existingLogin?.title || this.domain
-        
-        iframe.contentWindow.postMessage({
-          type: 'PASSWALL_SAVE_INIT',
-          data: {
-            username: credentials.username,
-            password: credentials.password, // Send password to iframe
-            url: credentials.url,
-            domain: this.domain,
-            title: displayTitle, // Use existing title for update
-            action,
-            loginId
-          }
-        }, '*')
+
+        iframe.contentWindow.postMessage(
+          {
+            type: 'PASSWALL_SAVE_INIT',
+            data: {
+              username: credentials.username,
+              password: credentials.password, // Send password to iframe
+              url: credentials.url,
+              domain: this.domain,
+              title: displayTitle, // Use existing title for update
+              action,
+              loginId
+            }
+          },
+          '*'
+        )
         log.success('📤 Data sent to iframe with title:', displayTitle)
       } catch (error) {
         log.error('Error sending data to iframe:', error)
       }
     }
-    
+
     // Listen for iframe ready message
     const handleIframeMessage = (event) => {
       if (event.data?.type === 'PASSWALL_SAVE_READY') {
@@ -1463,9 +1494,9 @@ class ContentScriptInjector {
         this.handleSaveCancelled()
       }
     }
-    
+
     window.addEventListener('message', handleIframeMessage)
-    
+
     // Cleanup after 30 seconds if not interacted
     setTimeout(() => {
       const existingIframe = document.getElementById('passwall-save-notification')
@@ -1479,7 +1510,7 @@ class ContentScriptInjector {
       }
       window.removeEventListener('message', handleIframeMessage)
     }, 30000)
-    
+
     log.success('Save notification displayed')
   }
 
@@ -1490,14 +1521,14 @@ class ContentScriptInjector {
   async handleSaveConfirmed(event) {
     // Extract data from message event - ALWAYS use event data (from popup)
     const data = event?.data?.data
-    
+
     if (!data) {
       log.error('❌ No data to save from popup')
       return
     }
-    
+
     log.info('💾 User confirmed save, sending to background...')
-    
+
     try {
       const payloadToSend = {
         username: data.username,
@@ -1507,12 +1538,12 @@ class ContentScriptInjector {
         action: data.action,
         loginId: data.loginId
       }
-      
+
       const result = await sendPayload({
         type: EVENT_TYPES.SAVE_CREDENTIALS,
         payload: payloadToSend
       })
-      
+
       log.success('✅ Credentials saved successfully!')
       this.showSaveSuccessMessage()
     } catch (error) {
@@ -1574,12 +1605,12 @@ class ContentScriptInjector {
     `
     message.textContent = '✓ Password saved successfully!'
     document.body.appendChild(message)
-    
+
     setTimeout(() => {
       message.style.opacity = '1'
       message.style.transform = 'translateY(0)'
     }, 100)
-    
+
     setTimeout(() => {
       message.style.opacity = '0'
       message.style.transform = 'translateY(-20px)'
@@ -1612,12 +1643,12 @@ class ContentScriptInjector {
     `
     message.textContent = '✗ Failed to save password'
     document.body.appendChild(message)
-    
+
     setTimeout(() => {
       message.style.opacity = '1'
       message.style.transform = 'translateY(0)'
     }, 100)
-    
+
     setTimeout(() => {
       message.style.opacity = '0'
       message.style.transform = 'translateY(-20px)'

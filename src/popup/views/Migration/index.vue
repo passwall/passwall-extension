@@ -5,22 +5,13 @@
         <div class="d-flex flex-auto flex-items-center ml-4">
           <span class="fw-bold h5 ml-2">Migration</span>
         </div>
-        <template v-slot:right>
-          <VButton
-            theme="text"
-            class="mr-2"
-            size="small"
-            @click="onLogout"
-          >
-            Logout
-          </VButton>
-        </template>
+        <VButton theme="text" class="mr-2" size="small" @click="onLogout"> Logout </VButton>
       </template>
     </Header>
     <div class="scroll">
       <div class="mx-3 my-3">
         We improved our backend services. Please start Migration to continue using PassWall.
-        <br><br>
+        <br /><br />
         You will be redirected to Login page after migration.
       </div>
       <form @submit.prevent="onSubmit" class="create-form">
@@ -46,7 +37,7 @@ export default {
   setup() {
     const migrationStore = useMigrationStore()
     const authStore = useAuthStore()
-    
+
     return {
       migrationStore,
       authStore
@@ -61,7 +52,7 @@ export default {
     async onSubmit() {
       const onError = async () => {
         const text = this.$t(`Failed to migrate. Please contact with "hello@passwall.io".`)
-        this.$notifyError(text) 
+        this.$notifyError(text)
       }
       const onSuccess = async () => {
         await this.migrationStore.fetchAllBankAccounts()
@@ -83,16 +74,16 @@ export default {
         await this.migrationStore.updateAllServers()
 
         await this.migrationStore.migrate()
-        
+
         this.$notifySuccess(this.$t('Migration completed successfully.'))
-        
+
         // Reset all tokens and logout
         await this.authStore.logout()
         this.$router.push({ name: 'Login' })
       }
       this.$request(onSuccess, this.$waiters.Migration.Update, onError)
     },
-    
+
     async onLogout() {
       await this.authStore.logout()
       this.$router.push({ name: 'Login' })
