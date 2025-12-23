@@ -5,6 +5,16 @@
         <div class="d-flex flex-auto flex-items-center ml-4">
           <span class="fw-bold h5 ml-2">Migration</span>
         </div>
+        <template v-slot:right>
+          <VButton
+            theme="text"
+            class="mr-2"
+            size="small"
+            @click="onLogout"
+          >
+            Logout
+          </VButton>
+        </template>
       </template>
     </Header>
     <div class="scroll">
@@ -82,6 +92,11 @@ export default {
       }
       this.$request(onSuccess, this.$waiters.Migration.Update, onError)
     },
+    
+    async onLogout() {
+      await this.authStore.logout()
+      this.$router.push({ name: 'Login' })
+    }
   }
 }
 </script>
