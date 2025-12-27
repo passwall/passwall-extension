@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import LoginsService from '@/api/services/Logins'
 import CryptoUtils from '@/utils/crypto'
 
-const EncryptedFields = ['username', 'password', 'extra']
+const EncryptedFields = ['username', 'password', 'extra', 'totp_secret']
 
 export const useLoginsStore = defineStore('logins', {
   state: () => ({

@@ -27,7 +27,7 @@ const MESSAGE_TYPES = {
 }
 
 // Development logging
-const DEV_MODE = true // Production mode
+const DEV_MODE = false // Production mode
 const log = {
   info: (...args) => DEV_MODE && console.log('🔵 [Popup]', ...args),
   success: (...args) => DEV_MODE && console.log('✅ [Popup]', ...args),
@@ -346,7 +346,7 @@ export class LoginAsPopup {
     const nameOrId = (input.name + input.id).toLowerCase()
 
     // Check for captcha-related keywords
-    const captchaKeywords = ['captcha', 'security', 'verification', 'code', 'güvenlik']
+    const captchaKeywords = ['captcha', 'security', 'verification', 'code', 'confirm']
     const hasCaptchaKeyword = captchaKeywords.some((keyword) => nameOrId.includes(keyword))
 
     // Captcha fields are usually short (4-6 characters)

@@ -1,6 +1,6 @@
 export const TABS = [
   {
-    name: 'Login',
+    name: 'Password',
     iconName: 'lock',
     createRouteName: 'LoginCreate'
   },

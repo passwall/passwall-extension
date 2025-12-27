@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { crx } from '@crxjs/vite-plugin'
 import { resolve } from 'path'
+import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import manifest from './src/manifest.json' with { type: 'json' }
 
 // https://vitejs.dev/config/
@@ -15,7 +16,14 @@ export default defineConfig({
         }
       }
     }),
-    crx({ manifest })
+    crx({ manifest }),
+    nodePolyfills({
+      // Enable specific polyfills
+      include: ['buffer'],
+      globals: {
+        Buffer: true
+      }
+    })
   ],
   
   define: {
@@ -28,7 +36,9 @@ export default defineConfig({
     // Vue I18n flags
     __INTLIFY_PROD_DEVTOOLS__: false,
     __VUE_I18N_LEGACY_API__: false,
-    __VUE_I18N_FULL_INSTALL__: false
+    __VUE_I18N_FULL_INSTALL__: false,
+    // Global and Buffer polyfills
+    global: 'globalThis'
   },
   
   resolve: {
@@ -50,8 +60,15 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    minify: 'esbuild',
-    sourcemap: false, // Disable source maps for CSP compliance
+    minify: 'terser',
+    sourcemap: false, // Disable source maps for CSP compliance and production
+    terserOptions: {
+      compress: {
+        drop_console: false, // Keep console.error/warn for debugging in production
+        pure_funcs: ['console.log', 'console.debug', 'console.info'], // Remove only log/debug/info
+        drop_debugger: true,
+      },
+    },
     rollupOptions: {
       output: {
         chunkFileNames: 'js/[name].[hash].js',

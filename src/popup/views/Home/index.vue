@@ -121,7 +121,6 @@ export default {
         if (domain && domain !== 'chrome' && domain !== 'edge') {
           // Set search query to domain for auto-filtering
           this.authStore.searchQuery = domain
-          console.log(`🔍 [Popup] Auto-filtering by domain: ${domain}`)
         }
       }
     } catch (error) {

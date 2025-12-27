@@ -84,6 +84,29 @@ class BackgroundAgent {
         return false
       }
       
+      // Handle token refresh from HTTPClient
+      if (request.who === 'api' && request.type === 'TOKEN_REFRESHED') {
+        // Token refreshed by API, updating background state
+        this.restoreAuthState().catch(err => {
+          console.error('Failed to restore auth after token refresh:', err)
+        })
+        return false
+      }
+      
+      // Handle auth errors from HTTPClient
+      if (request.who === 'api' && request.type === 'AUTH_ERROR') {
+        const reason = request.payload?.reason
+        if (reason === 'refresh_failed') {
+          console.warn('🔐 Token refresh failed, logging out...')
+        } else {
+          console.warn('🔐 Auth error from API, logging out...')
+        }
+        this.handleLogout().catch(err => {
+          console.error('Logout after auth error failed:', err)
+        })
+        return false
+      }
+      
       return false
     })
   }
@@ -197,7 +220,7 @@ class BackgroundAgent {
    */
   async fetchLoginsByDomain(domain) {
     if (!this.isAuthenticated) {
-      throw new RequestError('Passwall authentication is needed!', 'NO_AUTH')
+      throw new RequestError('Please login to Passwall extension to continue', 'NO_AUTH')
     }
     
     try {
@@ -229,9 +252,19 @@ class BackgroundAgent {
       if (error instanceof RequestError) {
         throw error
       }
-      // Wrap other errors
+      
+      // Check if it's an authentication error
+      const status = error.response?.status
+      if (status === 401 || status === 403) {
+        console.warn('🔐 Session expired or unauthorized, clearing auth state...')
+        this.isAuthenticated = false
+        throw new RequestError('Session expired. Please login again to Passwall extension.', 'AUTH_EXPIRED')
+      }
+      
+      // Network or other errors
       console.error('Failed to fetch logins:', error)
-      throw new RequestError('Failed to fetch logins from server', 'FETCH_ERROR')
+      const errorMessage = error.message || 'Failed to fetch logins from server'
+      throw new RequestError(errorMessage, 'FETCH_ERROR')
     }
   }
 
@@ -314,7 +347,7 @@ class BackgroundAgent {
    */
   async saveCredentials(payload) {
     if (!this.isAuthenticated) {
-      throw new RequestError('Passwall authentication is needed!', 'NO_AUTH')
+      throw new RequestError('Please login to Passwall extension to continue', 'NO_AUTH')
     }
 
     const { username, password, url, domain, action, loginId } = payload
@@ -378,8 +411,17 @@ class BackgroundAgent {
 
       return { success: true, data: result.data }
     } catch (error) {
+      // Check if it's an authentication error
+      const status = error.response?.status
+      if (status === 401 || status === 403) {
+        console.warn('🔐 Session expired during save, clearing auth state...')
+        this.isAuthenticated = false
+        throw new RequestError('Session expired. Please login again to Passwall extension.', 'AUTH_EXPIRED')
+      }
+      
       console.error('Failed to save credentials:', error)
-      throw new RequestError('Failed to save credentials', 'SAVE_ERROR')
+      const errorMessage = error.message || 'Failed to save credentials'
+      throw new RequestError(errorMessage, 'SAVE_ERROR')
     }
   }
 }

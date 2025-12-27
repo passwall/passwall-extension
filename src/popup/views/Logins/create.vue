@@ -7,7 +7,7 @@
           <div class="new-logo">
             <VIcon name="logo-simple" height="40px" width="40px" />
           </div>
-          <span class="fw-bold h5 ml-2">New Login</span>
+          <span class="fw-bold h5 ml-2">New Password</span>
         </div>
       </template>
     </Header>
@@ -84,6 +84,49 @@
           />
         </div>
 
+        <!-- TOTP Section -->
+        <div class="form-row">
+          <label v-text="'Authenticator Key (TOTP)'" />
+          <div class="d-flex flex-justify-between">
+            <VFormText
+              name="TOTP Secret"
+              class="flex-auto"
+              v-on:change="saveForm"
+              v-model="form.totp_secret"
+              :placeholder="$t('ClickToFill')"
+              theme="no-border"
+              :type="showTotpSecret ? 'text' : 'password'"
+            />
+            <div class="d-flex flex-items-center mr-3">
+              <button 
+                type="button"
+                v-tooltip="'Capture QR Code'"
+                @click="captureQRCode"
+                class="showpass-btn ml-2"
+                :disabled="capturingQR"
+              >
+                <VIcon name="camera" size="20px" />
+              </button>
+              <ShowPassButton @click="showTotpSecret = $event" class="ml-2" />
+              <ClipboardButton v-if="form.totp_secret" class="ml-2" :copy="form.totp_secret" />
+            </div>
+          </div>
+        </div>
+
+        <!-- TOTP Code Display -->
+        <div v-if="form.totp_secret && showTotpCode">
+          <TOTPCounter :secret="form.totp_secret" />
+        </div>
+        <div v-if="form.totp_secret" class="totp-toggle">
+          <button 
+            type="button" 
+            @click="showTotpCode = !showTotpCode"
+            class="link-button"
+          >
+            {{ showTotpCode ? 'Hide TOTP Code' : 'Show TOTP Code' }}
+          </button>
+        </div>
+
         <VButton
           class="mx-2 my-2"
           size="medium"
@@ -101,8 +144,13 @@
 <script>
 import { useLoginsStore } from '@/stores/logins'
 import Storage from '@/utils/storage'
+import totpCaptureService from '@/utils/totp-capture'
+import TOTPCounter from '@/components/TOTPCounter.vue'
 
 export default {
+  components: {
+    TOTPCounter
+  },
   setup() {
     const loginsStore = useLoginsStore()
     
@@ -113,12 +161,16 @@ export default {
   data() {
     return {
       showPass: false,
+      showTotpSecret: false,
+      showTotpCode: false,
+      capturingQR: false,
       form: {
         title: '',
         username: '',
         password: '',
         url: '',
-        extra: ''
+        extra: '',
+        totp_secret: ''
       }
     }
   },
@@ -151,6 +203,35 @@ export default {
     
     saveForm: function (event) {
       Storage.setItem('create_form', this.form)
+    },
+
+    async captureQRCode() {
+      if (!totpCaptureService.canCaptureTotp()) {
+        this.$notifyError('QR code capture is not supported in this browser')
+        return
+      }
+
+      this.capturingQR = true
+      try {
+        const totpUrl = await totpCaptureService.captureTotpSecret()
+        
+        if (totpUrl) {
+          this.form.totp_secret = totpUrl
+          this.showTotpCode = true
+          this.$notify({
+            title: 'Success',
+            text: 'QR code successfully captured!',
+            type: 'success'
+          })
+        } else {
+          this.$notifyError('QR code not found. Please ensure the QR code is clearly visible on screen.')
+        }
+      } catch (error) {
+        console.error('QR code capture error:', error)
+        this.$notifyError(error.message || 'Failed to capture QR code')
+      } finally {
+        this.capturingQR = false
+      }
     }
   }
 }
@@ -160,5 +241,24 @@ export default {
 .new-logo {
   background-color: $color-gray-400;
   border-radius: 8px;
+}
+
+.totp-toggle {
+  margin: 8px 0;
+  text-align: center;
+}
+
+.link-button {
+  background: transparent;
+  border: none;
+  color: #3498db;
+  cursor: pointer;
+  font-size: 14px;
+  text-decoration: underline;
+  padding: 4px 8px;
+
+  &:hover {
+    color: #2980b9;
+  }
 }
 </style>

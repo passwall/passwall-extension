@@ -35,7 +35,6 @@ export const useMigrationStore = defineStore('migration', {
         CryptoUtils.encryptFields(element, BankAccountsEncryptedFields)
       })
       await BankAccountsService.BulkUpdate(this.itemList)
-      console.log("Bank accounts migrated")
     },
 
     async fetchAllCreditCards(query) {
@@ -51,7 +50,6 @@ export const useMigrationStore = defineStore('migration', {
         CryptoUtils.encryptFields(element, CreditCardsEncryptedFields)
       })
       await CreditCardsService.BulkUpdate(this.itemList)
-      console.log("Credit cards migrated")
     },
 
     async fetchAllEmails(query) {
@@ -67,7 +65,6 @@ export const useMigrationStore = defineStore('migration', {
         CryptoUtils.encryptFields(element, EmailsEncryptedFields)
       })
       await EmailsService.BulkUpdate(this.itemList)
-      console.log("Emails migrated")
     },
 
     async fetchAllLogins(query) {
@@ -83,7 +80,6 @@ export const useMigrationStore = defineStore('migration', {
         CryptoUtils.encryptFields(element, LoginsEncryptedFields)
       })
       await LoginsService.BulkUpdate(this.itemList)
-      console.log("Logins migrated")
     },
 
     async fetchAllNotes(query) {
@@ -99,7 +95,6 @@ export const useMigrationStore = defineStore('migration', {
         CryptoUtils.encryptFields(element, NotesEncryptedFields)
       })
       await NotesService.BulkUpdate(this.itemList)
-      console.log("Notes migrated")
     },
 
     async fetchAllServers(query) {
@@ -115,17 +110,11 @@ export const useMigrationStore = defineStore('migration', {
         CryptoUtils.encryptFields(element, ServersEncryptedFields)
       })
       await ServersService.BulkUpdate(this.itemList)
-      console.log("Servers migrated")
     },
 
     async migrate() {
       const user = await Storage.getItem('user')
-      const response = await UsersService.Migrate(user.id, { "is_migrated": true })
-      if (response.status === 200) {
-        console.log("Migration status changed as true")
-      } else {
-        console.log("Migration status update failed")
-      }
+      await UsersService.Migrate(user.id, { "is_migrated": true })
     }
   }
 })

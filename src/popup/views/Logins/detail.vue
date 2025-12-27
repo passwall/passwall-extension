@@ -68,6 +68,35 @@
           <ClipboardButton :copy="form.extra" />
         </div>
 
+        <!-- TOTP Section -->
+        <FormRowText 
+          v-model="form.totp_secret" 
+          title="Authenticator Key (TOTP)" 
+          :edit-mode="isEditMode" 
+          :show-icons="true"
+          :force-show="showTotpSecret"
+          password
+        >
+          <template v-slot:second-icon>
+            <button 
+              v-if="isEditMode"
+              type="button"
+              v-tooltip="'Capture QR Code'"
+              @click="captureQRCode"
+              class="showpass-btn ml-2"
+              :disabled="capturingQR"
+            >
+              <VIcon name="camera" size="20px" />
+            </button>
+            <ShowPassButton @click="showTotpSecret = $event" class="ml-2" />
+          </template>
+        </FormRowText>
+
+        <!-- TOTP Code Display -->
+        <div v-if="form.totp_secret && !isEditMode" class="totp-display-section">
+          <TOTPCounter :secret="form.totp_secret" />
+        </div>
+
         <!-- Save & Cancel -->
         <div class="d-flex m-2" v-if="isEditMode">
           <VButton class="flex-1" theme="text" :disabled="loading" @click="isEditMode = false">
@@ -84,8 +113,13 @@
 
 <script>
 import { useLoginsStore } from '@/stores/logins'
+import totpCaptureService from '@/utils/totp-capture'
+import TOTPCounter from '@/components/TOTPCounter.vue'
 
 export default {
+  components: {
+    TOTPCounter
+  },
   data() {
     return {
       form: {
@@ -93,10 +127,13 @@ export default {
         username: '',
         password: '',
         url: '',
-        extra: ''
+        extra: '',
+        totp_secret: ''
       },
       isEditMode: false,
-      showPass: false
+      showPass: false,
+      showTotpSecret: false,
+      capturingQR: false
     }
   },
 
@@ -165,6 +202,34 @@ export default {
 
       await this.$request(onSuccess, this.$waiters.Logins.Update)
       this.isEditMode = false
+    },
+
+    async captureQRCode() {
+      if (!totpCaptureService.canCaptureTotp()) {
+        this.$notifyError('QR code capture is not supported in this browser')
+        return
+      }
+
+      this.capturingQR = true
+      try {
+        const totpUrl = await totpCaptureService.captureTotpSecret()
+        
+        if (totpUrl) {
+          this.form.totp_secret = totpUrl
+          this.$notify({
+            title: 'Success',
+            text: 'QR code successfully captured!',
+            type: 'success'
+          })
+        } else {
+          this.$notifyError('QR code not found. Please ensure the QR code is clearly visible on screen.')
+        }
+      } catch (error) {
+        console.error('QR code capture error:', error)
+        this.$notifyError(error.message || 'Failed to capture QR code')
+      } finally {
+        this.capturingQR = false
+      }
     }
   }
 }
@@ -182,5 +247,9 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.totp-display-section {
+  margin: 12px 16px;
 }
 </style>

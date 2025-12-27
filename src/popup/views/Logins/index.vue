@@ -2,7 +2,7 @@
   <div class="container">
     <div class="mx-3">
       <div class="py-3 head">
-        <span class="fw-bold fs-big c-white">Logins ({{ filteredList.length }})</span>
+        <span class="fw-bold fs-big c-white">Passwords ({{ filteredList.length }})</span>
       </div>
       <div v-if="isLoading">
         <ListLoader />

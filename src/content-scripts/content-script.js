@@ -46,7 +46,7 @@ const FIELD_TYPES = {
 }
 
 // Development mode logging
-const DEV_MODE = true // Set to false for production
+const DEV_MODE = false // Set to false for production
 const log = {
   info: (...args) => DEV_MODE && console.log('🔵 [Passwall]', ...args),
   success: (...args) => DEV_MODE && console.log('✅ [Passwall]', ...args),
@@ -1188,8 +1188,8 @@ class ContentScriptInjector {
         'submit',
         'continue',
         'next',
-        'giriş',
-        'devam'
+        'proceed',
+        'enter'
       ]
       return submitKeywords.some((keyword) => text.includes(keyword))
     }
@@ -1394,16 +1394,26 @@ class ContentScriptInjector {
     } catch (error) {
       log.error('❌ Error checking existing logins:', error)
 
-      // If not authenticated or no logins, still offer to save
-      if (error.type === 'NO_AUTH') {
-        log.warn('⚠️ User not authenticated, but still offering to save')
-        this.showSaveNotification(credentials, 'add')
-      } else if (error.type === 'NO_LOGINS') {
+      // Handle authentication errors
+      if (error.type === 'NO_AUTH' || error.type === 'AUTH_EXPIRED') {
+        log.warn('⚠️ Authentication required:', error.message)
+        this.showAuthRequiredNotification(error.message)
+        return
+      }
+
+      // If no existing logins for this domain, offer to save new
+      if (error.type === 'NO_LOGINS') {
         log.info('ℹ️ No existing logins for this domain, offering to save new')
         this.showSaveNotification(credentials, 'add')
-      } else {
-        log.error('💥 Unexpected error:', error.message || error)
+        return
       }
+
+      // For other errors (network, etc.), log but don't show notification
+      log.error('💥 Failed to check existing logins:', error.message || error)
+      // Optionally show a non-intrusive notification
+      console.warn(
+        '[Passwall] Could not check existing logins. Please ensure you are logged in to Passwall extension.'
+      )
     }
   }
 
@@ -1616,6 +1626,76 @@ class ContentScriptInjector {
       message.style.transform = 'translateY(-20px)'
       setTimeout(() => message.remove(), 300)
     }, 3000)
+  }
+
+  /**
+   * Show authentication required notification
+   * @param {string} message - Custom error message
+   * @private
+   */
+  showAuthRequiredNotification(message = 'Please login to Passwall extension') {
+    // Remove any existing auth notification
+    const existing = document.getElementById('passwall-auth-notification')
+    if (existing) {
+      existing.remove()
+    }
+
+    const notification = document.createElement('div')
+    notification.id = 'passwall-auth-notification'
+    notification.style.cssText = `
+      position: fixed !important;
+      top: 20px !important;
+      right: 20px !important;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+      color: white !important;
+      padding: 16px 20px !important;
+      border-radius: 12px !important;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2) !important;
+      z-index: 2147483647 !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      font-size: 14px !important;
+      font-weight: 500 !important;
+      opacity: 0 !important;
+      transform: translateY(-20px) !important;
+      transition: opacity 0.3s ease, transform 0.3s ease !important;
+      cursor: pointer !important;
+      max-width: 320px !important;
+    `
+
+    notification.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <div>
+          <div style="font-weight: 600; margin-bottom: 4px;">Authentication Required</div>
+          <div style="font-size: 13px; opacity: 0.9;">${message}</div>
+          <div style="font-size: 12px; margin-top: 6px; opacity: 0.8;">Click to open Passwall extension</div>
+        </div>
+      </div>
+    `
+
+    // Open extension popup when clicked
+    notification.addEventListener('click', () => {
+      browser.runtime.sendMessage({ type: 'OPEN_POPUP', who: 'content-script' })
+      notification.remove()
+    })
+
+    document.body.appendChild(notification)
+
+    // Fade in animation
+    setTimeout(() => {
+      notification.style.opacity = '1'
+      notification.style.transform = 'translateY(0)'
+    }, 100)
+
+    // Auto remove after 8 seconds
+    setTimeout(() => {
+      notification.style.opacity = '0'
+      notification.style.transform = 'translateY(-20px)'
+      setTimeout(() => notification.remove(), 300)
+    }, 8000)
   }
 
   /**

@@ -129,20 +129,15 @@ export default {
     }
   },
   created() {
-    console.log('🚀 [LoginAs] Component created! Listening for messages...')
-
     this.on('LOGIN_AS_POPUP_FETCH', request => {
       const payload = request.payload || {}
       const logins = payload.logins || []
       const authError = payload.authError || null
       
-      console.log('📨 [LoginAs] Received message:', logins.length, 'logins, authError:', authError)
       this.logins = logins
       this.authError = authError
-      console.log('✅ [LoginAs] State updated:', this.logins.length, 'logins')
     })
 
-    console.log('📤 [LoginAs] Requesting logins from content script...')
     this.messageToContentScript({ type: 'LOGIN_AS_POPUP_FETCH' })
   },
   mounted() {
@@ -176,7 +171,6 @@ export default {
     },
     onSearchInput() {
       // Search input changed - filtered list will auto-update via computed property
-      console.log(`🔍 [LoginAs] Searching: "${this.searchQuery}" - ${this.filteredLogins.length} results`)
     }
   }
 }

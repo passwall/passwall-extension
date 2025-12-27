@@ -9,9 +9,9 @@ export default {
   YourMasterPassword: "Your Master Password",
   AllItems: "All Items",
   Categories: "Categories",
-  Logins: "Logins",
+  Logins: "Passwords",
   Logout: "Logout",
-  NewLogin: "New Login",
+  NewLogin: "New Password",
   "Please fill all the necessary fields":
     "Please fill all the necessary fields",
   PrivateNotes: "Private Notes",

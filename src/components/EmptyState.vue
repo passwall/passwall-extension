@@ -1,7 +1,7 @@
 <template>
   <div class="d-flex flex-column flex-items-center content">
     <p class="c-gray-300 fw-medium h6 mt-4">
-      No login info yet...
+      No password info yet...
     </p>
     <VIcon class="arrow" name="fancy-arrow" height="190px" width="130px" color="#5707FF" />
   </div>

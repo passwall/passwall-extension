@@ -1,3 +1,7 @@
+// CRITICAL: Import polyfills FIRST before anything else
+// This provides Buffer polyfill for @otplib/preset-browser
+import '@/polyfills'
+
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import { setupPlugins } from './config'
@@ -30,7 +34,7 @@ const initApp = async () => {
   // Initialize auth store
   const authStore = useAuthStore()
   await authStore.init()
-  
+
   // Set auth token if exists
   const token = await Storage.getItem('access_token')
   if (token) {
@@ -45,4 +49,3 @@ const initApp = async () => {
 initApp().catch((error) => {
   console.error('Failed to initialize app:', error)
 })
-
