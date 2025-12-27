@@ -5,6 +5,85 @@ All notable changes to Passwall Browser Extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2025-12-27
+
+### 🎉 Release Update
+
+#### Added
+- ✨ **Latest Features** - All recent improvements and bug fixes
+- 📦 **Optimized Build** - Production-ready release package
+
+#### Changed
+- 🔄 **Version Update** - Bumped to v3.2.0
+
+---
+
+## [3.1.0] - 2024-12-20
+
+### 🎉 Multi-Step Login Support & Performance Improvements
+
+#### Added
+- ✨ **Multi-Step Form Detection** - Full support for multi-stage login flows
+  - Disney Plus password-only pages
+  - Amazon.com.tr two-step authentication
+  - VFS Global visa application forms
+  - Generic formless password-page detection
+- 🎨 **Improved Logo Injection** - Enhanced visual experience
+  - Fixed size constraints (20-32px) for consistent appearance
+  - High-quality PNG icon (48px) for crisp rendering
+  - Smart cleanup on page navigation (SPA support)
+  - Better collision detection with other extension icons
+- 🔒 **Security Audit** - Comprehensive penetration testing report
+  - 15 vulnerabilities identified and documented
+  - Detailed fix recommendations with code examples
+  - OWASP-compliant security guidelines
+  - Full report: `SECURITY_AUDIT_REPORT.md`
+
+#### Changed
+- ⚡ **Instant Logo Injection** - Removed 100ms startup delay
+  - Logos appear immediately on page load
+  - Better user experience with zero lag
+- 🔄 **Enhanced Form Detection** - Improved compatibility
+  - Better support for React/Vue/Next.js SPAs
+  - Dynamic content detection with MutationObserver
+  - Password-only page recognition for multi-step flows
+
+#### Fixed
+- ✅ **Logo Cleanup on Navigation** - No more floating logos
+  - Proper cleanup when navigating between pages
+  - Fixed logo persistence issues in multi-step forms
+- ✅ **Domain Matching** - Precise credential filtering
+  - Removed Amazon TLD equivalence (amazon.com ≠ amazon.com.tr)
+  - Each domain now has separate credentials
+- ✅ **Logo Size** - Fixed oversized logos on large inputs
+  - Maximum 32px, minimum 20px constraints
+  - Centered vertical positioning
+- ✅ **Web Accessible Resources** - Fixed Manifest V3 icon loading
+  - Proper path configuration for extension icons
+  - No more console errors
+
+#### Technical Improvements
+- 📦 **Smaller Bundle** - Reduced from 31.42 kB to 29.35 kB (-6.6%)
+- 🚀 **Better Performance** - Immediate initialization
+- 🧹 **Code Cleanup** - Removed debug instrumentation
+- 📝 **Documentation** - Added comprehensive security report
+
+#### Tested Sites
+- ✅ Disney Plus (https://disneyplus.com)
+- ✅ Amazon Turkey (https://amazon.com.tr)
+- ✅ VFS Global (https://visa.vfsglobal.com)
+- ✅ Google (multi-step)
+- ✅ Standard login forms
+- ✅ Formless login pages
+
+#### Security Notes
+- **Security Score:** 6.5/10 (baseline established)
+- **Critical Issues:** 3 identified (documented in report)
+- **Recommended Actions:** See `SECURITY_AUDIT_REPORT.md`
+- All features tested and working securely
+
+---
+
 ## [2.2.0] - 2025-12-11
 
 ### 🎉 Major Update: Vue 3 Migration
