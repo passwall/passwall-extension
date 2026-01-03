@@ -3,9 +3,7 @@
     <slot name="content">
       <div
         v-if="user"
-        class="d-flex flex-items-center c-pointer"
-        data-testid="settings-click"
-        @click="$emit('header-click')"
+        class="d-flex flex-items-center"
       >
         <VAvatar :name="user.name" class="mr-1" />
         <div class="d-flex flex-column ml-2 mt-1">
@@ -19,7 +17,14 @@
           </div>
         </div>
       </div>
-      <VIcon name="settings" color="white" class="c-pointer" width="10px" />
+      <VIcon 
+        name="settings" 
+        color="white" 
+        class="c-pointer" 
+        width="10px"
+        data-testid="settings-click"
+        @click="$emit('header-click')"
+      />
     </slot>
   </div>
 </template>

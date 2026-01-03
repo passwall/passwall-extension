@@ -25,7 +25,7 @@ export default {
     theme: {
       type: String,
       default: 'primary',
-      validator: value => ['primary', 'text'].includes(value)
+      validator: value => ['primary', 'text', 'danger'].includes(value)
     },
     loading: {
       type: Boolean,
@@ -69,11 +69,31 @@ export default {
   /* themes */
   &.--theme-primary {
     background-color: $color-primary;
+    transition: background-color 0.2s;
+
+    &:hover:not(:disabled) {
+      background-color: #6f1fff; // Slightly lighter primary
+    }
+  }
+
+  &.--theme-danger {
+    background-color: $color-danger;
+    border-color: $color-danger;
+    transition: background-color 0.2s;
+
+    &:hover:not(:disabled) {
+      background-color: #e63939; // Slightly darker danger
+    }
   }
 
   &.--theme-text {
     border-color: transparent;
-    background-color: transparent;
+    background-color: rgba(255, 255, 255, 0.05);
+    transition: background-color 0.2s;
+
+    &:hover:not(:disabled) {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
   }
 
   /* size */

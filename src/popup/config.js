@@ -61,6 +61,9 @@ export function setupPlugins(app, router, pinia, i18n) {
     themes: {
       tooltip: {
         delay: { show: 200, hide: 0 }
+      },
+      dropdown: {
+        $extend: 'tooltip'
       }
     }
   })

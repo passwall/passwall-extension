@@ -27,6 +27,7 @@ import NoteDetail from '@p/views/Notes/detail.vue'
 import ServerCreate from '@p/views/Servers/create.vue'
 import ServerDetail from '@p/views/Servers/detail.vue'
 import Generator from '@p/views/Generator/index.vue'
+import About from '@p/views/About/index.vue'
 import SavePassword from '@p/views/Inject/SavePassword/index.vue'
 import LoginAsPopup from '@p/views/Inject/LoginAs/index.vue'
 
@@ -148,6 +149,11 @@ const routes = [
     path: '/password-generator',
     name: 'Generator',
     component: Generator
+  },
+  {
+    path: '/about',
+    name: 'About',
+    component: About
   },
   {
     path: '/Inject/savePassword',

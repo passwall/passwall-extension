@@ -4,52 +4,32 @@
     <div v-if="showSettings" ref="overlay" class="d-flex flex-column px-3 overlay">
       <div class="menu flex-self-center p-4" v-click-outside="closeSettings">
         <div
-          class="c-pointer my-2 d-flex flex-items-center"
+          class="menu-item c-pointer my-2 d-flex flex-items-center"
           data-testid="password-generator-btn"
           @click="passwordGenerator"
         >
-          <VIcon name="lock" size="20px" class="mr-2" />
+          <VIcon name="lock" width="20px" height="20px" class="mr-2" />
           <span class="fs-big">Password Generator</span>
         </div>
 
-         <div class="bg-black w-100" style="height: 1px" />
-        <div
-          class="c-pointer my-2 d-flex flex-items-center mt-3"
-          @click="changeMasterPassword"
-        >
-          <VIcon name="cogs" size="20px" class="mr-2" />
-          <span class="fs-big">Change Master Password</span>
+        <div class="bg-black w-100" style="height: 1px" />
+
+        <div class="menu-item c-pointer my-2 d-flex flex-items-center mt-3" @click="goToVault">
+          <VIcon name="external-link" size="20px" class="mr-2" />
+          <span class="fs-big">Open Vault</span>
         </div>
 
         <div class="bg-black w-100" style="height: 1px" />
-        <div
-          class="c-pointer my-2 d-flex flex-items-center mb-3 mt-3"
-          v-if="!hasProPlan"
-          @click="goUpgrade"
-        >
-          <VIcon name="upgrade" size="20px" class="mr-2" />
-          <span class="fs-big">Upgrade Subscription</span>
-        </div>
-        <div
-          class="c-pointer my-2 d-flex flex-items-center mb-3 mt-3"
-          v-if="hasProPlan"
-          @click="goUpdate"
-        >
-          <VIcon name="refresh" size="20px" class="mr-2" />
-          <span class="fs-big">Update Subscription</span>
-        </div>
-        <div
-          class="c-pointer my-2 d-flex flex-items-center mb-3 mt-3"
-          v-if="hasProPlan"
-          @click="goCancel"
-        >
-          <VIcon name="cross" size="20px" class="mr-2" />
-          <span class="fs-big">Cancel Subscription</span>
+
+        <div class="menu-item c-pointer my-2 d-flex flex-items-center mt-3" @click="goToAbout">
+          <VIcon name="logo-simple" size="18px" class="mr-2 about-icon" />
+          <span class="fs-big">About Passwall (v{{ version }})</span>
         </div>
 
         <div class="bg-black w-100" style="height: 1px" />
+
         <div
-          class="c-pointer my-2 d-flex flex-items-center mt-3"
+          class="menu-item c-pointer my-2 d-flex flex-items-center mt-3"
           data-testid="logout-btn"
           @click="logout"
         >
@@ -88,13 +68,14 @@ import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
 import { getDomain } from '@/utils/helpers'
 import browser from 'webextension-polyfill'
+import packageJson from '../../../../package.json'
 
 export default {
   components: { Tabs },
   setup() {
     const authStore = useAuthStore()
     const { searchQuery, user, hasProPlan } = storeToRefs(authStore)
-    
+
     return {
       authStore,
       searchQuery,
@@ -106,10 +87,11 @@ export default {
   data() {
     return {
       searchText: '',
-      showSettings: false
+      showSettings: false,
+      version: packageJson.version
     }
   },
-  
+
   async mounted() {
     // Auto-fill search with current tab's domain
     try {
@@ -117,7 +99,7 @@ export default {
       if (tabs && tabs[0] && tabs[0].url) {
         const currentUrl = tabs[0].url
         const domain = getDomain(currentUrl)
-        
+
         if (domain && domain !== 'chrome' && domain !== 'edge') {
           // Set search query to domain for auto-filtering
           this.authStore.searchQuery = domain
@@ -134,26 +116,16 @@ export default {
       }
     },
 
-    goUpgrade() {
+    goToVault() {
       this.$browser.tabs.create({
-        url: 'https://passwall.io'
+        url: 'https://admin.passwall.io'
       })
+      this.showSettings = false
     },
 
-    goUpdate() {
-      this.$browser.tabs.create({
-        url: 'https://passwall.io/account'
-      })
-    },
-
-    goCancel() {
-      this.$browser.tabs.create({
-        url: 'https://passwall.io/account/cancel'
-      })
-    },
-
-    changeMasterPassword: function () {
-      this.$router.push({ name: 'ChangeMasterPassword' })
+    goToAbout() {
+      this.$router.push({ name: 'About' })
+      this.showSettings = false
     },
 
     logout() {
@@ -162,7 +134,8 @@ export default {
 
     passwordGenerator() {
       this.$router.push({ name: 'Generator' })
-    },
+      this.showSettings = false
+    }
   }
 }
 </script>
@@ -190,6 +163,29 @@ export default {
     border: 2px solid $color-gray-400;
     width: 100%;
     border-radius: 16px;
+  }
+
+  .menu-item {
+    color: $color-white;
+
+    svg {
+      color: $color-white;
+      transition: color 0.2s;
+    }
+
+    .about-icon {
+      color: $color-secondary; // Passwall logo her zaman turkuaz
+    }
+
+    span {
+      color: $color-white;
+    }
+
+    &:hover {
+      svg {
+        color: $color-secondary;
+      }
+    }
   }
 }
 </style>

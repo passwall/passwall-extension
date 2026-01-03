@@ -216,7 +216,9 @@ export default {
         const totpUrl = await totpCaptureService.captureTotpSecret()
         
         if (totpUrl) {
-          this.form.totp_secret = totpUrl
+          // Extract secret from otpauth:// URL (admin stores only secret, not full URL)
+          const secret = totpCaptureService.extractSecret(totpUrl)
+          this.form.totp_secret = secret || totpUrl
           this.showTotpCode = true
           this.$notify({
             title: 'Success',

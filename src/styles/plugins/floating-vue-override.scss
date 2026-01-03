@@ -1,0 +1,31 @@
+// Floating Vue Dropdown Override
+// Must override default floating-vue styles
+
+// Main popper container
+.v-popper__popper.v-popper--theme-dropdown {
+  .v-popper__wrapper {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .v-popper__inner {
+    background: $color-gray-400 !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 6px !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5) !important;
+    padding: 5px !important;
+  }
+
+  .v-popper__arrow-container {
+    display: none !important; // Hide arrow
+  }
+}
+
+// Fallback for all poppers
+.v-popper__popper {
+  .v-popper__backdrop {
+    background: transparent !important;
+  }
+}
+

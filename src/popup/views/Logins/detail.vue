@@ -12,7 +12,7 @@
           </div>
           <div class="d-flex" style="flex-shrink: 0;">
             <!-- Delete Btn -->
-            <button v-tooltip="$t('Delete')" @click="onClickDelete">
+            <button v-tooltip="$t('Delete')" @click="showDeleteConfirm = true">
               <VIcon class="c-pointer trash" name="trash" />
             </button>
 
@@ -108,6 +108,19 @@
         </div>
       </form>
     </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <ConfirmDialog
+      v-model:show="showDeleteConfirm"
+      title="Delete Password?"
+      :message="deleteConfirmMessage"
+      confirm-text="Delete"
+      cancel-text="Cancel"
+      confirm-theme="danger"
+      icon="trash"
+      icon-class="icon-danger"
+      @confirm="confirmDelete"
+    />
   </div>
 </template>
 
@@ -133,7 +146,8 @@ export default {
       isEditMode: false,
       showPass: false,
       showTotpSecret: false,
-      capturingQR: false
+      capturingQR: false,
+      showDeleteConfirm: false
     }
   },
 
@@ -152,6 +166,10 @@ export default {
     },
     loading() {
       return this.$wait.is(this.$waiters.Logins.Update)
+    },
+    deleteConfirmMessage() {
+      const name = this.form.title || this.form.url || 'this password'
+      return 'Are you sure you want to delete "' + name + '"?\n\nThis action cannot be undone.'
     }
   },
 
@@ -179,17 +197,18 @@ export default {
       this.$router.push({ name: 'Logins', params: { cache: true } })
     },
 
-    onClickDelete() {
+    async confirmDelete() {
       const onSuccess = async () => {
         await this.deleteLogin(this.form.id)
         const index = this.ItemList.findIndex(item => item.id == this.form.id)
         if (index !== -1) {
           this.ItemList.splice(index, 1)
         }
+        this.$notifySuccess?.('Password deleted successfully')
         this.$router.push({ name: 'Logins', params: { cache: true } })
       }
-      if (confirm('Are you sure you want to delete'))
-        this.$request(onSuccess, this.$waiters.Logins.Delete)
+      
+      await this.$request(onSuccess, this.$waiters.Logins.Delete)
     },
 
     async onClickUpdate() {
@@ -215,7 +234,9 @@ export default {
         const totpUrl = await totpCaptureService.captureTotpSecret()
         
         if (totpUrl) {
-          this.form.totp_secret = totpUrl
+          // Extract secret from otpauth:// URL (admin stores only secret, not full URL)
+          const secret = totpCaptureService.extractSecret(totpUrl)
+          this.form.totp_secret = secret || totpUrl
           this.$notify({
             title: 'Success',
             text: 'QR code successfully captured!',

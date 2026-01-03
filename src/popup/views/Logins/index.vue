@@ -18,10 +18,25 @@
           :title="$helpers.textEllipsis(item.title || item.url, 30)"
           :subtitle="item.username"
           :item-data="item"
-          @click="clickItem"
+          @edit="handleEdit"
+          @delete="handleDelete"
         />
       </ul>
     </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <ConfirmDialog
+      v-model:show="showDeleteConfirm"
+      title="Delete Password?"
+      :message="deleteConfirmMessage"
+      confirm-text="Delete"
+      cancel-text="Cancel"
+      confirm-theme="danger"
+      icon="trash"
+      icon-class="icon-danger"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </div>
 </template>
 
@@ -48,20 +63,58 @@ export default {
       onInputSearchQuery: authStore.setSearchQuery
     }
   },
+
+  data() {
+    return {
+      showDeleteConfirm: false,
+      deleteItem: null
+    }
+  },
   
   computed: {
     isLoading() {
       return this.$wait.is(this.$waiters.Logins.All)
+    },
+
+    deleteConfirmMessage() {
+      if (!this.deleteItem) return ''
+      const name = this.deleteItem.title || this.deleteItem.url
+      return 'Are you sure you want to delete "' + name + '"?\n\nThis action cannot be undone.'
     }
   },
   
   methods: {
-    clickItem(detail) {
-      this.loginsStore.setDetail(detail)
+    handleEdit(item) {
+      this.loginsStore.setDetail(item)
       this.$router.push({ 
         name: 'LoginDetail', 
-        params: { id: detail.id }
+        params: { id: item.id }
       })
+    },
+    
+    handleDelete(item) {
+      this.deleteItem = item
+      this.showDeleteConfirm = true
+    },
+
+    async confirmDelete() {
+      if (!this.deleteItem) return
+
+      const onSuccess = async () => {
+        await this.loginsStore.delete(this.deleteItem.id)
+        const index = this.ItemList.findIndex(i => i.id === this.deleteItem.id)
+        if (index !== -1) {
+          this.ItemList.splice(index, 1)
+        }
+        this.$notifySuccess?.('Password deleted successfully')
+      }
+      
+      await this.$request(onSuccess, this.$waiters.Logins.Delete)
+      this.deleteItem = null
+    },
+
+    cancelDelete() {
+      this.deleteItem = null
     }
   }
 }

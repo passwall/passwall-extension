@@ -2,9 +2,9 @@
   <div class="container">
     <Header class="bg-black-400">
       <template v-slot:content>
-        <VIcon class="c-pointer" name="arrow-left" @click="$router.back()" />
+        <VIcon class="c-pointer c-white" name="arrow-left" @click="goBack" />
         <div class="d-flex flex-auto ml-2">
-          <span class="fw-bold h5 ml-2">Password Generator</span>
+          <span class="fw-bold h5 ml-2 c-white">Password Generator</span>
         </div>
       </template>
     </Header>
@@ -14,12 +14,23 @@
           <span>Length</span>
           <input type="text" v-model="passwordLength" class="password-length-input" disabled />
         </div>
-        <input type="range" min="6" max="24" v-model="passwordLength" />
+        <input 
+          ref="rangeSlider"
+          type="range" 
+          min="6" 
+          max="24" 
+          v-model.number="passwordLength"
+          @input="onSliderChange"
+        />
       </div>
       <div class="d-flex flex-row flex-justify-between mb-5">
-        <div class="password-options" v-for="type in getComplexities" :key="type.name">
+        <div class="password-options" v-for="(type, index) in getComplexities" :key="type.name">
           <label class="d-flex flex-items-center">
-            <input type="checkbox" :checked="type.checked" @click="type.checked = !type.checked" />
+            <input 
+              type="checkbox" 
+              v-model="type.checked"
+              @change="onCheckboxChange"
+            />
             <span>{{ type.name }}</span>
           </label>
         </div>
@@ -63,7 +74,15 @@ export default {
       return this.complexities.filter(item => item.visible !== false)
     }
   },
+
+
   methods: {
+    goBack() {
+      // Always go to Home instead of using router.back()
+      // This fixes the issue when reopening the extension
+      this.$router.push({ name: 'Home' })
+    },
+
     onGenerate: function() {
       const charSet = this.complexities
         .filter(item => item.checked)
@@ -71,33 +90,111 @@ export default {
           return acc + current.value
         }, '')
 
+      // Ensure at least one complexity is checked
+      if (charSet.length === 0) {
+        return
+      }
+
       let generatedPassword = ''
       for (let i = 0; i < this.passwordLength; i++) {
         generatedPassword += charSet.charAt(Math.floor(Math.random() * charSet.length))
       }
       this.password = generatedPassword
-      Storage.setItem('generatedPassword', this.password)
-      Storage.setItem('complexities', this.complexities)
-      Storage.setItem('passwordLength', this.passwordLength)
+      
+      // Save to storage
+      this.saveSettings()
+    },
+
+    onCheckboxChange() {
+      this.saveSettings()
+      this.onGenerate()
+    },
+
+    async saveSettings() {
+      await Storage.setItem('passwordLength', this.passwordLength)
+      await Storage.setItem('complexities', this.complexities)
+      await Storage.setItem('generatedPassword', this.password)
+    },
+
+    updateSliderBackground(event) {
+      const slider = event.target
+      const min = slider.min || 6
+      const max = slider.max || 24
+      const value = slider.value
+      
+      // Calculate percentage
+      const percentage = ((value - min) / (max - min)) * 100
+      
+      // Update background gradient (left: blue, right: primary-400)
+      slider.style.background = `linear-gradient(to right, #00FFD1 0%, #00FFD1 ${percentage}%, #151C27 ${percentage}%, #151C27 100%)`
+    },
+
+    onSliderChange(event) {
+      // Update slider background
+      this.updateSliderBackground(event)
+      // Save length change
+      this.saveSettings()
+      // Generate new password on slider change
+      this.onGenerate()
     }
   },
-  async created() {
-    const passwordLength = await Storage.getItem('passwordLength')
-    if (passwordLength !== null) {
+  async mounted() {
+    // Load saved settings from storage FIRST
+    const [passwordLength, savedComplexities, generatedPassword] = await Promise.all([
+      Storage.getItem('passwordLength'),
+      Storage.getItem('complexities'),
+      Storage.getItem('generatedPassword')
+    ])
+
+    // Restore password length
+    if (passwordLength !== null && typeof passwordLength === 'number') {
       this.passwordLength = passwordLength
     }
 
-    const complexities = await Storage.getItem('complexities')
-    if (complexities !== null) {
-      this.complexities = complexities
+    // Restore complexities with proper reactivity
+    // FIX: Chrome storage converts arrays to objects, so check for both
+    let complexitiesArray = null
+    if (savedComplexities !== null && typeof savedComplexities === 'object') {
+      if (Array.isArray(savedComplexities)) {
+        complexitiesArray = savedComplexities
+      } else {
+        // Convert object to array (Chrome storage bug workaround)
+        complexitiesArray = Object.values(savedComplexities)
+      }
+    }
+    
+    if (complexitiesArray && complexitiesArray.length === 4) {
+      // Create new array to trigger reactivity
+      const newComplexities = []
+      
+      this.complexities.forEach((defaultItem) => {
+        const saved = complexitiesArray.find(s => s.name === defaultItem.name)
+        newComplexities.push({
+          name: defaultItem.name,
+          value: defaultItem.value,
+          checked: saved ? saved.checked : defaultItem.checked,
+          visible: defaultItem.visible
+        })
+      })
+      
+      // Replace entire array (triggers reactivity)
+      this.complexities = newComplexities
     }
 
-    const generatedPassword = await Storage.getItem('generatedPassword')
-    if (generatedPassword === null) {
-      this.onGenerate()
-    } else {
+    // Restore password
+    if (generatedPassword && typeof generatedPassword === 'string') {
       this.password = generatedPassword
+    } else {
+      this.onGenerate()
     }
+
+    // THEN initialize slider background
+    this.$nextTick(() => {
+      if (this.$refs.rangeSlider) {
+        const event = { target: this.$refs.rangeSlider }
+        this.updateSliderBackground(event)
+      }
+    })
   }
 }
 </script>
@@ -155,9 +252,10 @@ export default {
   font-size: 12px;
 
   span {
-    color: #aaa;
+    color: $color-gray-300; // #8b93a1 - Gray 300
     text-transform: uppercase;
     font-size: inherit;
+    font-weight: 600;
   }
 
   input[type='text'] {
@@ -165,13 +263,50 @@ export default {
     height: 13px;
     font-size: inherit;
     text-align: center;
-    color: #aaa;
+    color: $color-secondary; // #00FFD1 - Mavi
     border-width: 0;
     background-color: transparent;
+    font-weight: 600;
   }
 
   input[type='range'] {
     width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    background: $color-primary-400; // #151C27
+    border-radius: 3px;
+    outline: none;
+
+    // Chrome, Safari, Edge - Thumb
+    &::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      background: $color-secondary; // #00FFD1 - Mavi
+      cursor: pointer;
+      border-radius: 50%;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    // Firefox - Thumb
+    &::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      background: $color-secondary; // #00FFD1 - Mavi
+      cursor: pointer;
+      border-radius: 50%;
+      border: none;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    // Firefox - Track
+    &::-moz-range-track {
+      background: $color-primary-400; // #151C27
+      border-radius: 3px;
+    }
+
   }
 }
 
@@ -183,12 +318,42 @@ export default {
   input[type='checkbox'] {
     margin-right: 7px;
     cursor: pointer;
-    width: 15px;
-    height: 15px;
+    width: 16px;
+    height: 16px;
+    -webkit-appearance: none;
+    appearance: none;
+    background-color: transparent;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    position: relative;
+    transition: all 0.2s;
+
+    &:checked {
+      background-color: $color-secondary; // #00FFD1 - Mavi
+      border-color: $color-secondary;
+    }
+
+    &:checked::after {
+      content: '';
+      position: absolute;
+      left: 4px;
+      top: 1px;
+      width: 4px;
+      height: 8px;
+      border: solid $color-gray-500;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    &:hover {
+      border-color: $color-secondary;
+    }
   }
 
   span {
     font-size: 13px;
+    color: $color-gray-450; // #CECFD1 (Numbers, Symbols, Capital Letters)
+    font-weight: 500;
   }
 }
 </style>
