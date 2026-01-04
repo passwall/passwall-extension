@@ -70,6 +70,9 @@ export class LoginAsPopup {
     this.canDestroy = false
 
     this.boundClickHandler = null
+    
+    // Security: Get extension origin for postMessage validation
+    this.EXTENSION_ORIGIN = browser.runtime.getURL('').replace(/\/$/, '')
   }
 
   /**
@@ -149,7 +152,8 @@ export class LoginAsPopup {
 
     // Iframe ready - send message immediately
     if (this.iframeElement.contentWindow) {
-      this.iframeElement.contentWindow.postMessage(JSON.stringify(message), '*')
+      // Security: Use specific extension origin instead of wildcard
+      this.iframeElement.contentWindow.postMessage(JSON.stringify(message), this.EXTENSION_ORIGIN)
     } else {
       log.warn('⚠️ ContentWindow not available, queueing message:', message.type)
       this.pendingMessages.push(message)
@@ -164,7 +168,8 @@ export class LoginAsPopup {
     if (this.pendingMessages.length > 0) {
       log.success(`📤 Flushing ${this.pendingMessages.length} queued message(s)`)
       this.pendingMessages.forEach((message) => {
-        this.iframeElement.contentWindow.postMessage(JSON.stringify(message), '*')
+        // Security: Use specific extension origin instead of wildcard
+        this.iframeElement.contentWindow.postMessage(JSON.stringify(message), this.EXTENSION_ORIGIN)
         log.info(`  ✉️ Sent queued message: ${message.type}`)
       })
       this.pendingMessages = []
@@ -236,6 +241,24 @@ export class LoginAsPopup {
   }
 
   /**
+   * Sanitize value before filling (XSS prevention)
+   * @private
+   * @param {string} value
+   * @returns {string}
+   */
+  sanitizeValue(value) {
+    if (typeof value !== 'string') return ''
+    
+    // Basic XSS prevention - remove dangerous patterns
+    // Note: Passwords/usernames shouldn't contain HTML/JS, but sanitize anyway
+    return value
+      .replace(/<script[^>]*>.*?<\/script>/gi, '')
+      .replace(/javascript:/gi, '')
+      .replace(/on\w+\s*=/gi, '') // Remove event handlers like onclick=
+      .trim()
+  }
+
+  /**
    * Fill input field and trigger all necessary events
    * Enhanced for React/Vue/Angular form validation compatibility
    * Simulates real user typing with proper event sequence
@@ -244,6 +267,9 @@ export class LoginAsPopup {
    * @param {string} value
    */
   fillInputWithEvents(input, value) {
+    // Security: Sanitize value before filling
+    const sanitizedValue = this.sanitizeValue(value)
+    
     // Store initial state
     const initialValue = input.value
 
@@ -273,9 +299,9 @@ export class LoginAsPopup {
 
     // Set value using native setter if available (React requires this)
     if (nativeInputValueSetter) {
-      nativeInputValueSetter.call(input, value)
+      nativeInputValueSetter.call(input, sanitizedValue)
     } else {
-      input.value = value
+      input.value = sanitizedValue
     }
 
     // Trigger KeyboardEvent (more realistic than Event)

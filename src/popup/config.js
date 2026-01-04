@@ -119,7 +119,16 @@ export function setupPlugins(app, router, pinia, i18n) {
       }
 
       if (error.response.status === 401 && !router.currentRoute.value.meta.auth && !retry) {
-        // Refresh token
+        // Don't try to refresh token on login page (wrong credentials scenario)
+        if (router.currentRoute.value.name === 'Login') {
+          // Let the login page's own error handler deal with it
+          if (errorCallback) {
+            errorCallback(error)
+          }
+          return
+        }
+        
+        // Refresh token for authenticated pages
         try {
           const authStore = useAuthStore()
           await authStore.refreshToken()

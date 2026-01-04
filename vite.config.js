@@ -38,7 +38,9 @@ export default defineConfig({
     __VUE_I18N_LEGACY_API__: false,
     __VUE_I18N_FULL_INSTALL__: false,
     // Global and Buffer polyfills
-    global: 'globalThis'
+    global: 'globalThis',
+    // Custom: Development mode flag (injected to content scripts)
+    __DEV_MODE__: process.env.NODE_ENV === 'development'
   },
   
   resolve: {

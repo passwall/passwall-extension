@@ -45,8 +45,8 @@ const FIELD_TYPES = {
   TEXT: 'text'
 }
 
-// Development mode logging
-const DEV_MODE = false // Set to false for production
+// Development mode logging (from build-time env)
+const DEV_MODE = __DEV_MODE__ // Injected at build time
 const log = {
   info: (...args) => DEV_MODE && console.log('🔵 [Passwall]', ...args),
   success: (...args) => DEV_MODE && console.log('✅ [Passwall]', ...args),
