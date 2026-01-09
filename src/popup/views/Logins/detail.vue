@@ -125,7 +125,8 @@
 </template>
 
 <script>
-import { useLoginsStore } from '@/stores/logins'
+import { useItemsStore, ItemType } from '@/stores/items'
+import { storeToRefs } from 'pinia'
 import totpCaptureService from '@/utils/totp-capture'
 import TOTPCounter from '@/components/TOTPCounter.vue'
 
@@ -152,20 +153,18 @@ export default {
   },
 
   setup() {
-    const loginsStore = useLoginsStore()
+    const itemsStore = useItemsStore()
+    const { items } = storeToRefs(itemsStore)
+    
     return {
-      loginsStore,
-      deleteLogin: loginsStore.delete,
-      updateLogin: loginsStore.update
+      itemsStore,
+      items
     }
   },
 
   computed: {
-    ItemList() {
-      return this.loginsStore?.itemList || []
-    },
     loading() {
-      return this.$wait.is(this.$waiters.Logins.Update)
+      return this.itemsStore.isLoading
     },
     deleteConfirmMessage() {
       const name = this.form.title || this.form.url || 'this password'
@@ -173,28 +172,52 @@ export default {
     }
   },
 
-  mounted() {
-    // Primary source: store detail (set by clickItem)
-    let detail = this.loginsStore.detail
-
-    // Fallback: route params detail (if present)
-    if (!detail || !detail.id) {
-      detail = this.$route.params.detail
+  async mounted() {
+    // Get item ID from route
+    const itemId = parseInt(this.$route.params.id)
+    
+    if (!itemId) {
+      this.$router.push({ name: 'Passwords' })
+      return
     }
 
-    // Fallback: find by id in item list
-    if ((!detail || !detail.id) && this.$route.params.id) {
-      detail = this.ItemList.find(i => i.id == this.$route.params.id)
+    // Find item in store
+    let item = this.items.find(i => i.id === itemId)
+    
+    // If not found, try to fetch it
+    if (!item) {
+      try {
+        await this.itemsStore.fetchItems({ type: ItemType.Password })
+        item = this.items.find(i => i.id === itemId)
+      } catch (error) {
+        console.error('Failed to fetch item:', error)
+        this.$notifyError?.('Failed to load password')
+        this.$router.push({ name: 'Passwords' })
+        return
+      }
+    }
+    
+    // If still not found, navigate back
+    if (!item) {
+      this.$notifyError?.('Password not found')
+      this.$router.push({ name: 'Passwords' })
+      return
     }
 
-    if (detail && detail.id) {
-      this.form = { ...this.form, ...detail }
+    // Populate form with item data
+    this.form = {
+      title: item.title || item.metadata?.name || '',
+      username: item.username || '',
+      password: item.password || '',
+      url: item.url || item.metadata?.uri_hint || '',
+      extra: item.notes || item.extra || '',
+      totp_secret: item.totp || item.totp_secret || ''
     }
   },
 
   methods: {
     goBack() {
-      this.$router.push({ name: 'Logins', params: { cache: true } })
+      this.$router.push({ name: 'Passwords', params: { cache: true } })
     },
 
     async confirmDelete() {
@@ -205,7 +228,7 @@ export default {
           this.ItemList.splice(index, 1)
         }
         this.$notifySuccess?.('Password deleted successfully')
-        this.$router.push({ name: 'Logins', params: { cache: true } })
+        this.$router.push({ name: 'Passwords', params: { cache: true } })
       }
       
       await this.$request(onSuccess, this.$waiters.Logins.Delete)
@@ -216,7 +239,7 @@ export default {
         const updated = await this.updateLogin({ ...this.form })
         // keep detail page open and sync form with updated data
         this.form = { ...this.form, ...updated }
-        this.loginsStore.setDetail(updated)
+        this.itemsStore.setDetail(updated)
       }
 
       await this.$request(onSuccess, this.$waiters.Logins.Update)

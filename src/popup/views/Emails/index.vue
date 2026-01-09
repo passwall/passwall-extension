@@ -22,7 +22,7 @@
 </template>
 
 <script>
-import { useEmailsStore } from '@/stores/emails'
+import { useItemsStore, ItemType } from '@/stores/items'
 import { storeToRefs } from 'pinia'
 import ListMixin from '@/mixins/list'
 
@@ -30,18 +30,17 @@ export default {
   mixins: [ListMixin],
   name: 'Emails', // it uses for loading state !! important
   setup() {
-    const emailsStore = useEmailsStore()
-    const { itemList } = storeToRefs(emailsStore)
+    const itemsStore = useItemsStore()
+    const { items } = storeToRefs(itemsStore)
     
     return {
-      emailsStore,
-      ItemList: itemList,
-      FetchAll: emailsStore.fetchAll
+      itemsStore,
+      ItemList: items,
+      FetchAll: () => itemsStore.fetchItems({ type: ItemType.Email })
     }
   },
   methods: {
     clickItem(detail) {
-      this.emailsStore.setDetail(detail)
       this.$router.push({ name: 'EmailDetail', params: { id: detail.id } })
     }
   }

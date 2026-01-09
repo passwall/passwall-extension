@@ -7,7 +7,7 @@
           <div class="new-logo">
             <VIcon name="logo-simple" height="40px" width="40px" />
           </div>
-          <span class="fw-bold h5 ml-2">New Credit Card</span>
+          <span class="fw-bold h5 ml-2">New Payment Card</span>
         </div>
       </template>
     </Header>
@@ -26,62 +26,74 @@
         </div>
 
         <div class="form-row">
-          <label v-text="'Card Holder Name'" />
+          <label v-text="'Name on Card'" />
           <VFormText
-            name="Card Holder Name"
+            name="Name on Card"
             v-on:change="saveForm"
-            v-model="form.cardholder_name"
+            v-model="form.name_on_card"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
         </div>
 
         <div class="form-row">
-          <label v-text="'Type'" />
+          <label v-text="'Card Type'" />
           <VFormText
-            name="Type"
+            name="Card Type"
             v-on:change="saveForm"
-            v-model="form.type"
+            v-model="form.card_type"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
         </div>
 
         <div class="form-row">
-          <label v-text="'Number'" />
+          <label v-text="'Card Number'" />
           <VFormText
-            name="Number"
+            name="Card Number"
             v-on:change="saveForm"
-            v-model="form.number"
+            v-model="form.card_number"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
         </div>
 
         <div class="form-row">
-          <label v-text="'Expiration Date'" />
+          <label v-text="'Expiration Month'" />
           <VFormText
-            name="Expiration Date"
+            name="Expiration Month"
             v-on:change="saveForm"
-            v-model="form.expiry_date"
-            :placeholder="$t('ClickToFill')"
+            v-model="form.exp_month"
+            placeholder="MM"
             theme="no-border"
           />
         </div>
+
         <div class="form-row">
-          <label v-text="'Verification Number'" />
+          <label v-text="'Expiration Year'" />
+          <VFormText
+            name="Expiration Year"
+            v-on:change="saveForm"
+            v-model="form.exp_year"
+            placeholder="YYYY"
+            theme="no-border"
+          />
+        </div>
+
+        <div class="form-row">
+          <label v-text="'Security Code (CVV)'" />
           <div class="d-flex flex-justify-between ">
             <VFormText
-              name="Verification Number"
+              name="Security Code"
               v-on:change="saveForm"
               class="flex-auto"
-              v-model="form.verification_number"
+              v-model="form.security_code"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showPass ? 'text' : 'password'"
             />
             <div class="d-flex flex-items-center mr-3">
-              <ClipboardButton :copy="form.verification_number" />
+              <ClipboardButton :copy="form.security_code" />
               <ShowPassButton @click="showPass = $event" />
             </div>
           </div>
@@ -92,7 +104,6 @@
           size="medium"
           type="submit"
           style="letter-spacing: 2px"
-          :loading="$wait.is($waiters.CreditCards.Create)"
         >
           Save
         </VButton>
@@ -102,46 +113,61 @@
 </template>
 
 <script>
-import { useCreditCardsStore } from '@/stores/creditCards'
+import { useItemsStore, ItemType } from '@/stores/items'
 import Storage from '@/utils/storage'
 
 export default {
+  name: 'PaymentCardCreate',
+  
   setup() {
-    const creditCardsStore = useCreditCardsStore()
+    const itemsStore = useItemsStore()
     return {
-      createItem: creditCardsStore.create
+      itemsStore
     }
   },
+  
   data() {
     return {
       showPass: false,
       form: {
         title: '',
-        cardholder_name: '',
-        type: '',
-        number: '',
-        expiry_date: '',
-        verification_number: ''
+        name_on_card: '',
+        card_type: '',
+        card_number: '',
+        exp_month: '',
+        exp_year: '',
+        security_code: ''
       }
     }
   },
+  
   async created() {
     const storageFormData = await Storage.getItem('create_form')
     if (storageFormData !== null) {
       this.form = storageFormData
     }
   },
+  
   methods: {
     async onSubmit() {
       if (!this.form.title) {
-        this.$notifyError(this.$t('PleaseFillAllFields') || 'Please fill all required fields')
+        this.$notifyError?.('Title is required')
         return
       }
-      const onSuccess = async () => {
-        await this.createItem({ ...this.form })
-        this.$router.push({ name: 'CreditCards' })
+      
+      try {
+        const cardData = { ...this.form }
+        const metadata = { name: this.form.title, brand: this.form.card_type }
+
+        await this.itemsStore.encryptAndCreate(ItemType.Card, cardData, metadata)
+        
+        this.$notifySuccess?.('Payment card created successfully')
+        Storage.setItem('create_form', null)
+        this.$router.push({ name: 'Cards' })
+      } catch (error) {
+        console.error('Failed to create card:', error)
+        this.$notifyError?.('Failed to create payment card')
       }
-      this.$request(onSuccess, this.$waiters.CreditCards.Create)
     },
     
     saveForm: function (event) {

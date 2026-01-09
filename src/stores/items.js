@@ -1,0 +1,414 @@
+/**
+ * Items Store - Unified Vault Items
+ *
+ * All vault item types:
+ * - Password (Logins)
+ * - Secure Notes
+ * - Credit Cards
+ * - Bank Accounts
+ * - Identity
+ *
+ * Encryption: User Key (from auth store)
+ */
+
+import { defineStore } from 'pinia'
+import { cryptoService } from '@/utils/crypto'
+import { useAuthStore } from './auth'
+import HTTPClient from '@/api/HTTPClient'
+
+// ============================================================
+// Types & Constants
+// ============================================================
+
+export const ItemType = {
+  Password: 1,
+  Note: 2,
+  Card: 3,
+  Bank: 4,
+  Email: 5,
+  Server: 6,
+  Identity: 7,
+  SSHKey: 8,
+  Address: 9,
+  Custom: 99
+}
+
+// ============================================================
+// Helper Functions
+// ============================================================
+
+function getApiErrorMessage(error, fallback) {
+  return error.response?.data?.error || fallback
+}
+
+/**
+ * Get item type display name
+ */
+export function getItemTypeName(type) {
+  switch (type) {
+    case ItemType.Password:
+      return 'Password'
+    case ItemType.Note:
+      return 'Secure Note'
+    case ItemType.Card:
+      return 'Credit Card'
+    case ItemType.Bank:
+      return 'Bank Account'
+    case ItemType.Email:
+      return 'Email'
+    case ItemType.Server:
+      return 'Server'
+    case ItemType.Identity:
+      return 'Identity'
+    case ItemType.SSHKey:
+      return 'SSH Key'
+    case ItemType.Address:
+      return 'Address'
+    case ItemType.Custom:
+      return 'Custom'
+    default:
+      return 'Unknown'
+  }
+}
+
+/**
+ * Get item type icon
+ */
+export function getItemTypeIcon(type) {
+  switch (type) {
+    case ItemType.Password:
+      return '🔐'
+    case ItemType.Note:
+      return '📝'
+    case ItemType.Card:
+      return '💳'
+    case ItemType.Bank:
+      return '🏦'
+    case ItemType.Email:
+      return '📧'
+    case ItemType.Server:
+      return '🖥️'
+    case ItemType.Identity:
+      return '👤'
+    case ItemType.SSHKey:
+      return '🔑'
+    case ItemType.Address:
+      return '📍'
+    case ItemType.Custom:
+      return '⚙️'
+    default:
+      return '❓'
+  }
+}
+
+// ============================================================
+// Store
+// ============================================================
+
+export const useItemsStore = defineStore('items', {
+  state: () => ({
+    items: [],
+    isLoading: false,
+    error: null
+  }),
+
+  getters: {
+    /**
+     * Get items by type
+     */
+    getItemsByType: (state) => (type) => {
+      return state.items.filter((item) => item.item_type === type)
+    },
+
+    /**
+     * Get item by ID
+     */
+    getItemById: (state) => (id) => {
+      return state.items.find((item) => item.id === id)
+    },
+
+    /**
+     * Get favorite items
+     */
+    favoriteItems: (state) => {
+      return state.items.filter((item) => item.is_favorite)
+    },
+
+    /**
+     * Get items by folder
+     */
+    getItemsByFolder: (state) => (folderId) => {
+      return state.items.filter((item) => item.folder_id === folderId)
+    },
+
+    /**
+     * Count items by type
+     */
+    getItemCountByType: (state) => (type) => {
+      return state.items.filter((item) => item.item_type === type).length
+    }
+  },
+
+  actions: {
+    /**
+     * Fetch items from server
+     *
+     * @param {Object} filter - Filter options
+     * @param {number} filter.type - Item type
+     * @param {boolean} filter.is_favorite - Favorites only
+     * @param {number} filter.folder_id - Folder ID
+     * @param {string} filter.search - Search query
+     * @param {string} filter.tags - Tags (comma-separated)
+     * @param {boolean} filter.auto_fill - Auto-fill enabled
+     * @param {boolean} filter.auto_login - Auto-login enabled
+     * @param {number} filter.page - Page number
+     * @param {number} filter.per_page - Items per page
+     */
+    async fetchItems(filter = {}) {
+      this.isLoading = true
+      this.error = null
+
+      try {
+        const params = new URLSearchParams()
+
+        if (filter.type) params.append('type', filter.type.toString())
+        if (filter.is_favorite !== undefined)
+          params.append('is_favorite', filter.is_favorite.toString())
+        if (filter.folder_id) params.append('folder_id', filter.folder_id.toString())
+        if (filter.search) params.append('search', filter.search)
+        if (filter.tags) params.append('tags', filter.tags)
+        if (filter.auto_fill !== undefined) params.append('auto_fill', filter.auto_fill.toString())
+        if (filter.auto_login !== undefined)
+          params.append('auto_login', filter.auto_login.toString())
+        if (filter.page) params.append('page', filter.page.toString())
+        if (filter.per_page) params.append('per_page', filter.per_page.toString())
+
+        const { data } = await HTTPClient.get(`/api/items?${params}`)
+        const encryptedItems = data.items || data
+
+        // Decrypt all items and merge data with metadata
+        const decryptedItems = await Promise.all(
+          encryptedItems.map(async (item) => {
+            try {
+              const decryptedData = await this.decryptItem(item)
+              
+              // Merge decrypted data with item, flattening for component compatibility
+              return {
+                ...item,
+                ...decryptedData,
+                // Map metadata.name to title for backward compatibility
+                title: item.metadata?.name || decryptedData.name,
+                url: item.metadata?.uri_hint || decryptedData.uris?.[0]?.uri || ''
+              }
+            } catch (error) {
+              console.error('Failed to decrypt item:', item.id, error)
+              // Return item with placeholder data if decryption fails
+              return {
+                ...item,
+                title: item.metadata?.name || '[Decryption Failed]',
+                url: item.metadata?.uri_hint || '',
+                username: '[Encrypted]',
+                password: '[Encrypted]'
+              }
+            }
+          })
+        )
+
+        // If filtering by type, merge with existing items of different types
+        // Otherwise, replace all items
+        if (filter.type) {
+          // Remove items of this type and add new ones
+          const otherTypeItems = this.items.filter(item => item.item_type !== filter.type)
+          this.items = [...otherTypeItems, ...decryptedItems]
+        } else {
+          this.items = decryptedItems
+        }
+        
+        this.isLoading = false
+      } catch (error) {
+        this.error = getApiErrorMessage(error, 'Failed to fetch items')
+        this.isLoading = false
+        throw error
+      }
+    },
+
+    /**
+     * Create item (accepts already encrypted data)
+     *
+     * @param {Object} req - Create request
+     * @param {number} req.item_type - Item type
+     * @param {string} req.data - Encrypted data (EncString)
+     * @param {Object} req.metadata - Item metadata
+     * @param {boolean} req.is_favorite - Favorite flag
+     * @param {number} req.folder_id - Folder ID
+     * @param {boolean} req.reprompt - Reprompt flag
+     * @param {boolean} req.auto_fill - Auto-fill flag
+     * @param {boolean} req.auto_login - Auto-login flag
+     */
+    async createItem(req) {
+      this.isLoading = true
+      this.error = null
+
+      try {
+        const { data } = await HTTPClient.post('/api/items', req)
+
+        this.items = [data, ...this.items]
+        this.isLoading = false
+
+        return data
+      } catch (error) {
+        this.error = getApiErrorMessage(error, 'Failed to create item')
+        this.isLoading = false
+        throw error
+      }
+    },
+
+    /**
+     * Update item (encrypts if data is provided as object)
+     *
+     * @param {number} id - Item ID
+     * @param {Object} req - Update request
+     */
+    async updateItem(id, req) {
+      this.isLoading = true
+      this.error = null
+
+      try {
+        // If req.data is an object (not encrypted string), encrypt it first
+        let finalReq = req
+        if (req.data && typeof req.data === 'object') {
+          const authStore = useAuthStore()
+          if (!authStore.userKey) {
+            throw new Error('User Key not found. Please sign in again.')
+          }
+
+          const encryptedData = await cryptoService.encryptAesCbcHmac(
+            JSON.stringify(req.data),
+            authStore.userKey
+          )
+
+          finalReq = {
+            ...req,
+            data: encryptedData
+          }
+        }
+
+        const { data } = await HTTPClient.put(`/api/items/${id}`, finalReq)
+
+        this.items = this.items.map((item) => (item.id === id ? data : item))
+        this.isLoading = false
+
+        return data
+      } catch (error) {
+        this.error = getApiErrorMessage(error, 'Failed to update item')
+        this.isLoading = false
+        throw error
+      }
+    },
+
+    /**
+     * Delete item (soft delete)
+     *
+     * @param {number} id - Item ID
+     */
+    async deleteItem(id) {
+      this.isLoading = true
+      this.error = null
+
+      try {
+        await HTTPClient.delete(`/api/items/${id}`)
+
+        this.items = this.items.filter((item) => item.id !== id)
+        this.isLoading = false
+      } catch (error) {
+        this.error = getApiErrorMessage(error, 'Failed to delete item')
+        this.isLoading = false
+        throw error
+      }
+    },
+
+    /**
+     * Decrypt item data with User Key
+     *
+     * @param {Object} item - Item to decrypt
+     * @returns {Promise<Object>} Decrypted data
+     */
+    async decryptItem(item) {
+      const authStore = useAuthStore()
+
+      if (!authStore.userKey) {
+        throw new Error('User Key not found. Please sign in again.')
+      }
+
+      // Decrypt EncString with User Key
+      const decryptedBytes = await cryptoService.decryptAesCbcHmac(item.data, authStore.userKey)
+
+      // Convert bytes to string
+      const decryptedJSON = new TextDecoder().decode(decryptedBytes)
+
+      // Parse JSON
+      return JSON.parse(decryptedJSON)
+    },
+
+    /**
+     * Helper: Encrypt data and create item
+     *
+     * @param {number} itemType - Item type
+     * @param {Object} data - Data to encrypt
+     * @param {Object} metadata - Item metadata
+     * @param {Object} options - Additional options
+     */
+    async encryptAndCreate(itemType, data, metadata, options = {}) {
+      const authStore = useAuthStore()
+
+      if (!authStore.userKey) {
+        throw new Error('User Key not found. Please sign in again.')
+      }
+
+      // Encrypt entire data object with User Key
+      const encryptedData = await cryptoService.encryptAesCbcHmac(
+        JSON.stringify(data),
+        authStore.userKey
+      )
+
+      // Create item with encrypted data
+      return await this.createItem({
+        item_type: itemType,
+        data: encryptedData,
+        metadata,
+        is_favorite: options.is_favorite ?? false,
+        folder_id: options.folder_id,
+        reprompt: options.reprompt ?? false,
+        auto_fill: options.auto_fill ?? true,
+        auto_login: options.auto_login ?? false
+      })
+    },
+
+    /**
+     * Toggle favorite status
+     *
+     * @param {number} id - Item ID
+     */
+    async toggleFavorite(id) {
+      const item = this.getItemById(id)
+      if (!item) return
+
+      await this.updateItem(id, {
+        is_favorite: !item.is_favorite
+      })
+    },
+
+    /**
+     * Move item to folder
+     *
+     * @param {number} id - Item ID
+     * @param {number} folderId - Folder ID
+     */
+    async moveToFolder(id, folderId) {
+      await this.updateItem(id, {
+        folder_id: folderId
+      })
+    }
+  }
+})
+

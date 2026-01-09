@@ -6,26 +6,22 @@ import Storage from '@/utils/storage'
 // Static imports for browser extension (dynamic imports don't work well with CSP)
 import Login from '@p/views/Auth/Login.vue'
 import Home from '@p/views/Home/index.vue'
-import Logins from '@p/views/Logins/index.vue'
-import BankAccounts from '@p/views/BankAccounts/index.vue'
-import CreditCards from '@p/views/CreditCards/index.vue'
-import Emails from '@p/views/Emails/index.vue'
+import Passwords from '@p/views/Logins/index.vue'
 import Notes from '@p/views/Notes/index.vue'
-import Servers from '@p/views/Servers/index.vue'
+import Addresses from '@p/views/Addresses/index.vue'
+import CreditCards from '@p/views/CreditCards/index.vue'
+import BankAccounts from '@p/views/BankAccounts/index.vue'
 import ChangeMasterPassword from '@p/views/ChangeMasterPassword/index.vue'
-import Migration from '@p/views/Migration/index.vue'
-import LoginCreate from '@p/views/Logins/create.vue'
-import LoginDetail from '@p/views/Logins/detail.vue'
-import CreditCardCreate from '@p/views/CreditCards/create.vue'
-import CreditCardDetail from '@p/views/CreditCards/detail.vue'
-import EmailCreate from '@p/views/Emails/create.vue'
-import EmailDetail from '@p/views/Emails/detail.vue'
-import BankAccountCreate from '@p/views/BankAccounts/create.vue'
-import BankAccountDetail from '@p/views/BankAccounts/detail.vue'
+import PasswordCreate from '@p/views/Logins/create.vue'
+import PasswordDetail from '@p/views/Logins/detail.vue'
 import NoteCreate from '@p/views/Notes/create.vue'
 import NoteDetail from '@p/views/Notes/detail.vue'
-import ServerCreate from '@p/views/Servers/create.vue'
-import ServerDetail from '@p/views/Servers/detail.vue'
+import AddressCreate from '@p/views/Addresses/create.vue'
+import AddressDetail from '@p/views/Addresses/detail.vue'
+import CreditCardCreate from '@p/views/CreditCards/create.vue'
+import CreditCardDetail from '@p/views/CreditCards/detail.vue'
+import BankAccountCreate from '@p/views/BankAccounts/create.vue'
+import BankAccountDetail from '@p/views/BankAccounts/detail.vue'
 import Generator from '@p/views/Generator/index.vue'
 import About from '@p/views/About/index.vue'
 import SavePassword from '@p/views/Inject/SavePassword/index.vue'
@@ -40,28 +36,13 @@ const routes = [
   {
     path: '/home',
     name: 'Home',
-    redirect: '/logins',
+    redirect: '/passwords',
     component: Home,
     children: [
       {
-        path: '/logins',
-        name: 'Logins',
-        component: Logins
-      },
-      {
-        path: '/bank-accounts',
-        name: 'BankAccounts',
-        component: BankAccounts
-      },
-      {
-        path: '/credit-cards',
-        name: 'CreditCards',
-        component: CreditCards
-      },
-      {
-        path: '/emails',
-        name: 'Emails',
-        component: Emails
+        path: '/passwords',
+        name: 'Passwords',
+        component: Passwords
       },
       {
         path: '/notes',
@@ -69,9 +50,19 @@ const routes = [
         component: Notes
       },
       {
-        path: '/servers',
-        name: 'Servers',
-        component: Servers
+        path: '/addresses',
+        name: 'Addresses',
+        component: Addresses
+      },
+      {
+        path: '/cards',
+        name: 'Cards',
+        component: CreditCards
+      },
+      {
+        path: '/bank-accounts',
+        name: 'BankAccounts',
+        component: BankAccounts
       }
     ]
   },
@@ -81,49 +72,14 @@ const routes = [
     component: ChangeMasterPassword
   },
   {
-    path: '/migration',
-    name: 'Migration',
-    component: Migration
+    path: '/passwords/create',
+    name: 'PasswordCreate',
+    component: PasswordCreate
   },
   {
-    path: '/logins/create',
-    name: 'LoginCreate',
-    component: LoginCreate
-  },
-  {
-    path: '/logins/:id',
-    name: 'LoginDetail',
-    component: LoginDetail
-  },
-  {
-    path: '/credit-cards/create',
-    name: 'CreditCardCreate',
-    component: CreditCardCreate
-  },
-  {
-    path: '/credit-cards/:id',
-    name: 'CreditCardDetail',
-    component: CreditCardDetail
-  },
-  {
-    path: '/emails/create',
-    name: 'EmailCreate',
-    component: EmailCreate
-  },
-  {
-    path: '/emails/:id',
-    name: 'EmailDetail',
-    component: EmailDetail
-  },
-  {
-    path: '/bank-accounts/create',
-    name: 'BankAccountCreate',
-    component: BankAccountCreate
-  },
-  {
-    path: '/bank-accounts/:id',
-    name: 'BankAccountDetail',
-    component: BankAccountDetail
+    path: '/passwords/:id',
+    name: 'PasswordDetail',
+    component: PasswordDetail
   },
   {
     path: '/notes/create',
@@ -136,14 +92,34 @@ const routes = [
     component: NoteDetail
   },
   {
-    path: '/servers/create',
-    name: 'ServerCreate',
-    component: ServerCreate
+    path: '/addresses/create',
+    name: 'AddressCreate',
+    component: AddressCreate
   },
   {
-    path: '/servers/:id',
-    name: 'ServerDetail',
-    component: ServerDetail
+    path: '/addresses/:id',
+    name: 'AddressDetail',
+    component: AddressDetail
+  },
+  {
+    path: '/cards/create',
+    name: 'CardCreate',
+    component: CreditCardCreate
+  },
+  {
+    path: '/cards/:id',
+    name: 'CardDetail',
+    component: CreditCardDetail
+  },
+  {
+    path: '/bank-accounts/create',
+    name: 'BankAccountCreate',
+    component: BankAccountCreate
+  },
+  {
+    path: '/bank-accounts/:id',
+    name: 'BankAccountDetail',
+    component: BankAccountDetail
   },
   {
     path: '/password-generator',

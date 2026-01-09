@@ -2,7 +2,7 @@
   <div class="container">
     <div class="mx-3">
       <div class="py-3 head">
-        <span class="fw-bold fs-big c-white">Bank Accounts ({{ filteredList.length }})</span>
+        <span class="fw-bold fs-big c-white">Addresses ({{ filteredList.length }})</span>
       </div>
 
       <ListLoader v-if="isLoading" />
@@ -13,7 +13,6 @@
           :key="item.id"
           :url="item.title"
           :title="item.title"
-          :subtitle="item.iban_number || item.account_number"
           @click="clickItem(item)"
         />
       </ul>
@@ -27,7 +26,7 @@ import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
 
 export default {
-  name: 'BankAccounts',
+  name: 'Addresses',
   
   setup() {
     const itemsStore = useItemsStore()
@@ -48,9 +47,9 @@ export default {
   },
 
   mounted() {
-    const hasBanks = this.ItemList?.filter(item => item.item_type === ItemType.Bank).length > 0
+    const hasAddresses = this.ItemList?.filter(item => item.item_type === ItemType.Address).length > 0
     
-    if (!this._listFetched && !hasBanks) {
+    if (!this._listFetched && !hasAddresses) {
       this.fetchAll()
       this._listFetched = true
     }
@@ -68,9 +67,11 @@ export default {
     filteredList() {
       if (!this.ItemList) return []
       
-      const bankItems = this.ItemList.filter(item => item.item_type === ItemType.Bank)
+      // Filter by ItemType.Address
+      const addressItems = this.ItemList.filter(item => item.item_type === ItemType.Address)
       
-      const filtered = bankItems.filter(item =>
+      // Then filter by search query
+      const filtered = addressItems.filter(item =>
         Object.values(item).some(value =>
           (value || '')
             .toString()
@@ -95,18 +96,19 @@ export default {
   methods: {
     async fetchAll() {
       try {
-        await this.itemsStore.fetchItems({ type: ItemType.Bank })
+        await this.itemsStore.fetchItems({ type: ItemType.Address })
       } catch (error) {
-        console.error('Failed to fetch bank accounts:', error)
-        this.$notifyError?.('Failed to load bank accounts')
+        console.error('Failed to fetch addresses:', error)
+        this.$notifyError?.('Failed to load addresses')
       }
     },
 
     clickItem(item) {
-      this.$router.push({ name: 'BankAccountDetail', params: { id: item.id } })
+      this.$router.push({ name: 'AddressDetail', params: { id: item.id } })
     }
   }
 }
 </script>
 
-<style lang="scss"></style>
+<style scoped lang="scss"></style>
+

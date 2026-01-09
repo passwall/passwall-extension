@@ -182,14 +182,14 @@
 </template>
 
 <script>
-import { useServersStore } from '@/stores/servers'
+import { useItemsStore, ItemType } from '@/stores/items'
 import Storage from '@/utils/storage'
 
 export default {
   setup() {
-    const serversStore = useServersStore()
+    const itemsStore = useItemsStore()
     return {
-      createItem: serversStore.create
+      createItem: itemsStore.create
     }
   },
   data() {

@@ -142,7 +142,7 @@
 </template>
 
 <script>
-import { useLoginsStore } from '@/stores/logins'
+import { useItemsStore, ItemType } from '@/stores/items'
 import Storage from '@/utils/storage'
 import totpCaptureService from '@/utils/totp-capture'
 import TOTPCounter from '@/components/TOTPCounter.vue'
@@ -152,10 +152,10 @@ export default {
     TOTPCounter
   },
   setup() {
-    const loginsStore = useLoginsStore()
+    const itemsStore = useItemsStore()
     
     return {
-      createLogin: loginsStore.create
+      createLogin: itemsStore.create
     }
   },
   data() {
@@ -196,7 +196,7 @@ export default {
       }
       const onSuccess = async () => {
         await this.createLogin({ ...this.form })
-        this.$router.push({ name: 'Logins' })
+        this.$router.push({ name: 'Passwords' })
       }
       this.$request(onSuccess, this.$waiters.Logins.Create)
     },

@@ -75,14 +75,14 @@
 </template>
 
 <script>
-import { useEmailsStore } from '@/stores/emails'
+import { useItemsStore, ItemType } from '@/stores/items'
 import Storage from '@/utils/storage'
 
 export default {
   setup() {
-    const emailsStore = useEmailsStore()
+    const itemsStore = useItemsStore()
     return {
-      createItem: emailsStore.create
+      createItem: itemsStore.create
     }
   },
   data() {

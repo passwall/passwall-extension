@@ -13,6 +13,7 @@ export default {
   },
   computed: {
     firstLettersOfName() {
+      if (!this.name) return 'PW'
       const [firstName, lastName] = this.name.split(' ')
       return `${firstName[0]}${(lastName || ' ')[0]}`
     }

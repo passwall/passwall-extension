@@ -26,31 +26,51 @@
       <form class="form" @submit.stop.prevent="onClickUpdate">
         <FormRowText v-model="form.title" title="title" :edit-mode="isEditMode" :show-icons="true" />
         <FormRowText
-          v-model="form.cardholder_name"
-          title="cardholder name"
+          v-model="form.name_on_card"
+          title="name on card"
           :edit-mode="isEditMode"
           :show-icons="true"
         />
-        <FormRowText v-model="form.type" title="type" :edit-mode="isEditMode" :show-icons="true" />
+        <FormRowText v-model="form.card_type" title="card type" :edit-mode="isEditMode" :show-icons="true" />
         <FormRowText
-          v-model="form.number"
-          title="number"
-          :edit-mode="isEditMode"
-          :show-icons="true"
-        />
-        <FormRowText
-          v-model="form.expiry_date"
-          title="expiry date"
+          v-model="form.card_number"
+          title="card number"
           :edit-mode="isEditMode"
           :show-icons="true"
         />
         <FormRowText
-          v-model="form.verification_number"
-          title="verification number"
+          v-model="form.exp_month"
+          title="exp month"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
+        <FormRowText
+          v-model="form.exp_year"
+          title="exp year"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
+        <FormRowText
+          v-model="form.security_code"
+          title="security code (CVV)"
           :edit-mode="isEditMode"
           :show-icons="true"
           password
         />
+
+        <div>
+          <VTextArea
+            v-model="form.notes"
+            label="Notes"
+            name="notes"
+            :placeholder="$t(isEditMode ? 'ClickToFill' : 'ContentHidden')"
+            :disabled="!isEditMode"
+            minheight=110
+          />
+        </div>
+        <div class="d-flex px-3 mb-2" v-if="form.notes">
+          <ClipboardButton :copy="form.notes" />
+        </div>
 
         <!-- Save & Cancel -->
         <div class="d-flex m-3" v-if="isEditMode">
@@ -67,81 +87,129 @@
 </template>
 
 <script>
-import { useCreditCardsStore } from '@/stores/creditCards'
+import { useItemsStore, ItemType } from '@/stores/items'
+import { storeToRefs } from 'pinia'
 
 export default {
+  name: 'PaymentCardDetail',
+  
   data() {
     return {
       form: {
         title: '',
-        cardholder_name: '',
-        type: '',
-        number: '',
-        expiry_date: '',
-        verification_number: ''
+        name_on_card: '',
+        card_type: '',
+        card_number: '',
+        exp_month: '',
+        exp_year: '',
+        security_code: '',
+        notes: ''
       },
       isEditMode: false
     }
   },
 
   setup() {
-    const creditCardsStore = useCreditCardsStore()
+    const itemsStore = useItemsStore()
+    const { items } = storeToRefs(itemsStore)
+    
     return {
-      creditCardsStore,
-      deleteItem: creditCardsStore.delete,
-      updateItem: creditCardsStore.update
+      itemsStore,
+      items
     }
   },
 
   computed: {
-    ItemList() {
-      return this.creditCardsStore?.itemList || []
-    },
     loading() {
-      return this.$wait.is(this.$waiters.CreditCards.Update)
+      return this.itemsStore.isLoading
     }
   },
 
-  mounted() {
-    let detail = this.creditCardsStore.detail
-    if (!detail || !detail.id) {
-      detail = this.$route.params.detail
+  async mounted() {
+    const itemId = parseInt(this.$route.params.id)
+    
+    if (!itemId) {
+      this.$router.push({ name: 'Cards' })
+      return
     }
-    if ((!detail || !detail.id) && this.$route.params.id) {
-      detail = this.ItemList.find(i => i.id == this.$route.params.id)
+
+    let item = this.items.find(i => i.id === itemId)
+    
+    if (!item) {
+      try {
+        await this.itemsStore.fetchItems({ type: ItemType.Card })
+        item = this.items.find(i => i.id === itemId)
+      } catch (error) {
+        console.error('Failed to fetch item:', error)
+        this.$notifyError?.('Failed to load card')
+        this.$router.push({ name: 'Cards' })
+        return
+      }
     }
-    if (detail && detail.id) {
-      this.form = { ...this.form, ...detail }
+    
+    if (!item) {
+      this.$notifyError?.('Card not found')
+      this.$router.push({ name: 'Cards' })
+      return
+    }
+
+    this.form = {
+      title: item.title || item.name || item.metadata?.name || '',
+      name_on_card: item.name_on_card || '',
+      card_type: item.card_type || '',
+      card_number: item.card_number || '',
+      exp_month: item.exp_month || '',
+      exp_year: item.exp_year || '',
+      security_code: item.security_code || '',
+      notes: item.notes || ''
     }
   },
 
   methods: {
     goBack() {
-      this.$router.push({ name: 'CreditCards', params: { cache: true } })
+      this.$router.push({ name: 'Cards', params: { cache: true } })
     },
 
-    onClickDelete() {
-      const onSuccess = async () => {
-        await this.deleteItem(this.form.id)
-        const index = this.ItemList.findIndex(item => item.id == this.form.id)
-        if (index !== -1) {
-          this.ItemList.splice(index, 1)
-        }
-        this.$router.push({ name: 'CreditCards', params: { cache: true } })
+    async onClickDelete() {
+      if (!confirm('Are you sure you want to delete this card?')) return
+      
+      const itemId = parseInt(this.$route.params.id)
+      try {
+        await this.itemsStore.deleteItem(itemId)
+        this.$notifySuccess?.('Card deleted successfully')
+        this.$router.push({ name: 'Cards' })
+      } catch (error) {
+        console.error('Failed to delete card:', error)
+        this.$notifyError?.('Failed to delete card')
       }
-      if (confirm('Are you sure you want to delete'))
-        this.$request(onSuccess, this.$waiters.CreditCards.Delete)
     },
 
     async onClickUpdate() {
-      const onSuccess = async () => {
-        const updated = await this.updateItem({ ...this.form })
-        this.form = { ...this.form, ...updated }
-        this.creditCardsStore.setDetail(updated)
+      const itemId = parseInt(this.$route.params.id)
+      
+      if (!this.form.title) {
+        this.$notifyError?.('Title is required')
+        return
       }
 
-      await this.$request(onSuccess, this.$waiters.CreditCards.Update)
-      this.isEditMode = false
+      try {
+        const cardData = { ...this.form }
+        const metadata = { name: this.form.title, brand: this.form.card_type }
+
+        await this.itemsStore.updateItem(itemId, {
+          item_type: ItemType.Card,
+          data: cardData,
+          metadata
+        })
+
+        this.$notifySuccess?.('Card updated successfully')
+        this.isEditMode = false
+        
+        await this.itemsStore.fetchItems({ type: ItemType.Card })
+      } catch (error) {
+        console.error('Failed to update card:', error)
+        this.$notifyError?.('Failed to update card')
+      }
     }
   }
 }

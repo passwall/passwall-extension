@@ -2,11 +2,11 @@
   <div class="container">
     <div class="mx-3">
       <div class="py-3 head">
-        <span class="fw-bold fs-big c-white">Notes ({{ filteredList.length }})</span>
+        <span class="fw-bold fs-big c-white">Secure Notes ({{ filteredList.length }})</span>
       </div>
 
-      <ListLoader v-if="$wait.is($waiters.Emails.All)" />
-      <EmptyState v-if="filteredList.length <= 0" />
+      <ListLoader v-if="isLoading" />
+      <EmptyState v-if="!isLoading && filteredList.length <= 0" />
       <ul class="items" v-else>
         <ListItem
           v-for="item in filteredList"
@@ -21,27 +21,88 @@
 </template>
 
 <script>
-import { useNotesStore } from '@/stores/notes'
+import { useItemsStore, ItemType } from '@/stores/items'
+import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
-import ListMixin from '@/mixins/list'
 
 export default {
-  mixins: [ListMixin],
-  name: 'Notes', // it uses for loading state !! important
+  name: 'Notes',
+  
   setup() {
-    const notesStore = useNotesStore()
-    const { itemList } = storeToRefs(notesStore)
+    const itemsStore = useItemsStore()
+    const authStore = useAuthStore()
+    const { items } = storeToRefs(itemsStore)
     
     return {
-      notesStore,
-      ItemList: itemList,
-      FetchAll: notesStore.fetchAll
+      itemsStore,
+      authStore,
+      ItemList: items
     }
   },
+
+  data() {
+    return {
+      _listFetched: false
+    }
+  },
+
+  mounted() {
+    const hasNotes = this.ItemList?.filter(item => item.item_type === ItemType.Note).length > 0
+    
+    if (!this._listFetched && !hasNotes) {
+      this.fetchAll()
+      this._listFetched = true
+    }
+  },
+  
+  computed: {
+    isLoading() {
+      return this.itemsStore.isLoading
+    },
+
+    searchQuery() {
+      return this.authStore.searchQuery
+    },
+
+    filteredList() {
+      if (!this.ItemList) return []
+      
+      const noteItems = this.ItemList.filter(item => item.item_type === ItemType.Note)
+      
+      const filtered = noteItems.filter(item =>
+        Object.values(item).some(value =>
+          (value || '')
+            .toString()
+            .toLowerCase()
+            .includes(this.searchQuery.toLowerCase())
+        )
+      )
+      
+      const sorted = [...filtered].sort((a, b) => {
+        const key = (item) => (
+          item.title ||
+          item.name ||
+          ''
+        ).toString().toLowerCase()
+        return key(a).localeCompare(key(b))
+      })
+
+      return sorted
+    }
+  },
+
   methods: {
-    clickItem(detail) {
-      this.notesStore.setDetail(detail)
-      this.$router.push({ name: 'NoteDetail', params: { id: detail.id } })
+    async fetchAll() {
+      try {
+        await this.itemsStore.fetchItems({ type: ItemType.Note })
+      } catch (error) {
+        console.error('Failed to fetch notes:', error)
+        this.$notifyError?.('Failed to load notes')
+      }
+    },
+
+    clickItem(item) {
+      this.$router.push({ name: 'NoteDetail', params: { id: item.id } })
     }
   }
 }

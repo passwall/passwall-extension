@@ -41,25 +41,22 @@
 </template>
 
 <script>
-import { useLoginsStore } from '@/stores/logins'
+import { useItemsStore, ItemType } from '@/stores/items'
 import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
-import ListMixin from '@/mixins/list'
 
 export default {
-  mixins: [ListMixin],
-  name: 'Logins',
+  name: 'Passwords',
   
   setup() {
-    const loginsStore = useLoginsStore()
+    const itemsStore = useItemsStore()
     const authStore = useAuthStore()
-    const { itemList } = storeToRefs(loginsStore)
+    const { items } = storeToRefs(itemsStore)
     
     return {
-      loginsStore,
+      itemsStore,
       authStore,
-      ItemList: itemList,
-      FetchAll: loginsStore.fetchAll,
+      ItemList: items,
       onInputSearchQuery: authStore.setSearchQuery
     }
   },
@@ -67,13 +64,52 @@ export default {
   data() {
     return {
       showDeleteConfirm: false,
-      deleteItem: null
+      deleteItem: null,
+      _listFetched: false
+    }
+  },
+
+  mounted() {
+    const hasPasswords = this.ItemList?.filter(item => item.item_type === ItemType.Password).length > 0
+    
+    if (!this._listFetched && !hasPasswords) {
+      this.fetchAll()
+      this._listFetched = true
     }
   },
   
   computed: {
     isLoading() {
-      return this.$wait.is(this.$waiters.Logins.All)
+      return this.itemsStore.isLoading
+    },
+
+    searchQuery() {
+      return this.authStore.searchQuery
+    },
+
+    filteredList() {
+      if (!this.ItemList) return []
+      
+      const filtered = this.ItemList.filter(item =>
+        Object.values(item).some(value =>
+          (value || '')
+            .toString()
+            .toLowerCase()
+            .includes(this.searchQuery.toLowerCase())
+        )
+      )
+      
+      const sorted = [...filtered].sort((a, b) => {
+        const key = (item) => (
+          item.title ||
+          item.url ||
+          item.username ||
+          ''
+        ).toString().toLowerCase()
+        return key(a).localeCompare(key(b))
+      })
+
+      return sorted
     },
 
     deleteConfirmMessage() {
@@ -84,10 +120,18 @@ export default {
   },
   
   methods: {
+    async fetchAll() {
+      try {
+        await this.itemsStore.fetchItems({ type: ItemType.Password })
+      } catch (error) {
+        console.error('Failed to fetch passwords:', error)
+        this.$notifyError?.('Failed to load passwords')
+      }
+    },
+
     handleEdit(item) {
-      this.loginsStore.setDetail(item)
       this.$router.push({ 
-        name: 'LoginDetail', 
+        name: 'PasswordDetail', 
         params: { id: item.id }
       })
     },
@@ -100,16 +144,14 @@ export default {
     async confirmDelete() {
       if (!this.deleteItem) return
 
-      const onSuccess = async () => {
-        await this.loginsStore.delete(this.deleteItem.id)
-        const index = this.ItemList.findIndex(i => i.id === this.deleteItem.id)
-        if (index !== -1) {
-          this.ItemList.splice(index, 1)
-        }
+      try {
+        await this.itemsStore.deleteItem(this.deleteItem.id)
         this.$notifySuccess?.('Password deleted successfully')
+      } catch (error) {
+        console.error('Failed to delete password:', error)
+        this.$notifyError?.('Failed to delete password')
       }
       
-      await this.$request(onSuccess, this.$waiters.Logins.Delete)
       this.deleteItem = null
     },
 

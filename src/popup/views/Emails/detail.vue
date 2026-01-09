@@ -48,7 +48,7 @@
 </template>
 
 <script>
-import { useEmailsStore } from '@/stores/emails'
+import { useItemsStore, ItemType } from '@/stores/items'
 
 export default {
   data() {
@@ -63,17 +63,17 @@ export default {
   },
 
   setup() {
-    const emailsStore = useEmailsStore()
+    const itemsStore = useItemsStore()
     return {
       emailsStore,
-      deleteItem: emailsStore.delete,
-      updateItem: emailsStore.update
+      deleteItem: itemsStore.delete,
+      updateItem: itemsStore.update
     }
   },
 
   computed: {
     ItemList() {
-      return this.emailsStore?.itemList || []
+      return this.itemsStore?.itemList || []
     },
     loading() {
       return this.$wait.is(this.$waiters.Emails.Update)
@@ -81,7 +81,7 @@ export default {
   },
 
   mounted() {
-    let detail = this.emailsStore.detail
+    let detail = this.itemsStore.detail
     if (!detail || !detail.id) {
       detail = this.$route.params.detail
     }
@@ -115,7 +115,7 @@ export default {
       const onSuccess = async () => {
         const updated = await this.updateItem({ ...this.form })
         this.form = { ...this.form, ...updated }
-        this.emailsStore.setDetail(updated)
+        this.itemsStore.setDetail(updated)
       }
 
       await this.$request(onSuccess, this.$waiters.Emails.Update)

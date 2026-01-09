@@ -2,23 +2,8 @@
   <div class="d-flex flex-justify-between tabs" v-bind="$attrs">
     <VIcon
       name="lock"
-      :class="[{ active: getColor('Logins') }, 'c-pointer']"
-      @click="switchTabs('Logins')"
-    />
-    <VIcon
-      name="credit-card"
-      :class="[{ active: getColor('CreditCards') }, 'c-pointer']"
-      @click="switchTabs('CreditCards')"
-    />
-    <VIcon
-      name="at-symbol"
-      :class="[{ active: getColor('Emails') }, 'c-pointer']"
-      @click="switchTabs('Emails')"
-    />
-    <VIcon
-      name="shield-check"
-      :class="[{ active: getColor('BankAccounts') }, 'c-pointer']"
-      @click="switchTabs('BankAccounts')"
+      :class="[{ active: getColor('Passwords') }, 'c-pointer']"
+      @click="switchTabs('Passwords')"
     />
     <VIcon
       name="clipboard-secure"
@@ -26,9 +11,19 @@
       @click="switchTabs('Notes')"
     />
     <VIcon
-      name="terminal"
-      :class="[{ active: getColor('Servers') }, 'c-pointer']"
-      @click="switchTabs('Servers')"
+      name="map-pin"
+      :class="[{ active: getColor('Addresses') }, 'c-pointer']"
+      @click="switchTabs('Addresses')"
+    />
+    <VIcon
+      name="credit-card"
+      :class="[{ active: getColor('Cards') }, 'c-pointer']"
+      @click="switchTabs('Cards')"
+    />
+    <VIcon
+      name="shield-check"
+      :class="[{ active: getColor('BankAccounts') }, 'c-pointer']"
+      @click="switchTabs('BankAccounts')"
     />
   </div>
 </template>
@@ -52,7 +47,7 @@ export default {
       if (this.hasProPlan) {
         this.$router.replace({ name })
       } else {
-        if (name === "Logins") {this.$router.replace({ name })}
+        if (name === "Passwords") {this.$router.replace({ name })}
       }
     },
     getColor(name) {

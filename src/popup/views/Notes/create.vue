@@ -52,42 +52,58 @@
 </template>
 
 <script>
-import { useNotesStore } from '@/stores/notes'
+import { useItemsStore, ItemType } from '@/stores/items'
 import Storage from '@/utils/storage'
 
 export default {
+  name: 'NoteCreate',
+  
   setup() {
-    const notesStore = useNotesStore()
+    const itemsStore = useItemsStore()
     return {
-      createItem: notesStore.create
+      itemsStore
     }
   },
+  
   data() {
     return {
-      showPass: false,
       form: {
         title: '',
         note: ''
       }
     }
   },
+  
   async created() {
     const storageFormData = await Storage.getItem('create_form')
     if (storageFormData !== null) {
       this.form = storageFormData
     }
   },
+  
   methods: {
     async onSubmit() {
       if (!this.form.title) {
-        this.$notifyError(this.$t('PleaseFillAllFields') || 'Please fill all required fields')
+        this.$notifyError?.('Title is required')
         return
       }
-      const onSuccess = async () => {
-        await this.createItem({ ...this.form })
+      
+      try {
+        const noteData = {
+          name: this.form.title,
+          notes: this.form.note
+        }
+        const metadata = { name: this.form.title }
+
+        await this.itemsStore.encryptAndCreate(ItemType.Note, noteData, metadata)
+        
+        this.$notifySuccess?.('Note created successfully')
+        Storage.setItem('create_form', null)
         this.$router.push({ name: 'Notes' })
+      } catch (error) {
+        console.error('Failed to create note:', error)
+        this.$notifyError?.('Failed to create note')
       }
-      this.$request(onSuccess, this.$waiters.Notes.Create)
     },
     
     saveForm: function (event) {

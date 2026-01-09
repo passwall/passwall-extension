@@ -62,7 +62,8 @@
 </template>
 
 <script>
-import { useNotesStore } from '@/stores/notes'
+import { useItemsStore, ItemType } from '@/stores/items'
+import { storeToRefs } from 'pinia'
 
 export default {
   data() {
@@ -76,33 +77,52 @@ export default {
   },
 
   setup() {
-    const notesStore = useNotesStore()
+    const itemsStore = useItemsStore()
+    const { items } = storeToRefs(itemsStore)
+    
     return {
-      notesStore,
-      deleteItem: notesStore.delete,
-      updateItem: notesStore.update
+      itemsStore,
+      items
     }
   },
 
   computed: {
-    ItemList() {
-      return this.notesStore?.itemList || []
-    },
     loading() {
-      return this.$wait.is(this.$waiters.Notes.Update)
+      return this.itemsStore.isLoading
     }
   },
 
-  mounted() {
-    let detail = this.notesStore.detail
-    if (!detail || !detail.id) {
-      detail = this.$route.params.detail
+  async mounted() {
+    const itemId = parseInt(this.$route.params.id)
+    
+    if (!itemId) {
+      this.$router.push({ name: 'Notes' })
+      return
     }
-    if ((!detail || !detail.id) && this.$route.params.id) {
-      detail = this.ItemList.find(i => i.id == this.$route.params.id)
+
+    let item = this.items.find(i => i.id === itemId)
+    
+    if (!item) {
+      try {
+        await this.itemsStore.fetchItems({ type: ItemType.Note })
+        item = this.items.find(i => i.id === itemId)
+      } catch (error) {
+        console.error('Failed to fetch item:', error)
+        this.$notifyError?.('Failed to load note')
+        this.$router.push({ name: 'Notes' })
+        return
+      }
     }
-    if (detail && detail.id) {
-      this.form = { ...this.form, ...detail }
+    
+    if (!item) {
+      this.$notifyError?.('Note not found')
+      this.$router.push({ name: 'Notes' })
+      return
+    }
+
+    this.form = {
+      title: item.title || item.metadata?.name || '',
+      note: item.notes || item.note || ''
     }
   },
 
@@ -111,28 +131,50 @@ export default {
       this.$router.push({ name: 'Notes', params: { cache: true } })
     },
 
-    onClickDelete() {
-      const onSuccess = async () => {
-        await this.deleteItem(this.form.id)
-        const index = this.ItemList.findIndex(item => item.id == this.form.id)
-        if (index !== -1) {
-          this.ItemList.splice(index, 1)
-        }
-        this.$router.push({ name: 'Notes', params: { cache: true } })
+    async onClickDelete() {
+      if (!confirm('Are you sure you want to delete this note?')) return
+      
+      const itemId = parseInt(this.$route.params.id)
+      try {
+        await this.itemsStore.deleteItem(itemId)
+        this.$notifySuccess?.('Note deleted successfully')
+        this.$router.push({ name: 'Notes' })
+      } catch (error) {
+        console.error('Failed to delete note:', error)
+        this.$notifyError?.('Failed to delete note')
       }
-      if (confirm('Are you sure you want to delete'))
-        this.$request(onSuccess, this.$waiters.Notes.Delete)
     },
 
     async onClickUpdate() {
-      const onSuccess = async () => {
-        const updated = await this.updateItem({ ...this.form })
-        this.form = { ...this.form, ...updated }
-        this.notesStore.setDetail(updated)
+      const itemId = parseInt(this.$route.params.id)
+      
+      if (!this.form.title) {
+        this.$notifyError?.('Title is required')
+        return
       }
 
-      await this.$request(onSuccess, this.$waiters.Notes.Update)
-      this.isEditMode = false
+      try {
+        const noteData = {
+          name: this.form.title,
+          notes: this.form.note
+        }
+        const metadata = { name: this.form.title }
+
+        await this.itemsStore.updateItem(itemId, {
+          item_type: ItemType.Note,
+          data: noteData,
+          metadata
+        })
+
+        this.$notifySuccess?.('Note updated successfully')
+        this.isEditMode = false
+        
+        // Refresh data
+        await this.itemsStore.fetchItems({ type: ItemType.Note })
+      } catch (error) {
+        console.error('Failed to update note:', error)
+        this.$notifyError?.('Failed to update note')
+      }
     }
   }
 }

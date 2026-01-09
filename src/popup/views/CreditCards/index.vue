@@ -2,18 +2,18 @@
   <div class="container">
     <div class="mx-3">
       <div class="py-3 head">
-        <span class="fw-bold fs-big c-white">Credit Cards ({{ filteredList.length }})</span>
+        <span class="fw-bold fs-big c-white">Payment Cards ({{ filteredList.length }})</span>
       </div>
 
-      <ListLoader v-if="$wait.is($waiters.CreditCards.All)" />
-      <EmptyState v-if="filteredList.length <= 0" />
+      <ListLoader v-if="isLoading" />
+      <EmptyState v-if="!isLoading && filteredList.length <= 0" />
       <ul class="items" v-else>
         <ListItem
           v-for="item in filteredList"
           :key="item.id"
           :url="item.title"
           :title="item.title"
-          :subtitle="item.number"
+          :subtitle="item.card_number"
           @click="clickItem(item)"
         />
       </ul>
@@ -22,27 +22,88 @@
 </template>
 
 <script>
-import { useCreditCardsStore } from '@/stores/creditCards'
+import { useItemsStore, ItemType } from '@/stores/items'
+import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
-import ListMixin from '@/mixins/list'
 
 export default {
-  mixins: [ListMixin],
-  name: 'CreditCards', // it uses for loading state !! important
+  name: 'PaymentCards',
+  
   setup() {
-    const creditCardsStore = useCreditCardsStore()
-    const { itemList } = storeToRefs(creditCardsStore)
+    const itemsStore = useItemsStore()
+    const authStore = useAuthStore()
+    const { items } = storeToRefs(itemsStore)
     
     return {
-      creditCardsStore,
-      ItemList: itemList,
-      FetchAll: creditCardsStore.fetchAll
+      itemsStore,
+      authStore,
+      ItemList: items
     }
   },
+
+  data() {
+    return {
+      _listFetched: false
+    }
+  },
+
+  mounted() {
+    const hasCards = this.ItemList?.filter(item => item.item_type === ItemType.Card).length > 0
+    
+    if (!this._listFetched && !hasCards) {
+      this.fetchAll()
+      this._listFetched = true
+    }
+  },
+  
+  computed: {
+    isLoading() {
+      return this.itemsStore.isLoading
+    },
+
+    searchQuery() {
+      return this.authStore.searchQuery
+    },
+
+    filteredList() {
+      if (!this.ItemList) return []
+      
+      const cardItems = this.ItemList.filter(item => item.item_type === ItemType.Card)
+      
+      const filtered = cardItems.filter(item =>
+        Object.values(item).some(value =>
+          (value || '')
+            .toString()
+            .toLowerCase()
+            .includes(this.searchQuery.toLowerCase())
+        )
+      )
+      
+      const sorted = [...filtered].sort((a, b) => {
+        const key = (item) => (
+          item.title ||
+          item.name ||
+          ''
+        ).toString().toLowerCase()
+        return key(a).localeCompare(key(b))
+      })
+
+      return sorted
+    }
+  },
+
   methods: {
-    clickItem(detail) {
-      this.creditCardsStore.setDetail(detail)
-      this.$router.push({ name: 'CreditCardDetail', params: { id: detail.id } })
+    async fetchAll() {
+      try {
+        await this.itemsStore.fetchItems({ type: ItemType.Card })
+      } catch (error) {
+        console.error('Failed to fetch cards:', error)
+        this.$notifyError?.('Failed to load payment cards')
+      }
+    },
+
+    clickItem(item) {
+      this.$router.push({ name: 'CardDetail', params: { id: item.id } })
     }
   }
 }

@@ -63,17 +63,17 @@
 </template>
 
 <script>
-import { useLoginsStore } from '@/stores/logins'
+import { useItemsStore, ItemType } from '@/stores/items'
 import Storage from '@/utils/storage'
 import { getDomain } from '@/utils/helpers'
 
 export default {
   name: 'SavePassword',
   setup() {
-    const loginsStore = useLoginsStore()
+    const itemsStore = useItemsStore()
     return {
-      createLogin: loginsStore.create,
-      updateLogin: loginsStore.update
+      createLogin: itemsStore.create,
+      updateLogin: itemsStore.update
     }
   },
   data() {

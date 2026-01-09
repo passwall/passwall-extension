@@ -204,12 +204,7 @@ export default {
 
       const onSuccess = async () => {
         await this.loginAction({ ...this.LoginForm })
-        const is_migrated = await this.$storage.getItem('is_migrated')
-        if (!is_migrated) {
-          this.$router.replace({ name: 'Migration' })
-          return
-        }
-        this.$router.replace({ name: 'Logins' })
+        this.$router.replace({ name: 'Passwords' })
       }
       this.$request(onSuccess, this.$waiters.Auth.Login, onError)
     },

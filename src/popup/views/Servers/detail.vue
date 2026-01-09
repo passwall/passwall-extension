@@ -108,7 +108,7 @@
 </template>
 
 <script>
-import { useServersStore } from '@/stores/servers'
+import { useItemsStore, ItemType } from '@/stores/items'
 
 export default {
   data() {
@@ -131,17 +131,17 @@ export default {
   },
 
   setup() {
-    const serversStore = useServersStore()
+    const itemsStore = useItemsStore()
     return {
       serversStore,
-      deleteItem: serversStore.delete,
-      updateItem: serversStore.update
+      deleteItem: itemsStore.delete,
+      updateItem: itemsStore.update
     }
   },
 
   computed: {
     ItemList() {
-      return this.serversStore?.itemList || []
+      return this.itemsStore?.itemList || []
     },
     loading() {
       return this.$wait.is(this.$waiters.Servers.Update)
@@ -149,7 +149,7 @@ export default {
   },
 
   mounted() {
-    let detail = this.serversStore.detail
+    let detail = this.itemsStore.detail
     if (!detail || !detail.id) {
       detail = this.$route.params.detail
     }
@@ -183,7 +183,7 @@ export default {
       const onSuccess = async () => {
         const updated = await this.updateItem({ ...this.form })
         this.form = { ...this.form, ...updated }
-        this.serversStore.setDetail(updated)
+        this.itemsStore.setDetail(updated)
       }
 
       await this.$request(onSuccess, this.$waiters.Servers.Update)

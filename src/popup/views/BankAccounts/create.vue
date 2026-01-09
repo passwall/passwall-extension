@@ -26,11 +26,44 @@
         </div>
 
         <div class="form-row">
-          <label v-text="'Account Name'" />
+          <label v-text="'First Name'" />
           <VFormText
-            name="account name"
+            name="first name"
             v-on:change="saveForm"
-            v-model="form.account_name"
+            v-model="form.first_name"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
+        </div>
+
+        <div class="form-row">
+          <label v-text="'Last Name'" />
+          <VFormText
+            name="last name"
+            v-on:change="saveForm"
+            v-model="form.last_name"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
+        </div>
+
+        <div class="form-row">
+          <label v-text="'Bank Name'" />
+          <VFormText
+            name="bank name"
+            v-on:change="saveForm"
+            v-model="form.bank_name"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
+        </div>
+
+        <div class="form-row">
+          <label v-text="'Account Type'" />
+          <VFormText
+            name="account type"
+            v-on:change="saveForm"
+            v-model="form.account_type"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
@@ -48,41 +81,30 @@
         </div>
 
         <div class="form-row">
-          <label v-text="'IBAN'" />
+          <label v-text="'IBAN Number'" />
           <VFormText
-            name="iban"
+            name="iban number"
             v-on:change="saveForm"
-            v-model="form.iban"
+            v-model="form.iban_number"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
         </div>
 
         <div class="form-row">
-          <label v-text="'Currency'" />
-          <VFormText
-            name="currency"
-            v-on:change="saveForm"
-            v-model="form.currency"
-            :placeholder="$t('ClickToFill')"
-            theme="no-border"
-          />
-        </div>
-
-        <div class="form-row">
-          <label v-text="'Password'" />
+          <label v-text="'PIN'" />
           <div class="d-flex flex-justify-between ">
             <VFormText
-              name="Password"
+              name="PIN"
               v-on:change="saveForm"
               class="flex-auto"
-              v-model="form.password"
+              v-model="form.pin"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showPass ? 'text' : 'password'"
             />
             <div class="d-flex flex-items-center mr-3">
-              <ClipboardButton :copy="form.password" />
+              <ClipboardButton :copy="form.pin" />
               <ShowPassButton @click="showPass = $event" />
             </div>
           </div>
@@ -93,7 +115,6 @@
           size="medium"
           type="submit"
           style="letter-spacing: 2px"
-          :loading="$wait.is($waiters.BankAccounts.Create)"
         >
           Save
         </VButton>
@@ -103,46 +124,67 @@
 </template>
 
 <script>
-import { useBankAccountsStore } from '@/stores/bankAccounts'
+import { useItemsStore, ItemType } from '@/stores/items'
 import Storage from '@/utils/storage'
 
 export default {
+  name: 'BankAccountCreate',
+  
   setup() {
-    const bankAccountsStore = useBankAccountsStore()
+    const itemsStore = useItemsStore()
     return {
-      createItem: bankAccountsStore.create
+      itemsStore
     }
   },
+  
   data() {
     return {
       showPass: false,
       form: {
         title: '',
-        account_name: '',
+        first_name: '',
+        last_name: '',
+        bank_name: '',
+        account_type: '',
+        routing_number: '',
         account_number: '',
-        iban: '',
-        currency: '',
-        password: ''
+        swift_code: '',
+        iban_number: '',
+        pin: '',
+        branch_address: '',
+        branch_phone: '',
+        notes: ''
       }
     }
   },
+  
   async created() {
     const storageFormData = await Storage.getItem('create_form')
     if (storageFormData !== null) {
       this.form = storageFormData
     }
   },
+  
   methods: {
     async onSubmit() {
       if (!this.form.title) {
-        this.$notifyError(this.$t('PleaseFillAllFields') || 'Please fill all required fields')
+        this.$notifyError?.('Title is required')
         return
       }
-      const onSuccess = async () => {
-        await this.createItem({ ...this.form })
+      
+      try {
+        const bankData = { ...this.form }
+        const metadata = { name: this.form.title, category: this.form.account_type }
+
+        await this.itemsStore.encryptAndCreate(ItemType.Bank, bankData, metadata)
+        
+        this.$notifySuccess?.('Bank account created successfully')
+        Storage.setItem('create_form', null)
         this.$router.push({ name: 'BankAccounts' })
+      } catch (error) {
+        console.error('Failed to create bank account:', error)
+        this.$notifyError?.('Failed to create bank account')
       }
-      this.$request(onSuccess, this.$waiters.BankAccounts.Create)
     },
     
     saveForm: function (event) {

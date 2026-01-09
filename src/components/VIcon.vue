@@ -64,7 +64,8 @@ export default {
         'upgrade': '0 0 24 24',
         'star': '0 0 16 16',
         'plus': '0 0 22 22',
-        'search': '0 0 24 24'
+        'search': '0 0 24 24',
+        'map-pin': '0 0 24 24'
       }
       
       return iconViewBoxMap[this.name] || '0 0 24 24'
