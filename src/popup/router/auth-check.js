@@ -12,6 +12,17 @@ export default async (to, _, next) => {
 
   // Normal auth check logic
   if (access_token) {
+    // Check if user key exists in session storage
+    const userKeyBase64 = sessionStorage.getItem('userKey')
+    
+    // If access token exists but userKey is missing, clear session and redirect to login
+    if (!userKeyBase64 && to.name !== 'Login') {
+      console.warn('User key missing from session. Clearing session...')
+      await Storage.clear()
+      sessionStorage.clear()
+      return next({ name: 'Login' })
+    }
+
     // User is logged in, redirect away from login page
     if (to.name === 'Login') {
       return next({ name: 'Home' })

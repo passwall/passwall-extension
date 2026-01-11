@@ -4,10 +4,13 @@
       <template v-slot:content>
         <div class="d-flex flex-items-center w-100">
           <VIcon class="c-pointer" name="arrow-left" @click="goBack" />
-          <div class="d-flex flex-auto flex-items-center ml-3" style="min-width: 0; overflow: hidden;">
+          <div
+            class="d-flex flex-auto flex-items-center ml-3"
+            style="min-width: 0; overflow: hidden"
+          >
             <span class="title fw-bold h5">{{ form.title }}</span>
           </div>
-          <div class="d-flex" style="flex-shrink: 0;">
+          <div class="d-flex" style="flex-shrink: 0">
             <button v-tooltip="$t('Delete')" @click="showDeleteConfirm = true">
               <VIcon class="c-pointer trash" name="trash" />
             </button>
@@ -20,32 +23,83 @@
     </Header>
     <div class="scroll detail">
       <form class="form" @submit.stop.prevent="onClickUpdate">
-        <FormRowText v-model="form.title" title="title" :edit-mode="isEditMode" :show-icons="true" />
-        <FormRowText v-model="form.first_name" title="first name" :edit-mode="isEditMode" :show-icons="true" />
-        <FormRowText v-model="form.middle_name" title="middle name" :edit-mode="isEditMode" :show-icons="true" />
-        <FormRowText v-model="form.last_name" title="last name" :edit-mode="isEditMode" :show-icons="true" />
-        <FormRowText v-model="form.company" title="company" :edit-mode="isEditMode" :show-icons="true" />
-        <FormRowText v-model="form.address1" title="address line 1" :edit-mode="isEditMode" :show-icons="true" />
-        <FormRowText v-model="form.address2" title="address line 2" :edit-mode="isEditMode" :show-icons="true" />
+        <FormRowText
+          v-model="form.title"
+          title="title"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
+        <FormRowText
+          v-model="form.first_name"
+          title="first name"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
+        <FormRowText
+          v-model="form.middle_name"
+          title="middle name"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
+        <FormRowText
+          v-model="form.last_name"
+          title="last name"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
+        <FormRowText
+          v-model="form.company"
+          title="company"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
+        <FormRowText
+          v-model="form.address1"
+          title="address line 1"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
+        <FormRowText
+          v-model="form.address2"
+          title="address line 2"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
         <FormRowText v-model="form.city" title="city" :edit-mode="isEditMode" :show-icons="true" />
-        <FormRowText v-model="form.state" title="state" :edit-mode="isEditMode" :show-icons="true" />
+        <FormRowText
+          v-model="form.state"
+          title="state"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
         <FormRowText v-model="form.zip" title="zip" :edit-mode="isEditMode" :show-icons="true" />
-        <FormRowText v-model="form.country" title="country" :edit-mode="isEditMode" :show-icons="true" />
-        <FormRowText v-model="form.phone" title="phone" :edit-mode="isEditMode" :show-icons="true" />
-        <FormRowText v-model="form.email" title="email" :edit-mode="isEditMode" :show-icons="true" />
+        <FormRowText
+          v-model="form.country"
+          title="country"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
+        <FormRowText
+          v-model="form.phone"
+          title="phone"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
+        <FormRowText
+          v-model="form.email"
+          title="email"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
 
         <div>
           <VTextArea
             v-model="form.notes"
             label="Notes"
             name="notes"
-            :placeholder="$t(isEditMode ? 'ClickToFill' : 'ContentHidden')"
             :disabled="!isEditMode"
-            minheight=110
+            minheight="110"
           />
-        </div>
-        <div class="d-flex px-3 mb-2" v-if="form.notes">
-          <ClipboardButton :copy="form.notes" />
         </div>
 
         <div class="d-flex m-2" v-if="isEditMode">
@@ -78,7 +132,7 @@ import { storeToRefs } from 'pinia'
 
 export default {
   name: 'AddressDetail',
-  
+
   data() {
     return {
       form: {
@@ -105,7 +159,7 @@ export default {
   setup() {
     const itemsStore = useItemsStore()
     const { items } = storeToRefs(itemsStore)
-    
+
     return {
       itemsStore,
       items
@@ -124,18 +178,18 @@ export default {
 
   async mounted() {
     const itemId = parseInt(this.$route.params.id)
-    
+
     if (!itemId) {
       this.$router.push({ name: 'Addresses' })
       return
     }
 
-    let item = this.items.find(i => i.id === itemId)
-    
+    let item = this.items.find((i) => i.id === itemId)
+
     if (!item) {
       try {
         await this.itemsStore.fetchItems({ type: ItemType.Address })
-        item = this.items.find(i => i.id === itemId)
+        item = this.items.find((i) => i.id === itemId)
       } catch (error) {
         console.error('Failed to fetch item:', error)
         this.$notifyError?.('Failed to load address')
@@ -143,7 +197,7 @@ export default {
         return
       }
     }
-    
+
     if (!item) {
       this.$notifyError?.('Address not found')
       this.$router.push({ name: 'Addresses' })
@@ -175,7 +229,7 @@ export default {
 
     async onClickUpdate() {
       const itemId = parseInt(this.$route.params.id)
-      
+
       if (!this.form.title) {
         this.$notifyError?.('Title is required')
         return
@@ -193,7 +247,7 @@ export default {
 
         this.$notifySuccess?.('Address updated successfully')
         this.isEditMode = false
-        
+
         // Refresh data
         await this.itemsStore.fetchItems({ type: ItemType.Address })
       } catch (error) {
@@ -239,5 +293,3 @@ export default {
   color: $color-secondary !important;
 }
 </style>
-
-

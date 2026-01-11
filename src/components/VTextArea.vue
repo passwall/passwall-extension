@@ -2,11 +2,10 @@
   <div class="text-area-wrapper">
     <div class="d-flex">
       <label v-if="label" class="title">{{ label }}</label>
-            <ShowPassButton @click="showNote = !showNote" />
-            <ClipboardButton :copy="modelValue || value"></ClipboardButton>
+      <ClipboardButton :copy="modelValue || value"></ClipboardButton>
     </div>
     <textarea
-      :value="showNote || isEditable ? (modelValue || value) : '●●●●●●'"
+      :value="modelValue || value"
       autocorrect="off"
       autocomplete="off"
       spellcheck="false"
@@ -36,12 +35,7 @@ export default {
     },
     minheight: {
       type: String,
-      default: '150'
-    }
-  },
-  data() {
-    return {
-      showNote: false
+      default: '110'
     }
   },
   computed: {
@@ -49,9 +43,6 @@ export default {
       if (!this.errors) return ''
       const error = this.errors.items.find(e => e.field == this.name)
       return error ? error.msg : ''
-    },
-    hiddenNote() {
-      return this.note?.replaceAll("","*") || '';
     },
     inputListeners() {
       // Vue 3: $listeners merged into $attrs

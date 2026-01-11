@@ -96,7 +96,10 @@ export default {
   methods: {
     async fetchAll() {
       try {
-        await this.itemsStore.fetchItems({ type: ItemType.Address })
+        await this.itemsStore.fetchItems({ 
+          type: ItemType.Address,
+          per_page: 10000 // Fetch all addresses (no pagination)
+        })
       } catch (error) {
         console.error('Failed to fetch addresses:', error)
         this.$notifyError?.('Failed to load addresses')

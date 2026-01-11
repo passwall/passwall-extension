@@ -84,7 +84,7 @@ export default {
       // Show server URL input (from environment config)
       showServerUrl: ENV_CONFIG.SHOW_SERVER_URL,
       LoginForm: {
-        server: 'https://vault.passwall.io',
+        server: 'https://api.passwall.io',
         email: '',
         master_password: ''
       }
@@ -211,7 +211,7 @@ export default {
 
     newTab() {
       this.$browser.tabs.create({
-        url: 'https://signup.passwall.io/'
+        url: 'https://vault.passwall.io/sign-up'
       })
     }
   }

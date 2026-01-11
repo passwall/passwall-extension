@@ -64,6 +64,13 @@ export const useAuthStore = defineStore('auth', {
         console.warn('Failed to restore keys from session:', error)
       }
 
+      // Security check: If user is logged in but userKey is missing, force logout
+      if (access_token && !this.userKey) {
+        console.error('User key missing but access token exists. Forcing logout for security...')
+        await this.logout()
+        return
+      }
+
       // Configure HTTP client
       if (server) {
         HTTPClient.setBaseURL(server)

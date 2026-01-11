@@ -122,7 +122,10 @@ export default {
   methods: {
     async fetchAll() {
       try {
-        await this.itemsStore.fetchItems({ type: ItemType.Password })
+        await this.itemsStore.fetchItems({ 
+          type: ItemType.Password,
+          per_page: 10000 // Fetch all passwords (no pagination)
+        })
       } catch (error) {
         console.error('Failed to fetch passwords:', error)
         this.$notifyError?.('Failed to load passwords')

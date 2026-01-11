@@ -95,7 +95,10 @@ export default {
   methods: {
     async fetchAll() {
       try {
-        await this.itemsStore.fetchItems({ type: ItemType.Bank })
+        await this.itemsStore.fetchItems({ 
+          type: ItemType.Bank,
+          per_page: 10000 // Fetch all bank accounts (no pagination)
+        })
       } catch (error) {
         console.error('Failed to fetch bank accounts:', error)
         this.$notifyError?.('Failed to load bank accounts')

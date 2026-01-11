@@ -1,4 +1,4 @@
-import CreditCardsService from '@/api/services/CreditCards'
+import PaymentCardsService from '@/api/services/PaymentCards'
 import CryptoUtils from '@/utils/crypto'
 
 const EncryptedFields = ['type', 'number', 'expiry_date', 'cardholder_name', 'verification_number']
@@ -15,7 +15,7 @@ export default {
 
   actions: {
     async FetchAll({ state }, query) {
-      const { data: itemList } = await CreditCardsService.FetchAll(query)
+      const { data: itemList } = await PaymentCardsService.FetchAll(query)
       itemList.forEach(element => {
         CryptoUtils.decryptFields(element, EncryptedFields)
       })
@@ -23,17 +23,17 @@ export default {
     },
 
     Delete(_, id) {
-      return CreditCardsService.Delete(id)
+      return PaymentCardsService.Delete(id)
     },
 
     Create(_, data) {
       const payload = CryptoUtils.encryptPayload(data, EncryptedFields)
-      return CreditCardsService.Create(payload)
+      return PaymentCardsService.Create(payload)
     },
 
     Update(_, data) {
       const payload = CryptoUtils.encryptPayload(data, EncryptedFields)
-      return CreditCardsService.Update(data.id, payload)
+      return PaymentCardsService.Update(data.id, payload)
     }
   }
 }

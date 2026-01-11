@@ -8,12 +8,10 @@ import AuthService from '@/api/services/Auth'
 
 import Storage from '@/utils/storage'
 
-import Logins from '@p/views/Logins/store'
-import CreditCards from '@/popup/views/CreditCards/store'
-import Emails from '@p/views/Emails/store'
+import Passwords from '@p/views/Passwords/store'
+import PaymentCards from '@/popup/views/PaymentCards/store'
 import BankAccounts from '@p/views/BankAccounts/store'
 import Notes from '@p/views/Notes/store'
-import Servers from '@p/views/Servers/store'
 import ChangeMasterPassword from '@p/views/ChangeMasterPassword/store'
 import Migration from '@p/views/Migration/store'
 import * as Helpers from '@/utils/helpers'
@@ -65,7 +63,7 @@ export default new Vuex.Store({
 
       await Promise.all([
         Storage.setItem('access_token', data.access_token),
-        Storage.setItem('refresh_token', data.refresh_token),
+        Storage.setItem('refresh_token', data.refresh_token)
       ])
 
       HTTPClient.setHeader('Authorization', `Bearer ${state.access_token}`)
@@ -91,7 +89,7 @@ export default new Vuex.Store({
         Storage.setItem('refresh_token', data.refresh_token),
         Storage.setItem('user', data),
         Storage.setItem('master_hash', state.master_hash),
-        Storage.setItem('is_migrated', data.is_migrated),
+        Storage.setItem('is_migrated', data.is_migrated)
       ])
 
       HTTPClient.setHeader('Authorization', `Bearer ${state.access_token}`)
@@ -121,12 +119,10 @@ export default new Vuex.Store({
   },
 
   modules: {
-    Logins,
-    CreditCards,
-    Emails,
+    Passwords,
+    PaymentCards,
     BankAccounts,
     Notes,
-    Servers,
     ChangeMasterPassword,
     Migration
   }

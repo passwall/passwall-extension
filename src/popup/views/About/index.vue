@@ -8,7 +8,7 @@
         </div>
       </template>
     </Header>
-    
+
     <div class="about-content">
       <!-- Logo -->
       <div class="logo-container">
@@ -24,11 +24,7 @@
       <p class="info-text">All Rights Reserved.</p>
 
       <!-- Support Link -->
-      <a 
-        href="#" 
-        class="support-link"
-        @click.prevent="openSupport"
-      >
+      <a href="#" class="support-link" @click.prevent="openSupport">
         Click here to view the Passwall Knowledgebase
       </a>
     </div>
@@ -41,7 +37,7 @@ import packageJson from '../../../../package.json'
 
 export default {
   name: 'About',
-  
+
   data() {
     return {
       version: packageJson.version,
@@ -57,7 +53,7 @@ export default {
 
     openSupport() {
       browser.tabs.create({
-        url: 'https://support.passwall.io'
+        url: 'https://passwall.io/support'
       })
     }
   }
@@ -75,7 +71,7 @@ export default {
 
 .logo-container {
   margin-bottom: 24px;
-  
+
   .passwall-logo {
     color: $color-white;
   }
@@ -105,4 +101,3 @@ export default {
   }
 }
 </style>
-

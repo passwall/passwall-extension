@@ -4,11 +4,14 @@
       <template v-slot:content>
         <div class="d-flex flex-items-center w-100">
           <VIcon class="c-pointer" name="arrow-left" @click="goBack" />
-          <div class="d-flex flex-auto flex-items-center ml-3" style="min-width: 0; overflow: hidden;">
-            <CompanyLogo :url="form.title" style="flex-shrink: 0;" />
+          <div
+            class="d-flex flex-auto flex-items-center ml-3"
+            style="min-width: 0; overflow: hidden"
+          >
+            <CompanyLogo :url="form.title" style="flex-shrink: 0" />
             <span class="title fw-bold h5 ml-2">{{ form.title }}</span>
           </div>
-          <div class="d-flex" style="flex-shrink: 0;">
+          <div class="d-flex" style="flex-shrink: 0">
             <!-- Delete Btn -->
             <button v-tooltip="$t('Delete')" @click="onClickDelete">
               <VIcon class="c-pointer trash" name="trash" />
@@ -24,14 +27,24 @@
     </Header>
     <div class="scroll detail">
       <form class="form" @submit.stop.prevent="onClickUpdate">
-        <FormRowText v-model="form.title" title="title" :edit-mode="isEditMode" :show-icons="true" />
+        <FormRowText
+          v-model="form.title"
+          title="title"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
         <FormRowText
           v-model="form.name_on_card"
           title="name on card"
           :edit-mode="isEditMode"
           :show-icons="true"
         />
-        <FormRowText v-model="form.card_type" title="card type" :edit-mode="isEditMode" :show-icons="true" />
+        <FormRowText
+          v-model="form.card_type"
+          title="card type"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
         <FormRowText
           v-model="form.card_number"
           title="card number"
@@ -63,13 +76,9 @@
             v-model="form.notes"
             label="Notes"
             name="notes"
-            :placeholder="$t(isEditMode ? 'ClickToFill' : 'ContentHidden')"
             :disabled="!isEditMode"
-            minheight=110
+            minheight="110"
           />
-        </div>
-        <div class="d-flex px-3 mb-2" v-if="form.notes">
-          <ClipboardButton :copy="form.notes" />
         </div>
 
         <!-- Save & Cancel -->
@@ -92,7 +101,7 @@ import { storeToRefs } from 'pinia'
 
 export default {
   name: 'PaymentCardDetail',
-  
+
   data() {
     return {
       form: {
@@ -112,7 +121,7 @@ export default {
   setup() {
     const itemsStore = useItemsStore()
     const { items } = storeToRefs(itemsStore)
-    
+
     return {
       itemsStore,
       items
@@ -127,29 +136,29 @@ export default {
 
   async mounted() {
     const itemId = parseInt(this.$route.params.id)
-    
+
     if (!itemId) {
-      this.$router.push({ name: 'Cards' })
+      this.$router.push({ name: 'PaymentCards' })
       return
     }
 
-    let item = this.items.find(i => i.id === itemId)
-    
+    let item = this.items.find((i) => i.id === itemId)
+
     if (!item) {
       try {
         await this.itemsStore.fetchItems({ type: ItemType.Card })
-        item = this.items.find(i => i.id === itemId)
+        item = this.items.find((i) => i.id === itemId)
       } catch (error) {
         console.error('Failed to fetch item:', error)
         this.$notifyError?.('Failed to load card')
-        this.$router.push({ name: 'Cards' })
+        this.$router.push({ name: 'PaymentCards' })
         return
       }
     }
-    
+
     if (!item) {
       this.$notifyError?.('Card not found')
-      this.$router.push({ name: 'Cards' })
+      this.$router.push({ name: 'PaymentCards' })
       return
     }
 
@@ -167,17 +176,17 @@ export default {
 
   methods: {
     goBack() {
-      this.$router.push({ name: 'Cards', params: { cache: true } })
+      this.$router.push({ name: 'PaymentCards', params: { cache: true } })
     },
 
     async onClickDelete() {
       if (!confirm('Are you sure you want to delete this card?')) return
-      
+
       const itemId = parseInt(this.$route.params.id)
       try {
         await this.itemsStore.deleteItem(itemId)
         this.$notifySuccess?.('Card deleted successfully')
-        this.$router.push({ name: 'Cards' })
+        this.$router.push({ name: 'PaymentCards' })
       } catch (error) {
         console.error('Failed to delete card:', error)
         this.$notifyError?.('Failed to delete card')
@@ -186,7 +195,7 @@ export default {
 
     async onClickUpdate() {
       const itemId = parseInt(this.$route.params.id)
-      
+
       if (!this.form.title) {
         this.$notifyError?.('Title is required')
         return
@@ -204,7 +213,7 @@ export default {
 
         this.$notifySuccess?.('Card updated successfully')
         this.isEditMode = false
-        
+
         await this.itemsStore.fetchItems({ type: ItemType.Card })
       } catch (error) {
         console.error('Failed to update card:', error)

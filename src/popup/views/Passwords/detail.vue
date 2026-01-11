@@ -4,13 +4,16 @@
       <template v-slot:content>
         <div class="d-flex flex-items-center w-100">
           <VIcon class="c-pointer" name="arrow-left" @click="goBack" />
-          <div class="d-flex flex-auto flex-items-center ml-3" style="min-width: 0; overflow: hidden;">
-            <CompanyLogo :url="form.url" style="flex-shrink: 0;" />
+          <div
+            class="d-flex flex-auto flex-items-center ml-3"
+            style="min-width: 0; overflow: hidden"
+          >
+            <CompanyLogo :url="form.url" style="flex-shrink: 0" />
             <span class="title fw-bold h5 ml-2">{{
               form.title || $helpers.getHostName(form.url)
             }}</span>
           </div>
-          <div class="d-flex" style="flex-shrink: 0;">
+          <div class="d-flex" style="flex-shrink: 0">
             <!-- Delete Btn -->
             <button v-tooltip="$t('Delete')" @click="showDeleteConfirm = true">
               <VIcon class="c-pointer trash" name="trash" />
@@ -26,7 +29,12 @@
     </Header>
     <div class="scroll detail">
       <form class="form" @submit.stop.prevent="onClickUpdate">
-        <FormRowText v-model="form.title" title="title" :edit-mode="isEditMode" :show-icons="true" />
+        <FormRowText
+          v-model="form.title"
+          title="title"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
         <FormRowText
           v-model="form.username"
           title="username"
@@ -55,30 +63,20 @@
         </FormRowText>
 
         <div>
-          <VTextArea
-            v-model="form.extra"
-            label="Extra"
-            name="extra"
-            :placeholder="$t(isEditMode ? 'ClickToFill' : 'ContentHidden')"
-            :disabled="!isEditMode"
-            minheight=110
-          />
-        </div>
-        <div class="d-flex px-3 mb-2" v-if="form.extra">
-          <ClipboardButton :copy="form.extra" />
+          <VTextArea v-model="form.extra" label="Extra" name="extra" :disabled="!isEditMode" />
         </div>
 
         <!-- TOTP Section -->
-        <FormRowText 
-          v-model="form.totp_secret" 
-          title="Authenticator Key (TOTP)" 
-          :edit-mode="isEditMode" 
+        <FormRowText
+          v-model="form.totp_secret"
+          title="Authenticator Key (TOTP)"
+          :edit-mode="isEditMode"
           :show-icons="true"
           :force-show="showTotpSecret"
           password
         >
           <template v-slot:second-icon>
-            <button 
+            <button
               v-if="isEditMode"
               type="button"
               v-tooltip="'Capture QR Code'"
@@ -155,7 +153,7 @@ export default {
   setup() {
     const itemsStore = useItemsStore()
     const { items } = storeToRefs(itemsStore)
-    
+
     return {
       itemsStore,
       items
@@ -175,20 +173,20 @@ export default {
   async mounted() {
     // Get item ID from route
     const itemId = parseInt(this.$route.params.id)
-    
+
     if (!itemId) {
       this.$router.push({ name: 'Passwords' })
       return
     }
 
     // Find item in store
-    let item = this.items.find(i => i.id === itemId)
-    
+    let item = this.items.find((i) => i.id === itemId)
+
     // If not found, try to fetch it
     if (!item) {
       try {
         await this.itemsStore.fetchItems({ type: ItemType.Password })
-        item = this.items.find(i => i.id === itemId)
+        item = this.items.find((i) => i.id === itemId)
       } catch (error) {
         console.error('Failed to fetch item:', error)
         this.$notifyError?.('Failed to load password')
@@ -196,7 +194,7 @@ export default {
         return
       }
     }
-    
+
     // If still not found, navigate back
     if (!item) {
       this.$notifyError?.('Password not found')
@@ -223,15 +221,15 @@ export default {
     async confirmDelete() {
       const onSuccess = async () => {
         await this.deleteLogin(this.form.id)
-        const index = this.ItemList.findIndex(item => item.id == this.form.id)
+        const index = this.ItemList.findIndex((item) => item.id == this.form.id)
         if (index !== -1) {
           this.ItemList.splice(index, 1)
         }
         this.$notifySuccess?.('Password deleted successfully')
         this.$router.push({ name: 'Passwords', params: { cache: true } })
       }
-      
-      await this.$request(onSuccess, this.$waiters.Logins.Delete)
+
+      await this.$request(onSuccess, this.$waiters.Passwords.Delete)
     },
 
     async onClickUpdate() {
@@ -242,7 +240,7 @@ export default {
         this.itemsStore.setDetail(updated)
       }
 
-      await this.$request(onSuccess, this.$waiters.Logins.Update)
+      await this.$request(onSuccess, this.$waiters.Passwords.Update)
       this.isEditMode = false
     },
 
@@ -255,7 +253,7 @@ export default {
       this.capturingQR = true
       try {
         const totpUrl = await totpCaptureService.captureTotpSecret()
-        
+
         if (totpUrl) {
           // Extract secret from otpauth:// URL (admin stores only secret, not full URL)
           const secret = totpCaptureService.extractSecret(totpUrl)
@@ -266,7 +264,9 @@ export default {
             type: 'success'
           })
         } else {
-          this.$notifyError('QR code not found. Please ensure the QR code is clearly visible on screen.')
+          this.$notifyError(
+            'QR code not found. Please ensure the QR code is clearly visible on screen.'
+          )
         }
       } catch (error) {
         console.error('QR code capture error:', error)

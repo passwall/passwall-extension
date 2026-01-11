@@ -1,19 +1,15 @@
 import { defineStore } from 'pinia'
 import UsersService from '@/api/services/Users'
-import LoginsService from '@/api/services/Logins'
+import PasswordsService from '@/api/services/Passwords'
 import BankAccountsService from '@/api/services/BankAccounts'
-import CreditCardsService from '@/api/services/CreditCards'
-import EmailsService from '@/api/services/Emails'
+import PaymentCardsService from '@/api/services/PaymentCards'
 import NotesService from '@/api/services/Notes'
-import ServersService from '@/api/services/Servers'
 import CryptoUtils from '@/utils/crypto'
 
-const LoginsEncryptedFields = ['username', 'password', 'extra']
+const PasswordsEncryptedFields = ['username', 'password', 'extra']
 const BankAccountsEncryptedFields = ['account_name', 'account_number', 'iban', 'currency', 'password']
-const CreditCardsEncryptedFields = ['type', 'number', 'expiry_date', 'cardholder_name', 'verification_number']
-const EmailsEncryptedFields = ['email', 'password']
+const PaymentCardsEncryptedFields = ['type', 'number', 'expiry_date', 'cardholder_name', 'verification_number']
 const NotesEncryptedFields = ['note']
-const ServersEncryptedFields = ['ip', 'username', 'password', 'hosting_username', 'hosting_password', 'admin_username', 'admin_password', 'extra']
 
 export const useChangeMasterPasswordStore = defineStore('changeMasterPassword', {
   state: () => ({
@@ -52,49 +48,34 @@ export const useChangeMasterPasswordStore = defineStore('changeMasterPassword', 
       BankAccountsService.BulkUpdate(this.itemList)
     },
 
-    async fetchAllCreditCards(query) {
-      const { data: itemList } = await CreditCardsService.FetchAll(query)
+    async fetchAllPaymentCards(query) {
+      const { data: itemList } = await PaymentCardsService.FetchAll(query)
       itemList.forEach(element => {
-        CryptoUtils.decryptFields(element, CreditCardsEncryptedFields)
+        CryptoUtils.decryptFields(element, PaymentCardsEncryptedFields)
       })
       this.itemList = itemList
     },
 
-    async updateAllCreditCards() {
+    async updateAllPaymentCards() {
       this.itemList.forEach(element => {
-        CryptoUtils.encryptFields(element, CreditCardsEncryptedFields, this.new_master_hash)
+        CryptoUtils.encryptFields(element, PaymentCardsEncryptedFields, this.new_master_hash)
       })
-      CreditCardsService.BulkUpdate(this.itemList)
+      PaymentCardsService.BulkUpdate(this.itemList)
     },
 
-    async fetchAllEmails(query) {
-      const { data: itemList } = await EmailsService.FetchAll(query)
+    async fetchAllPasswords(query) {
+      const { data: itemList } = await PasswordsService.FetchAll(query)
       itemList.forEach(element => {
-        CryptoUtils.decryptFields(element, EmailsEncryptedFields)
+        CryptoUtils.decryptFields(element, PasswordsEncryptedFields)
       })
       this.itemList = itemList
     },
 
-    async updateAllEmails() {
+    async updateAllPasswords() {
       this.itemList.forEach(element => {
-        CryptoUtils.encryptFields(element, EmailsEncryptedFields, this.new_master_hash)
+        CryptoUtils.encryptFields(element, PasswordsEncryptedFields, this.new_master_hash)
       })
-      EmailsService.BulkUpdate(this.itemList)
-    },
-
-    async fetchAllLogins(query) {
-      const { data: itemList } = await LoginsService.FetchAll(query)
-      itemList.forEach(element => {
-        CryptoUtils.decryptFields(element, LoginsEncryptedFields)
-      })
-      this.itemList = itemList
-    },
-
-    async updateAllLogins() {
-      this.itemList.forEach(element => {
-        CryptoUtils.encryptFields(element, LoginsEncryptedFields, this.new_master_hash)
-      })
-      LoginsService.BulkUpdate(this.itemList)
+      PasswordsService.BulkUpdate(this.itemList)
     },
 
     async fetchAllNotes(query) {
@@ -110,21 +91,6 @@ export const useChangeMasterPasswordStore = defineStore('changeMasterPassword', 
         CryptoUtils.encryptFields(element, NotesEncryptedFields, this.new_master_hash)
       })
       NotesService.BulkUpdate(this.itemList)
-    },
-
-    async fetchAllServers(query) {
-      const { data: itemList } = await ServersService.FetchAll(query)
-      itemList.forEach(element => {
-        CryptoUtils.decryptFields(element, ServersEncryptedFields)
-      })
-      this.itemList = itemList
-    },
-
-    async updateAllServers() {
-      this.itemList.forEach(element => {
-        CryptoUtils.encryptFields(element, ServersEncryptedFields, this.new_master_hash)
-      })
-      ServersService.BulkUpdate(this.itemList)
     },
 
     async changeMasterPassword(data) {

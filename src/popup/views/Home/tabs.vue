@@ -17,8 +17,8 @@
     />
     <VIcon
       name="credit-card"
-      :class="[{ active: getColor('Cards') }, 'c-pointer']"
-      @click="switchTabs('Cards')"
+      :class="[{ active: getColor('PaymentCards') }, 'c-pointer']"
+      @click="switchTabs('PaymentCards')"
     />
     <VIcon
       name="shield-check"

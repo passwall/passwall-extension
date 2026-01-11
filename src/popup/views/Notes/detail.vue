@@ -4,11 +4,14 @@
       <template v-slot:content>
         <div class="d-flex flex-items-center w-100">
           <VIcon class="c-pointer" name="arrow-left" @click="goBack" />
-          <div class="d-flex flex-auto flex-items-center ml-3" style="min-width: 0; overflow: hidden;">
-            <CompanyLogo :url="form.title" style="flex-shrink: 0;" />
+          <div
+            class="d-flex flex-auto flex-items-center ml-3"
+            style="min-width: 0; overflow: hidden"
+          >
+            <CompanyLogo :url="form.title" style="flex-shrink: 0" />
             <span class="title fw-bold h5 ml-2">{{ form.title }}</span>
           </div>
-          <div class="d-flex" style="flex-shrink: 0;">
+          <div class="d-flex" style="flex-shrink: 0">
             <!-- Delete Btn -->
             <button v-tooltip="$t('Delete')" @click="onClickDelete">
               <VIcon class="c-pointer trash" name="trash" />
@@ -38,13 +41,9 @@
             v-model="form.note"
             label="Note"
             name="note"
-            :placeholder="$t(isEditMode ? 'ClickToFill' : 'ContentHidden')"
             :disabled="!isEditMode"
-            minheight=270
+            minheight="270"
           />
-        </div>
-        <div class="d-flex px-3 mb-2" v-if="form.note">
-          <ClipboardButton :copy="form.note" />
         </div>
 
         <!-- Save & Cancel -->
@@ -79,7 +78,7 @@ export default {
   setup() {
     const itemsStore = useItemsStore()
     const { items } = storeToRefs(itemsStore)
-    
+
     return {
       itemsStore,
       items
@@ -94,18 +93,18 @@ export default {
 
   async mounted() {
     const itemId = parseInt(this.$route.params.id)
-    
+
     if (!itemId) {
       this.$router.push({ name: 'Notes' })
       return
     }
 
-    let item = this.items.find(i => i.id === itemId)
-    
+    let item = this.items.find((i) => i.id === itemId)
+
     if (!item) {
       try {
         await this.itemsStore.fetchItems({ type: ItemType.Note })
-        item = this.items.find(i => i.id === itemId)
+        item = this.items.find((i) => i.id === itemId)
       } catch (error) {
         console.error('Failed to fetch item:', error)
         this.$notifyError?.('Failed to load note')
@@ -113,7 +112,7 @@ export default {
         return
       }
     }
-    
+
     if (!item) {
       this.$notifyError?.('Note not found')
       this.$router.push({ name: 'Notes' })
@@ -133,7 +132,7 @@ export default {
 
     async onClickDelete() {
       if (!confirm('Are you sure you want to delete this note?')) return
-      
+
       const itemId = parseInt(this.$route.params.id)
       try {
         await this.itemsStore.deleteItem(itemId)
@@ -147,7 +146,7 @@ export default {
 
     async onClickUpdate() {
       const itemId = parseInt(this.$route.params.id)
-      
+
       if (!this.form.title) {
         this.$notifyError?.('Title is required')
         return
@@ -168,7 +167,7 @@ export default {
 
         this.$notifySuccess?.('Note updated successfully')
         this.isEditMode = false
-        
+
         // Refresh data
         await this.itemsStore.fetchItems({ type: ItemType.Note })
       } catch (error) {

@@ -162,20 +162,14 @@ export default {
         await this.changeMasterPasswordStore.fetchAllBankAccounts()
         await this.changeMasterPasswordStore.updateAllBankAccounts()
 
-        await this.changeMasterPasswordStore.fetchAllCreditCards()
-        await this.changeMasterPasswordStore.updateAllCreditCards()
+        await this.changeMasterPasswordStore.fetchAllPaymentCards()
+        await this.changeMasterPasswordStore.updateAllPaymentCards()
 
-        await this.changeMasterPasswordStore.fetchAllEmails()
-        await this.changeMasterPasswordStore.updateAllEmails()
-
-        await this.changeMasterPasswordStore.fetchAllLogins()
-        await this.changeMasterPasswordStore.updateAllLogins()
+        await this.changeMasterPasswordStore.fetchAllPasswords()
+        await this.changeMasterPasswordStore.updateAllPasswords()
 
         await this.changeMasterPasswordStore.fetchAllNotes()
         await this.changeMasterPasswordStore.updateAllNotes()
-
-        await this.changeMasterPasswordStore.fetchAllServers()
-        await this.changeMasterPasswordStore.updateAllServers()
 
         await this.changeMasterPasswordStore.changeMasterPassword(this.form)
         

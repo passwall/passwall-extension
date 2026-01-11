@@ -94,7 +94,10 @@ export default {
   methods: {
     async fetchAll() {
       try {
-        await this.itemsStore.fetchItems({ type: ItemType.Note })
+        await this.itemsStore.fetchItems({ 
+          type: ItemType.Note,
+          per_page: 10000 // Fetch all notes (no pagination)
+        })
       } catch (error) {
         console.error('Failed to fetch notes:', error)
         this.$notifyError?.('Failed to load notes')

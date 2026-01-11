@@ -95,7 +95,10 @@ export default {
   methods: {
     async fetchAll() {
       try {
-        await this.itemsStore.fetchItems({ type: ItemType.Card })
+        await this.itemsStore.fetchItems({ 
+          type: ItemType.Card,
+          per_page: 10000 // Fetch all cards (no pagination)
+        })
       } catch (error) {
         console.error('Failed to fetch cards:', error)
         this.$notifyError?.('Failed to load payment cards')
@@ -103,7 +106,7 @@ export default {
     },
 
     clickItem(item) {
-      this.$router.push({ name: 'CardDetail', params: { id: item.id } })
+      this.$router.push({ name: 'PaymentCardDetail', params: { id: item.id } })
     }
   }
 }

@@ -1421,7 +1421,7 @@ class ContentScriptInjector {
       log.info('📡 Fetching existing logins for domain:', this.domain)
 
       const existingLogins = await sendPayload({
-        type: EVENT_TYPES.REQUEST_LOGINS,
+        type: EVENT_TYPES.REQUEST_PASSWORDS,
         payload: this.domain
       })
 

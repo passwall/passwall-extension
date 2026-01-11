@@ -163,7 +163,7 @@ export default {
         
         this.$notifySuccess?.('Payment card created successfully')
         Storage.setItem('create_form', null)
-        this.$router.push({ name: 'Cards' })
+        this.$router.push({ name: 'PaymentCards' })
       } catch (error) {
         console.error('Failed to create card:', error)
         this.$notifyError?.('Failed to create payment card')

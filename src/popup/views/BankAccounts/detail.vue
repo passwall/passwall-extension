@@ -4,11 +4,14 @@
       <template v-slot:content>
         <div class="d-flex flex-items-center w-100">
           <VIcon class="c-pointer" name="arrow-left" @click="goBack" />
-          <div class="d-flex flex-auto flex-items-center ml-3" style="min-width: 0; overflow: hidden;">
-            <CompanyLogo :url="form.title" style="flex-shrink: 0;" />
+          <div
+            class="d-flex flex-auto flex-items-center ml-3"
+            style="min-width: 0; overflow: hidden"
+          >
+            <CompanyLogo :url="form.title" style="flex-shrink: 0" />
             <span class="title fw-bold h5 ml-2">{{ form.title }}</span>
           </div>
-          <div class="d-flex" style="flex-shrink: 0;">
+          <div class="d-flex" style="flex-shrink: 0">
             <!-- Delete Btn -->
             <button v-tooltip="$t('Delete')" @click="onClickDelete">
               <VIcon class="c-pointer trash" name="trash" />
@@ -24,7 +27,12 @@
     </Header>
     <div class="scroll detail">
       <form class="form" @submit.stop.prevent="onClickUpdate">
-        <FormRowText v-model="form.title" title="title" :edit-mode="isEditMode" :show-icons="true" />
+        <FormRowText
+          v-model="form.title"
+          title="title"
+          :edit-mode="isEditMode"
+          :show-icons="true"
+        />
         <FormRowText
           v-model="form.first_name"
           title="first name"
@@ -92,19 +100,15 @@
           :edit-mode="isEditMode"
           :show-icons="true"
         />
-        
+
         <div>
           <VTextArea
             v-model="form.notes"
             label="Notes"
             name="notes"
-            :placeholder="$t(isEditMode ? 'ClickToFill' : 'ContentHidden')"
             :disabled="!isEditMode"
-            minheight=110
+            minheight="110"
           />
-        </div>
-        <div class="d-flex px-3 mb-2" v-if="form.notes">
-          <ClipboardButton :copy="form.notes" />
         </div>
         <!-- Save & Cancel -->
         <div class="d-flex m-3" v-if="isEditMode">
@@ -149,7 +153,7 @@ export default {
   setup() {
     const itemsStore = useItemsStore()
     const { items } = storeToRefs(itemsStore)
-    
+
     return {
       itemsStore,
       items
@@ -164,18 +168,18 @@ export default {
 
   async mounted() {
     const itemId = parseInt(this.$route.params.id)
-    
+
     if (!itemId) {
       this.$router.push({ name: 'BankAccounts' })
       return
     }
 
-    let item = this.items.find(i => i.id === itemId)
-    
+    let item = this.items.find((i) => i.id === itemId)
+
     if (!item) {
       try {
         await this.itemsStore.fetchItems({ type: ItemType.Bank })
-        item = this.items.find(i => i.id === itemId)
+        item = this.items.find((i) => i.id === itemId)
       } catch (error) {
         console.error('Failed to fetch item:', error)
         this.$notifyError?.('Failed to load bank account')
@@ -183,7 +187,7 @@ export default {
         return
       }
     }
-    
+
     if (!item) {
       this.$notifyError?.('Bank account not found')
       this.$router.push({ name: 'BankAccounts' })
@@ -214,7 +218,7 @@ export default {
 
     async onClickDelete() {
       if (!confirm('Are you sure you want to delete this bank account?')) return
-      
+
       const itemId = parseInt(this.$route.params.id)
       try {
         await this.itemsStore.deleteItem(itemId)
@@ -228,7 +232,7 @@ export default {
 
     async onClickUpdate() {
       const itemId = parseInt(this.$route.params.id)
-      
+
       if (!this.form.title) {
         this.$notifyError?.('Title is required')
         return
@@ -246,7 +250,7 @@ export default {
 
         this.$notifySuccess?.('Bank account updated successfully')
         this.isEditMode = false
-        
+
         await this.itemsStore.fetchItems({ type: ItemType.Bank })
       } catch (error) {
         console.error('Failed to update bank account:', error)

@@ -118,7 +118,7 @@ export default {
 
     goToVault() {
       this.$browser.tabs.create({
-        url: 'https://admin.passwall.io'
+        url: 'https://vault.passwall.io'
       })
       this.showSettings = false
     },

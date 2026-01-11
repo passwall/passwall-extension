@@ -1,6 +1,6 @@
 import browser from 'webextension-polyfill'
 import { EVENT_TYPES } from '@/utils/constants'
-import LoginsService from '@/api/services/Logins'
+import PasswordsService from '@/api/services/Passwords'
 import Storage from '@/utils/storage'
 import HTTPClient from '@/api/HTTPClient'
 import CryptoUtils from '@/utils/crypto'
@@ -152,7 +152,7 @@ class BackgroundAgent {
    */
   async handleContentScriptMessage(request) {
     switch (request.type) {
-      case EVENT_TYPES.REQUEST_LOGINS:
+      case EVENT_TYPES.REQUEST_PASSWORDS:
         return await this.fetchLoginsByDomain(request.payload)
         
       case EVENT_TYPES.SAVE_CREDENTIALS:
@@ -224,7 +224,7 @@ class BackgroundAgent {
     }
     
     try {
-      const { data: logins } = await LoginsService.FetchAll()
+      const { data: logins } = await PasswordsService.FetchAll()
       
       // Decrypt all items (with error resilience)
       const decryptedLogins = logins.map(login => {
@@ -364,7 +364,7 @@ class BackgroundAgent {
         // UPDATE: Fetch existing login to preserve title and other fields
         try {
           // Fetch existing login
-          const existingLoginResponse = await LoginsService.Get(loginId)
+          const existingLoginResponse = await PasswordsService.Get(loginId)
           const existingLogin = existingLoginResponse.data
           
           // Decrypt existing data to get current title
@@ -381,7 +381,7 @@ class BackgroundAgent {
           // Encrypt sensitive fields
           CryptoUtils.encryptFields(loginData, ENCRYPTED_FIELDS)
           
-          result = await LoginsService.Update(loginId, loginData)
+          result = await PasswordsService.Update(loginId, loginData)
         } catch (fetchError) {
           console.error('Failed to fetch existing login, creating new instead:', fetchError)
           // Fallback to create if fetch fails
@@ -392,7 +392,7 @@ class BackgroundAgent {
             title: domain || getHostName(url) || 'Untitled'
           }
           CryptoUtils.encryptFields(loginData, ENCRYPTED_FIELDS)
-          result = await LoginsService.Create(loginData)
+          result = await PasswordsService.Create(loginData)
         }
       } else {
         // CREATE new login

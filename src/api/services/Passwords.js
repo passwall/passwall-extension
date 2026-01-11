@@ -1,6 +1,6 @@
 import HTTPClient from '@/api/HTTPClient'
 
-export default class LoginsService {
+export default class PasswordsService {
   static async FetchAll(query) {
     return HTTPClient.get(`/api/logins`, query)
   }

@@ -2,7 +2,7 @@
  * Items Store - Unified Vault Items
  *
  * All vault item types:
- * - Password (Logins)
+ * - Password (Passwords)
  * - Secure Notes
  * - Credit Cards
  * - Bank Accounts
@@ -25,8 +25,6 @@ export const ItemType = {
   Note: 2,
   Card: 3,
   Bank: 4,
-  Email: 5,
-  Server: 6,
   Identity: 7,
   SSHKey: 8,
   Address: 9,
@@ -54,10 +52,6 @@ export function getItemTypeName(type) {
       return 'Credit Card'
     case ItemType.Bank:
       return 'Bank Account'
-    case ItemType.Email:
-      return 'Email'
-    case ItemType.Server:
-      return 'Server'
     case ItemType.Identity:
       return 'Identity'
     case ItemType.SSHKey:
@@ -84,10 +78,6 @@ export function getItemTypeIcon(type) {
       return '💳'
     case ItemType.Bank:
       return '🏦'
-    case ItemType.Email:
-      return '📧'
-    case ItemType.Server:
-      return '🖥️'
     case ItemType.Identity:
       return '👤'
     case ItemType.SSHKey:
@@ -169,6 +159,18 @@ export const useItemsStore = defineStore('items', {
       this.error = null
 
       try {
+        // Check user key before fetching items
+        const authStore = useAuthStore()
+        if (!authStore.userKey) {
+          console.error('User Key not found. Logging out...')
+          this.isLoading = false
+          await authStore.logout()
+          if (window.location.hash !== '#/login') {
+            window.location.hash = '#/login'
+          }
+          return
+        }
+
         const params = new URLSearchParams()
 
         if (filter.type) params.append('type', filter.type.toString())
@@ -201,8 +203,8 @@ export const useItemsStore = defineStore('items', {
                 url: item.metadata?.uri_hint || decryptedData.uris?.[0]?.uri || ''
               }
             } catch (error) {
-              console.error('Failed to decrypt item:', item.id, error)
               // Return item with placeholder data if decryption fails
+              // (error already logged in decryptItem)
               return {
                 ...item,
                 title: item.metadata?.name || '[Decryption Failed]',
@@ -279,7 +281,13 @@ export const useItemsStore = defineStore('items', {
         if (req.data && typeof req.data === 'object') {
           const authStore = useAuthStore()
           if (!authStore.userKey) {
-            throw new Error('User Key not found. Please sign in again.')
+            console.error('User Key not found. Logging out...')
+            this.isLoading = false
+            await authStore.logout()
+            if (window.location.hash !== '#/login') {
+              window.location.hash = '#/login'
+            }
+            throw new Error('Session expired. Please sign in again.')
           }
 
           const encryptedData = await cryptoService.encryptAesCbcHmac(
@@ -337,17 +345,23 @@ export const useItemsStore = defineStore('items', {
       const authStore = useAuthStore()
 
       if (!authStore.userKey) {
-        throw new Error('User Key not found. Please sign in again.')
+        throw new Error('USER_KEY_MISSING')
       }
 
-      // Decrypt EncString with User Key
-      const decryptedBytes = await cryptoService.decryptAesCbcHmac(item.data, authStore.userKey)
+      try {
+        // Decrypt EncString with User Key
+        const decryptedBytes = await cryptoService.decryptAesCbcHmac(item.data, authStore.userKey)
 
-      // Convert bytes to string
-      const decryptedJSON = new TextDecoder().decode(decryptedBytes)
+        // Convert bytes to string
+        const decryptedJSON = new TextDecoder().decode(decryptedBytes)
 
-      // Parse JSON
-      return JSON.parse(decryptedJSON)
+        // Parse JSON
+        return JSON.parse(decryptedJSON)
+      } catch (error) {
+        // Log decryption error but don't logout here (will be handled at higher level if needed)
+        console.error('Failed to decrypt item:', item.id, error.message)
+        throw error
+      }
     },
 
     /**
@@ -362,7 +376,12 @@ export const useItemsStore = defineStore('items', {
       const authStore = useAuthStore()
 
       if (!authStore.userKey) {
-        throw new Error('User Key not found. Please sign in again.')
+        console.error('User Key not found. Logging out...')
+        await authStore.logout()
+        if (window.location.hash !== '#/login') {
+          window.location.hash = '#/login'
+        }
+        throw new Error('Session expired. Please sign in again.')
       }
 
       // Encrypt entire data object with User Key

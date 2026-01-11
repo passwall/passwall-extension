@@ -7,7 +7,7 @@
           <div class="new-logo">
             <VIcon name="logo-simple" height="40px" width="40px" />
           </div>
-          <span class="fw-bold h5 ml-2">New Server</span>
+          <span class="fw-bold h5 ml-2">New Password</span>
         </div>
       </template>
     </Header>
@@ -20,18 +20,6 @@
             v-on:change="saveForm"
             v-model="form.title"
             v-validate="'required'"
-            :placeholder="$t('ClickToFill')"
-            theme="no-border"
-          />
-        </div>
-
-        <div class="form-row">
-          <label v-text="'IP Address'" />
-          <VFormText
-            name="IP Address"
-            v-on:change="saveForm"
-            v-model="form.ip"
-            v-validate="'ip'"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
           />
@@ -53,8 +41,8 @@
           <div class="d-flex flex-justify-between ">
             <VFormText
               name="Password"
-              v-on:change="saveForm"
               class="flex-auto"
+              v-on:change="saveForm"
               v-model="form.password"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
@@ -68,14 +56,14 @@
             </div>
           </div>
         </div>
-
+        
         <div class="form-row">
           <label v-text="'Website'" />
           <div class="d-flex flex-justify-between">
             <VFormText
               name="Web Site"
-              v-on:change="saveForm"
               class="flex-auto"
+              v-on:change="saveForm"
               v-model="form.url"
               v-validate="'url'"
               :placeholder="$t('ClickToFill')"
@@ -85,98 +73,70 @@
           </div>
         </div>
 
-        <div class="form-row">
-          <label v-text="'Hosting Username'" />
-          <div class="d-flex flex-justify-between">
-            <VFormText
-              name="Hosting Username"
-              v-on:change="saveForm"
-              class="flex-auto"
-              v-model="form.hosting_username"
-              :placeholder="$t('ClickToFill')"
-              theme="no-border"
-            />
-          </div>
-        </div>
-
-        <div class="form-row">
-          <label v-text="'Hosting Password'" />
-          <div class="d-flex flex-justify-between ">
-            <VFormText
-              name="Hosting Password"
-              v-on:change="saveForm"
-              class="flex-auto"
-              v-model="form.hosting_password"
-              :placeholder="$t('ClickToFill')"
-              theme="no-border"
-              :type="showHostingPass ? 'text' : 'password'"
-            />
-            <div class="d-flex flex-items-center mr-3">
-              <GeneratePassword v-model="form.hosting_password" />
-              <CheckPassword :password="form.hosting_password" />
-              <ShowPassButton @click="showHostingPass = $event" />
-              <ClipboardButton :copy="form.hosting_password" />
-            </div>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <label v-text="'Admin Username'" />
-          <div class="d-flex flex-justify-between">
-            <VFormText
-              name="Admin Username"
-              v-on:change="saveForm"
-              class="flex-auto"
-              v-model="form.admin_username"
-              :placeholder="$t('ClickToFill')"
-              theme="no-border"
-            />
-          </div>
-        </div>
-
-        <div class="form-row">
-          <label v-text="'Admin Password'" />
-          <div class="d-flex flex-justify-between ">
-            <VFormText
-              name="Admin Password"
-              v-on:change="saveForm"
-              class="flex-auto"
-              v-model="form.admin_password"
-              :placeholder="$t('ClickToFill')"
-              theme="no-border"
-              :type="showAdminPass ? 'text' : 'password'"
-            />
-            <div class="d-flex flex-items-center mr-3">
-              <GeneratePassword v-model="form.admin_password" />
-              <CheckPassword :password="form.admin_password" />
-              <ShowPassButton @click="showAdminPass = $event" />
-              <ClipboardButton :copy="form.admin_password" />
-            </div>
-          </div>
-        </div>
-
         <div>
           <VTextArea 
-            name="extra"
-            v-on:change="saveForm"
             :placeholder="$t('ClickToFill')" 
+            v-on:change="saveForm"
             v-model="form.extra" 
             label="Extra" 
+            name="extra" 
             isEditable
           />
         </div>
-      
+
+        <!-- TOTP Section -->
+        <div class="form-row">
+          <label v-text="'Authenticator Key (TOTP)'" />
+          <div class="d-flex flex-justify-between">
+            <VFormText
+              name="TOTP Secret"
+              class="flex-auto"
+              v-on:change="saveForm"
+              v-model="form.totp_secret"
+              :placeholder="$t('ClickToFill')"
+              theme="no-border"
+              :type="showTotpSecret ? 'text' : 'password'"
+            />
+            <div class="d-flex flex-items-center mr-3">
+              <button 
+                type="button"
+                v-tooltip="'Capture QR Code'"
+                @click="captureQRCode"
+                class="showpass-btn ml-2"
+                :disabled="capturingQR"
+              >
+                <VIcon name="camera" size="20px" />
+              </button>
+              <ShowPassButton @click="showTotpSecret = $event" class="ml-2" />
+              <ClipboardButton v-if="form.totp_secret" class="ml-2" :copy="form.totp_secret" />
+            </div>
+          </div>
+        </div>
+
+        <!-- TOTP Code Display -->
+        <div v-if="form.totp_secret && showTotpCode">
+          <TOTPCounter :secret="form.totp_secret" />
+        </div>
+        <div v-if="form.totp_secret" class="totp-toggle">
+          <button 
+            type="button" 
+            @click="showTotpCode = !showTotpCode"
+            class="link-button"
+          >
+            {{ showTotpCode ? 'Hide TOTP Code' : 'Show TOTP Code' }}
+          </button>
+        </div>
+
         <VButton
           class="mx-2 my-2"
           size="medium"
           type="submit"
           style="letter-spacing: 2px"
-          :loading="$wait.is($waiters.Logins.Create)"
+          :loading="$wait.is($waiters.Passwords.Create)"
         >
           Save
         </VButton>
       </form>
-
     </div>
   </div>
 </template>
@@ -184,30 +144,33 @@
 <script>
 import { useItemsStore, ItemType } from '@/stores/items'
 import Storage from '@/utils/storage'
+import totpCaptureService from '@/utils/totp-capture'
+import TOTPCounter from '@/components/TOTPCounter.vue'
 
 export default {
+  components: {
+    TOTPCounter
+  },
   setup() {
     const itemsStore = useItemsStore()
+    
     return {
-      createItem: itemsStore.create
+      createLogin: itemsStore.create
     }
   },
   data() {
     return {
       showPass: false,
-      showHostingPass: false,
-      showAdminPass: false,
+      showTotpSecret: false,
+      showTotpCode: false,
+      capturingQR: false,
       form: {
         title: '',
-        ip: '',
         username: '',
         password: '',
         url: '',
-        hosting_username: '',
-        hosting_password: '',
-        admin_username: '',
-        admin_password: '',
-        extra: ''
+        extra: '',
+        totp_secret: ''
       }
     }
   },
@@ -226,19 +189,51 @@ export default {
   },
   methods: {
     async onSubmit() {
+      // Basic required: title
       if (!this.form.title) {
         this.$notifyError(this.$t('PleaseFillAllFields') || 'Please fill all required fields')
         return
       }
       const onSuccess = async () => {
-        await this.createItem({ ...this.form })
-        this.$router.push({ name: 'Servers' })
+        await this.createLogin({ ...this.form })
+        this.$router.push({ name: 'Passwords' })
       }
-      this.$request(onSuccess, this.$waiters.Servers.Create)
+      this.$request(onSuccess, this.$waiters.Passwords.Create)
     },
     
     saveForm: function (event) {
       Storage.setItem('create_form', this.form)
+    },
+
+    async captureQRCode() {
+      if (!totpCaptureService.canCaptureTotp()) {
+        this.$notifyError('QR code capture is not supported in this browser')
+        return
+      }
+
+      this.capturingQR = true
+      try {
+        const totpUrl = await totpCaptureService.captureTotpSecret()
+        
+        if (totpUrl) {
+          // Extract secret from otpauth:// URL (admin stores only secret, not full URL)
+          const secret = totpCaptureService.extractSecret(totpUrl)
+          this.form.totp_secret = secret || totpUrl
+          this.showTotpCode = true
+          this.$notify({
+            title: 'Success',
+            text: 'QR code successfully captured!',
+            type: 'success'
+          })
+        } else {
+          this.$notifyError('QR code not found. Please ensure the QR code is clearly visible on screen.')
+        }
+      } catch (error) {
+        console.error('QR code capture error:', error)
+        this.$notifyError(error.message || 'Failed to capture QR code')
+      } finally {
+        this.capturingQR = false
+      }
     }
   }
 }
@@ -248,5 +243,24 @@ export default {
 .new-logo {
   background-color: $color-gray-400;
   border-radius: 8px;
+}
+
+.totp-toggle {
+  margin: 8px 0;
+  text-align: center;
+}
+
+.link-button {
+  background: transparent;
+  border: none;
+  color: #3498db;
+  cursor: pointer;
+  font-size: 14px;
+  text-decoration: underline;
+  padding: 4px 8px;
+
+  &:hover {
+    color: #2980b9;
+  }
 }
 </style>

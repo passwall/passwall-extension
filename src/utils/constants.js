@@ -2,17 +2,12 @@ export const TABS = [
   {
     name: 'Password',
     iconName: 'lock',
-    createRouteName: 'LoginCreate'
+    createRouteName: 'PasswordCreate'
   },
   {
-    name: 'Credit Cards',
+    name: 'Payment Cards',
     iconName: 'credit-card',
-    createRouteName: 'CreditCardCreate'
-  },
-  {
-    name: 'Emails',
-    iconName: 'at-symbol',
-    createRouteName: 'EmailCreate'
+    createRouteName: 'PaymentCardCreate'
   },
   {
     name: 'Bank Accounts',
@@ -23,11 +18,6 @@ export const TABS = [
     name: 'Private Notes',
     iconName: 'clipboard-secure',
     createRouteName: 'NoteCreate'
-  },
-  {
-    name: 'Servers',
-    iconName: 'terminal',
-    createRouteName: 'ServerCreate'
   }
 ]
 
@@ -40,7 +30,7 @@ export const PASSWALL_ICON_BS64 =
  */
 export const EVENT_TYPES = {
   TAB_UPDATE: 'TAB_UPDATE',
-  REQUEST_LOGINS: 'REQUEST_LOGINS',
+  REQUEST_PASSWORDS: 'REQUEST_PASSWORDS',
   REFRESH_TOKENS: 'REFRESH_TOKENS',
   LOGIN: 'LOGIN',
   LOGOUT: 'LOGOUT',

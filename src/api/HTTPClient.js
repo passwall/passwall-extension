@@ -9,7 +9,7 @@ const ALLOWED_API_DOMAINS = ENV_CONFIG.ALLOWED_API_DOMAINS
 // Security: Whitelist of allowed ports (from centralized config)
 const ALLOWED_PORTS = ENV_CONFIG.ALLOWED_PORTS
 
-let baseURL = 'https://vault.passwall.io'
+let baseURL = 'https://api.passwall.io'
 
 const client = Axios.create({
   baseURL,

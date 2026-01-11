@@ -1,16 +1,7 @@
-import ServersService from '@/api/services/Servers'
+import PasswordsService from '@/api/services/Passwords'
 import CryptoUtils from '@/utils/crypto'
 
-const EncryptedFields = [
-  'ip',
-  'username',
-  'password',
-  'hosting_username',
-  'hosting_password',
-  'admin_username',
-  'admin_password',
-  'extra'
-]
+const EncryptedFields = ['username', 'password', 'extra']
 
 export default {
   namespaced: true,
@@ -24,7 +15,7 @@ export default {
 
   actions: {
     async FetchAll({ state }, query) {
-      const { data: itemList } = await ServersService.FetchAll(query)
+      const { data: itemList } = await PasswordsService.FetchAll(query)
       itemList.forEach(element => {
         CryptoUtils.decryptFields(element, EncryptedFields)
       })
@@ -32,17 +23,17 @@ export default {
     },
 
     Delete(_, id) {
-      return ServersService.Delete(id)
+      return PasswordsService.Delete(id)
     },
 
     Create(_, data) {
       const payload = CryptoUtils.encryptPayload(data, EncryptedFields)
-      return ServersService.Create(payload)
+      return PasswordsService.Create(payload)
     },
 
     Update(_, data) {
       const payload = CryptoUtils.encryptPayload(data, EncryptedFields)
-      return ServersService.Update(data.id, payload)
+      return PasswordsService.Update(data.id, payload)
     }
   }
 }

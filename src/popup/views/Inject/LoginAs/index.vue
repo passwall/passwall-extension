@@ -41,7 +41,7 @@
       <p class="mt-3 fw-medium" style="font-size: 14px; color: #a78bfa;">Click the Passwall icon to sign in →</p>
     </div>
 
-    <!-- No Logins Found Message -->
+    <!-- No Passwords Found Message -->
     <div v-else-if="authError === 'NO_LOGINS'" class="mt-3 p-4 bg-black-400 radius text-center">
       <div class="mb-3" style="font-size: 48px;">📝</div>
       <p class="fs-large fw-bold mb-2 c-white">No Passwords Found</p>

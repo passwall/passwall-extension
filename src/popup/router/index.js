@@ -6,20 +6,20 @@ import Storage from '@/utils/storage'
 // Static imports for browser extension (dynamic imports don't work well with CSP)
 import Login from '@p/views/Auth/Login.vue'
 import Home from '@p/views/Home/index.vue'
-import Passwords from '@p/views/Logins/index.vue'
+import Passwords from '@p/views/Passwords/index.vue'
 import Notes from '@p/views/Notes/index.vue'
 import Addresses from '@p/views/Addresses/index.vue'
-import CreditCards from '@p/views/CreditCards/index.vue'
+import PaymentCards from '@p/views/PaymentCards/index.vue'
 import BankAccounts from '@p/views/BankAccounts/index.vue'
 import ChangeMasterPassword from '@p/views/ChangeMasterPassword/index.vue'
-import PasswordCreate from '@p/views/Logins/create.vue'
-import PasswordDetail from '@p/views/Logins/detail.vue'
+import PasswordCreate from '@p/views/Passwords/create.vue'
+import PasswordDetail from '@p/views/Passwords/detail.vue'
 import NoteCreate from '@p/views/Notes/create.vue'
 import NoteDetail from '@p/views/Notes/detail.vue'
 import AddressCreate from '@p/views/Addresses/create.vue'
 import AddressDetail from '@p/views/Addresses/detail.vue'
-import CreditCardCreate from '@p/views/CreditCards/create.vue'
-import CreditCardDetail from '@p/views/CreditCards/detail.vue'
+import PaymentCardCreate from '@p/views/PaymentCards/create.vue'
+import PaymentCardDetail from '@p/views/PaymentCards/detail.vue'
 import BankAccountCreate from '@p/views/BankAccounts/create.vue'
 import BankAccountDetail from '@p/views/BankAccounts/detail.vue'
 import Generator from '@p/views/Generator/index.vue'
@@ -56,8 +56,8 @@ const routes = [
       },
       {
         path: '/cards',
-        name: 'Cards',
-        component: CreditCards
+        name: 'PaymentCards',
+        component: PaymentCards
       },
       {
         path: '/bank-accounts',
@@ -103,13 +103,13 @@ const routes = [
   },
   {
     path: '/cards/create',
-    name: 'CardCreate',
-    component: CreditCardCreate
+    name: 'PaymentCardCreate',
+    component: PaymentCardCreate
   },
   {
     path: '/cards/:id',
-    name: 'CardDetail',
-    component: CreditCardDetail
+    name: 'PaymentCardDetail',
+    component: PaymentCardDetail
   },
   {
     path: '/bank-accounts/create',
@@ -178,7 +178,7 @@ router.beforeEach(async (to, from, next) => {
   const lastRouteName = await Storage.getItem('latest_route')
   const detail = await Storage.getItem('latest_route_param_detail')
   const shouldRedirect = Boolean(
-    to.name === 'Logins' &&
+    to.name === 'Passwords' &&
     lastRouteName &&
     isFirstTransition &&
     lastRouteName !== 'SavePassword' &&
