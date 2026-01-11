@@ -1,9 +1,9 @@
 /**
  * Platform-Specific Rules for Form Detection
- * 
+ *
  * This module provides site-specific configurations for handling edge cases
  * in form detection and autofill behavior across different platforms.
- * 
+ *
  * @module platform-rules
  */
 
@@ -26,90 +26,84 @@
 
 /**
  * Equivalent Domains (Bitwarden-inspired)
- * 
+ *
  * Some services use multiple domains that should share credentials.
  * Example: Google accounts work on google.com, youtube.com, gmail.com, etc.
- * 
+ *
  * @type {Map<string, Set<string>>}
  */
 export const EQUIVALENT_DOMAINS = new Map([
   // Google services
-  ['google.com', new Set([
+  [
     'google.com',
-    'youtube.com',
-    'gmail.com',
-    'google.co.uk',
-    'google.com.tr'
-  ])],
-  
+    new Set(['google.com', 'youtube.com', 'gmail.com', 'google.co.uk', 'google.com.tr'])
+  ],
+
   // Microsoft services
-  ['microsoft.com', new Set([
+  [
     'microsoft.com',
-    'live.com',
-    'outlook.com',
-    'hotmail.com',
-    'msn.com',
-    'office.com'
-  ])],
-  
+    new Set(['microsoft.com', 'live.com', 'outlook.com', 'hotmail.com', 'msn.com', 'office.com'])
+  ],
+
   // Apple services
-  ['apple.com', new Set([
-    'apple.com',
-    'icloud.com',
-    'me.com',
-    'mac.com'
-  ])],
-  
+  ['apple.com', new Set(['apple.com', 'icloud.com', 'me.com', 'mac.com'])],
+
   // Amazon services
-  ['amazon.com', new Set([
-    'amazon.com',
-    'amazon.co.uk',
-    'amazon.de',
-    'amazon.fr',
-    'amazon.com.tr'
-  ])]
+  ['amazon.com', new Set(['amazon.com', 'amazon.co.uk', 'amazon.de', 'amazon.fr', 'amazon.com.tr'])]
 ])
 
 /**
  * Domain Match Blacklist (Bitwarden-inspired)
- * 
+ *
  * For certain base domains, exclude specific subdomains from credential matching.
  * This prevents false positives where a subdomain shouldn't use the main domain's credentials.
- * 
+ *
  * Example: google.com credentials shouldn't autofill on script.google.com
- * 
+ *
  * @type {Map<string, Set<string>>}
  */
 export const DOMAIN_MATCH_BLACKLIST = new Map([
   // Google: Exclude API/developer subdomains
-  ['google.com', new Set([
-    'script.google.com',      // Google Apps Script
-    'developers.google.com',  // Developer console
-    'console.cloud.google.com' // Google Cloud (different auth)
-  ])],
-  
+  [
+    'google.com',
+    new Set([
+      'script.google.com', // Google Apps Script
+      'developers.google.com', // Developer console
+      'console.cloud.google.com' // Google Cloud (different auth)
+    ])
+  ],
+
   // Amazon: Exclude seller/AWS subdomains
-  ['amazon.com', new Set([
-    'sellercentral.amazon.com',  // Seller Central (different auth)
-    'advertising.amazon.com'      // Amazon Ads (different auth)
-  ])],
-  
+  [
+    'amazon.com',
+    new Set([
+      'sellercentral.amazon.com', // Seller Central (different auth)
+      'advertising.amazon.com' // Amazon Ads (different auth)
+    ])
+  ],
+
   // Microsoft: Exclude developer portals
-  ['microsoft.com', new Set([
-    'dev.azure.com',           // Azure DevOps (different auth)
-    'developer.microsoft.com'  // Developer portal
-  ])],
-  
+  [
+    'microsoft.com',
+    new Set([
+      'dev.azure.com', // Azure DevOps (different auth)
+      'developer.microsoft.com' // Developer portal
+    ])
+  ],
+
   // GitHub: Exclude GitHub Pages
-  ['github.com', new Set([
-    'pages.github.com'  // GitHub Pages (static hosting)
-  ])]
+  [
+    'github.com',
+    new Set([
+      'pages.github.com' // GitHub Pages (static hosting)
+    ])
+  ]
 ])
 
 /**
  * Platform-specific rules database
  * Add new platforms here as edge cases are discovered
- * 
+ *
  * @type {PlatformRule[]}
  */
 export const PLATFORM_RULES = [
@@ -122,11 +116,7 @@ export const PLATFORM_RULES = [
       names: ['account'],
       ids: ['account'],
       labels: ['account id', 'account id or alias'],
-      patterns: [
-        /account.?id/i,
-        /aws.?account/i,
-        /12.?digit/i
-      ]
+      patterns: [/account.?id/i, /aws.?account/i, /12.?digit/i]
     }
   },
   {
@@ -138,11 +128,7 @@ export const PLATFORM_RULES = [
       names: ['organization', 'tenant', 'orgid', 'tenantid'],
       ids: ['organization', 'tenant', 'orgId', 'tenantId'],
       labels: ['organization id', 'tenant id', 'org id'],
-      patterns: [
-        /organization.?id/i,
-        /tenant.?id/i,
-        /org.?id/i
-      ]
+      patterns: [/organization.?id/i, /tenant.?id/i, /org.?id/i]
     }
   },
   {
@@ -154,9 +140,7 @@ export const PLATFORM_RULES = [
       names: ['orgid', 'org'],
       ids: ['orgId', 'org-id'],
       labels: ['organization id', 'org id'],
-      patterns: [
-        /org(?:anization)?.?id/i
-      ]
+      patterns: [/org(?:anization)?.?id/i]
     }
   },
   {
@@ -168,46 +152,41 @@ export const PLATFORM_RULES = [
       names: ['company', 'domain'],
       ids: ['company-id', 'domain-id'],
       labels: ['company id', 'domain'],
-      patterns: [
-        /company.?id/i,
-        /workspace.?domain/i
-      ]
+      patterns: [/company.?id/i, /workspace.?domain/i]
     }
   }
 ]
 
 /**
  * Get platform rules for a given domain
- * 
+ *
  * @param {string} hostname - Current page hostname (e.g., 'signin.aws.amazon.com')
  * @returns {PlatformRule|null} Matching platform rule or null
- * 
+ *
  * @example
  * const rules = getPlatformRules('signin.aws.amazon.com')
  * // Returns AWS platform rule
  */
 export function getPlatformRules(hostname) {
   if (!hostname) return null
-  
+
   const normalizedHostname = hostname.toLowerCase()
-  
+
   // Find matching platform rule
-  const rule = PLATFORM_RULES.find(platformRule => 
-    platformRule.domains.some(domain => 
-      normalizedHostname.includes(domain.toLowerCase())
-    )
+  const rule = PLATFORM_RULES.find((platformRule) =>
+    platformRule.domains.some((domain) => normalizedHostname.includes(domain.toLowerCase()))
   )
-  
+
   return rule || null
 }
 
 /**
  * Check if a field should be excluded based on platform rules
- * 
+ *
  * @param {HTMLInputElement} input - Input element to check
  * @param {string} hostname - Current page hostname
  * @returns {boolean} True if field should be excluded
- * 
+ *
  * @example
  * if (shouldExcludeField(inputElement, 'signin.aws.amazon.com')) {
  *   // Skip this field
@@ -218,11 +197,11 @@ export function shouldExcludeField(input, hostname) {
   if (!platformRule || !platformRule.excludeFields) {
     return false
   }
-  
+
   const { excludeFields } = platformRule
   const inputName = (input.name || '').toLowerCase()
   const inputId = (input.id || '').toLowerCase()
-  
+
   // Get label text
   let labelText = ''
   if (input.id) {
@@ -233,50 +212,51 @@ export function shouldExcludeField(input, hostname) {
     const parentLabel = input.closest('label')
     labelText = parentLabel ? (parentLabel.textContent || '').toLowerCase() : ''
   }
-  
+
   // Check against exclusion rules
-  
+
   // 1. Check field names
-  if (excludeFields.names && excludeFields.names.some(name => 
-    inputName === name.toLowerCase()
-  )) {
+  if (excludeFields.names && excludeFields.names.some((name) => inputName === name.toLowerCase())) {
     return true
   }
-  
+
   // 2. Check field IDs
-  if (excludeFields.ids && excludeFields.ids.some(id => 
-    inputId === id.toLowerCase()
-  )) {
+  if (excludeFields.ids && excludeFields.ids.some((id) => inputId === id.toLowerCase())) {
     return true
   }
-  
+
   // 3. Check label text (partial match)
-  if (excludeFields.labels && labelText && excludeFields.labels.some(label => 
-    labelText.includes(label.toLowerCase())
-  )) {
+  if (
+    excludeFields.labels &&
+    labelText &&
+    excludeFields.labels.some((label) => labelText.includes(label.toLowerCase()))
+  ) {
     return true
   }
-  
+
   // 4. Check regex patterns
-  if (excludeFields.patterns && excludeFields.patterns.some(pattern => {
-    const allText = [inputName, inputId, labelText].join(' ')
-    return pattern.test(allText)
-  })) {
+  if (
+    excludeFields.patterns &&
+    excludeFields.patterns.some((pattern) => {
+      const allText = [inputName, inputId, labelText].join(' ')
+      return pattern.test(allText)
+    })
+  ) {
     return true
   }
-  
+
   return false
 }
 
 /**
  * Get platform-specific configuration for logging/debugging
- * 
+ *
  * @param {string} hostname - Current page hostname
  * @returns {Object} Platform configuration object
  */
 export function getPlatformInfo(hostname) {
   const rule = getPlatformRules(hostname)
-  
+
   if (!rule) {
     return {
       hasPlatformRules: false,
@@ -284,7 +264,7 @@ export function getPlatformInfo(hostname) {
       description: 'No platform-specific rules'
     }
   }
-  
+
   return {
     hasPlatformRules: true,
     platform: rule.name,
@@ -300,9 +280,9 @@ export function getPlatformInfo(hostname) {
 
 /**
  * Add a new platform rule dynamically (for testing or extension)
- * 
+ *
  * @param {PlatformRule} rule - New platform rule to add
- * 
+ *
  * @example
  * addPlatformRule({
  *   name: 'Custom Platform',
@@ -317,35 +297,35 @@ export function addPlatformRule(rule) {
   if (!rule || !rule.domains || !rule.name) {
     throw new Error('Invalid platform rule: must have name and domains')
   }
-  
+
   PLATFORM_RULES.push(rule)
 }
 
 /**
  * Get equivalent domains for a given domain (Bitwarden-inspired)
- * 
+ *
  * @param {string} domain - Base domain (e.g., 'google.com')
  * @returns {Set<string>} Set of equivalent domains
- * 
+ *
  * @example
  * getEquivalentDomains('google.com')
  * // Returns: Set(['google.com', 'youtube.com', 'gmail.com', ...])
- * 
+ *
  * getEquivalentDomains('youtube.com')
  * // Returns: Set(['google.com', 'youtube.com', 'gmail.com', ...]) (same group!)
  */
 export function getEquivalentDomains(domain) {
   if (!domain) return new Set([])
-  
+
   const normalizedDomain = domain.toLowerCase()
-  
+
   // Check if this domain is in any equivalent domain group
   for (const [key, equivalents] of EQUIVALENT_DOMAINS.entries()) {
     if (equivalents.has(normalizedDomain)) {
-      return equivalents  // Return the entire group
+      return equivalents // Return the entire group
     }
   }
-  
+
   // No equivalent domains - return just this domain
   return new Set([normalizedDomain])
 }
@@ -353,31 +333,31 @@ export function getEquivalentDomains(domain) {
 /**
  * Check if a hostname should be excluded from domain matching
  * (Bitwarden DomainMatchBlacklist equivalent)
- * 
+ *
  * @param {string} hostname - Full hostname to check (e.g., 'script.google.com')
  * @param {string} baseDomain - Base domain (e.g., 'google.com')
  * @returns {boolean} True if hostname should be excluded
- * 
+ *
  * @example
  * isHostnameBlacklisted('script.google.com', 'google.com')
  * // Returns: true (blacklisted!)
- * 
+ *
  * isHostnameBlacklisted('mail.google.com', 'google.com')
  * // Returns: false (allowed)
  */
 export function isHostnameBlacklisted(hostname, baseDomain) {
   if (!hostname || !baseDomain) return false
-  
+
   const normalizedHostname = hostname.toLowerCase()
   const normalizedDomain = baseDomain.toLowerCase()
-  
+
   // Check if this base domain has blacklist entries
   const blacklistedSubdomains = DOMAIN_MATCH_BLACKLIST.get(normalizedDomain)
-  
+
   if (!blacklistedSubdomains) {
-    return false  // No blacklist for this domain
+    return false // No blacklist for this domain
   }
-  
+
   // Check if current hostname is in the blacklist
   return blacklistedSubdomains.has(normalizedHostname)
 }
@@ -393,4 +373,3 @@ export default {
   getEquivalentDomains,
   isHostnameBlacklisted
 }
-

@@ -54,7 +54,7 @@ export const ENV_CONFIG = {
 
   DEV_SERVER_URL: DEV_CONFIG.ENABLED
     ? DEV_CONFIG.SERVER_URL
-    : import.meta.env.VITE_DEV_SERVER_URL || '',
+    : import.meta.env.VITE_DEV_SERVER_URL || 'https://api.passwall.io',
   DEV_EMAIL: DEV_CONFIG.ENABLED ? DEV_CONFIG.EMAIL : import.meta.env.VITE_DEV_EMAIL || '',
   DEV_PASSWORD: DEV_CONFIG.ENABLED ? DEV_CONFIG.PASSWORD : import.meta.env.VITE_DEV_PASSWORD || '',
 

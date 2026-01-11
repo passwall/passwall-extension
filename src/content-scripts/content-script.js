@@ -1,7 +1,7 @@
 import browser from 'webextension-polyfill'
 import { EVENT_TYPES } from '@/utils/constants'
 import { getHostName, getDomain, PFormParseError, sendPayload } from '@/utils/helpers'
-import { shouldExcludeField, getPlatformInfo } from '@/utils/platform-rules'
+import { shouldExcludeField, getPlatformInfo, getPlatformRules } from '@/utils/platform-rules'
 import { checkCurrentPageSecurity, SECURITY_WARNINGS } from '@/utils/security-checks'
 import Storage from '@/utils/storage'
 import { LoginAsPopup } from './LoginAsPopup'
@@ -177,6 +177,16 @@ class ContentScriptInjector {
       this.logos = []
     }
 
+    // Check if injection is disabled for this platform (future-proof for special cases)
+    const platformInfo = getPlatformInfo(this.domain)
+    if (platformInfo.hasPlatformRules) {
+      const platformRule = getPlatformRules(this.domain)
+      if (platformRule?.disableInjection) {
+        log.info(`⛔ Injection disabled for ${platformInfo.platform} - skipping`)
+        return
+      }
+    }
+
     // Security check first (Bitwarden-style)
     const securityCheck = checkCurrentPageSecurity()
 
@@ -257,6 +267,7 @@ class ContentScriptInjector {
 
     this.mutationObserver = new MutationObserver((mutations) => {
       let shouldRescan = false
+      let shouldCleanup = false
 
       for (const mutation of mutations) {
         // Check for added nodes
@@ -277,7 +288,47 @@ class ContentScriptInjector {
           }
         }
 
-        if (shouldRescan) break
+        // Check for removed nodes - cleanup logos if their input fields are gone
+        if (mutation.removedNodes.length > 0) {
+          for (const node of mutation.removedNodes) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              // Check if removed node contains any of our tracked input fields
+              this.logos.forEach((logo) => {
+                const inputField = logo.targetElement
+                if (!inputField || !document.body.contains(inputField)) {
+                  shouldCleanup = true
+                }
+              })
+
+              // Also check if it's a form or contains forms
+              if (
+                node.matches &&
+                (node.matches('form') || 
+                 node.matches('input[type="password"]') ||
+                 node.querySelector('form') ||
+                 node.querySelector('input[type="password"]'))
+              ) {
+                shouldCleanup = true
+              }
+            }
+          }
+        }
+
+        if (shouldRescan || shouldCleanup) break
+      }
+
+      // Handle cleanup first
+      if (shouldCleanup) {
+        // Remove logos for fields that no longer exist in DOM
+        this.logos = this.logos.filter((logo) => {
+          const inputField = logo.targetElement
+          if (!inputField || !document.body.contains(inputField)) {
+            log.info('🧹 Removing orphaned logo (input field removed from DOM)')
+            logo.destroy()
+            return false // Remove from array
+          }
+          return true // Keep in array
+        })
       }
 
       if (shouldRescan) {
@@ -637,6 +688,16 @@ class ContentScriptInjector {
    * @private
    */
   async checkForMultiStepLogin() {
+    // Check if injection is disabled for this platform (future-proof)
+    const platformInfo = getPlatformInfo(this.domain)
+    if (platformInfo.hasPlatformRules) {
+      const platformRule = getPlatformRules(this.domain)
+      if (platformRule?.disableInjection) {
+        log.info(`⛔ Multi-step injection disabled for ${platformInfo.platform}`)
+        return
+      }
+    }
+
     const allInputs = this.findAllInputs()
 
     // Find potential username/email fields
