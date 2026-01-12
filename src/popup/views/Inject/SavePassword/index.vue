@@ -7,12 +7,7 @@
           {{ action === 'update' ? 'UPDATE PASSWORD?' : 'SAVE NEW PASSWORD?' }}
         </p>
       </div>
-      <VIcon 
-        name="cross" 
-        size="20px" 
-        class="c-gray-300 mr-2 c-pointer" 
-        @click="onCancel"
-      />
+      <VIcon name="cross" size="20px" class="c-gray-300 mr-2 c-pointer" @click="onCancel" />
     </header>
     <ul class="mt-2">
       <li
@@ -26,11 +21,14 @@
             <p class="c-gray-300">{{ form.username }}</p>
           </div>
         </div>
-        <VIcon 
-          name="down-arrow" 
-          size="24px" 
-          class="c-gray-300" 
-          :style="{ transform: showContent ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }"
+        <VIcon
+          name="down-arrow"
+          size="24px"
+          class="c-gray-300"
+          :style="{
+            transform: showContent ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.3s'
+          }"
         />
       </li>
       <div v-show="showContent" class="content bg-black">
@@ -46,18 +44,17 @@
         </FormRowText>
       </div>
     </ul>
-    <footer class="d-flex flex-row mt-3 flex-row-reverse flex-items-center" :class="action === 'update' ? 'flex-justify-end' : 'flex-justify-between'">
-      <div class="d-flex flex-row-reverse flex-items-center">
+    <footer class="d-flex flex-row mt-3 flex-row-reverse flex-items-center flex-justify-end">
+      <div class="d-flex flex-row-reverse flex-items-center" style="gap: 12px">
         <VButton @click="onSave" :disabled="saving">
-          <span class="fs-medium fw-bold">{{ saving ? 'SAVING...' : (action === 'update' ? 'UPDATE' : 'SAVE') }}</span>
+          <span class="fs-medium fw-bold">{{
+            saving ? 'SAVING...' : action === 'update' ? 'UPDATE' : 'SAVE'
+          }}</span>
         </VButton>
         <VButton theme="text" @click="onCancel">
           <span class="fs-medium fw-bold c-gray-300">CANCEL</span>
         </VButton>
       </div>
-      <VButton v-if="action !== 'update'" theme="text" @click="onNever">
-        <span class="fs-medium fw-bold c-danger">NEVER</span>
-      </VButton>
     </footer>
   </div>
 </template>
@@ -97,16 +94,16 @@ export default {
   created() {
     // Listen for messages from content script
     window.addEventListener('message', this.handleMessage)
-    
-    // Notify content script that iframe is ready
-    this.tellParent({
-      type: 'PASSWALL_SAVE_READY'
-    })
   },
 
   mounted() {
     // Setup ResizeObserver to adjust iframe height dynamically
     this.setupResizeObserver()
+
+    // Notify content script that SavePassword iframe is ready (prevents race with SPA route mount)
+    this.tellParent({
+      type: 'PASSWALL_SAVE_READY'
+    })
   },
 
   beforeUnmount() {
@@ -121,8 +118,17 @@ export default {
      * Handle messages from content script
      */
     handleMessage(event) {
-      const { type, data } = event.data || {}
-      
+      let message = event.data
+      if (typeof message === 'string') {
+        try {
+          message = JSON.parse(message)
+        } catch {
+          return
+        }
+      }
+
+      const { type, data } = message || {}
+
       if (type === 'PASSWALL_SAVE_INIT') {
         this.initializeForm(data)
       }
@@ -133,12 +139,12 @@ export default {
      */
     initializeForm(data) {
       this.form.username = data.username || ''
-      this.form.password = data.password || ''
+      this.form.password = '' // intentionally blank; user may edit/override
       this.form.url = data.url || ''
       this.action = data.action || 'add'
       this.loginId = data.loginId || null
       this.domain = data.domain || ''
-      
+
       // Use title from data if provided (for update), otherwise use domain
       this.form.title = data.title || this.domain || getDomain(this.form.url) || 'New Login'
     },
@@ -148,23 +154,23 @@ export default {
      */
     async onSave() {
       if (this.saving) return
-      
-      if (!this.form.username || !this.form.password) {
+
+      if (!this.form.username) {
         return
       }
-      
+
       this.saving = true
-      
+
       const dataToSend = {
         username: this.form.username,
-        password: this.form.password,
+        password: this.form.password || undefined,
         url: this.form.url,
         title: this.form.title,
         action: this.action,
         loginId: this.loginId,
         domain: this.domain
       }
-      
+
       // Notify content script that user confirmed save
       // Content script will handle the actual save via background script
       this.tellParent({
@@ -189,7 +195,7 @@ export default {
     async onNever() {
       // TODO: Implement domain blacklist
       // await Storage.addToNeverSaveList(this.domain)
-      
+
       this.tellParent({
         type: 'PASSWALL_SAVE_CANCELLED'
       })
@@ -199,7 +205,10 @@ export default {
      * Send message to parent (content script)
      */
     tellParent(message) {
-      window.parent.postMessage(message, '*')
+      const parentOrigin = window.location?.ancestorOrigins?.[0] || '*'
+      const nonce = window.__PASSWALL_NONCE
+      const payload = nonce ? { ...message, nonce } : message
+      window.parent.postMessage(JSON.stringify(payload), parentOrigin)
     },
 
     /**

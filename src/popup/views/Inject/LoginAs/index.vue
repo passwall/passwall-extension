@@ -11,7 +11,15 @@
     <!-- Search Box (only show if logins exist and no auth error) -->
     <div v-if="!authError && logins.length > 0" class="mt-3">
       <div class="search-container">
-        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg
+          class="search-icon"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
           <circle cx="11" cy="11" r="8"></circle>
           <path d="m21 21-4.35-4.35"></path>
         </svg>
@@ -27,48 +35,59 @@
           ×
         </button>
       </div>
-      <p v-if="searchQuery && filteredLogins.length === 0" class="mt-2 c-gray-300" style="font-size: 13px; text-align: center;">
+      <p
+        v-if="searchQuery && filteredLogins.length === 0"
+        class="mt-2 c-gray-300"
+        style="font-size: 13px; text-align: center"
+      >
         No results for "{{ searchQuery }}"
       </p>
     </div>
 
     <!-- Authentication Required Message -->
     <div v-if="authError === 'NO_AUTH'" class="mt-3 p-4 bg-black-400 radius text-center">
-      <div class="mb-3" style="font-size: 48px;">🔒</div>
+      <div class="mb-3" style="font-size: 48px">🔒</div>
       <p class="fs-large fw-bold mb-2 c-white">Authentication Required</p>
-      <p class="c-white mb-1" style="font-size: 14px;">Please log in to Passwall extension</p>
-      <p class="c-white" style="font-size: 14px;">to access your passwords.</p>
-      <p class="mt-3 fw-medium" style="font-size: 14px; color: #a78bfa;">Click the Passwall icon to sign in →</p>
+      <p class="c-white mb-1" style="font-size: 14px">Please log in to Passwall extension</p>
+      <p class="c-white" style="font-size: 14px">to access your passwords.</p>
+      <p class="mt-3 fw-medium" style="font-size: 14px; color: #a78bfa">
+        Click the Passwall icon to sign in →
+      </p>
     </div>
 
     <!-- No Passwords Found Message -->
     <div v-else-if="authError === 'NO_LOGINS'" class="mt-3 p-4 bg-black-400 radius text-center">
-      <div class="mb-3" style="font-size: 48px;">📝</div>
+      <div class="mb-3" style="font-size: 48px">📝</div>
       <p class="fs-large fw-bold mb-2 c-white">No Passwords Found</p>
-      <p class="c-white mb-1" style="font-size: 14px;">You don't have any saved passwords</p>
-      <p class="c-white" style="font-size: 14px;">for this website.</p>
-      <p class="mt-3 fw-medium" style="font-size: 14px; color: #a78bfa;">Add one from the Passwall extension →</p>
+      <p class="c-white mb-1" style="font-size: 14px">You don't have any saved passwords</p>
+      <p class="c-white" style="font-size: 14px">for this website.</p>
+      <p class="mt-3 fw-medium" style="font-size: 14px; color: #a78bfa">
+        Add one from the Passwall extension →
+      </p>
     </div>
 
     <!-- Security Warning: Insecure HTTP -->
     <div v-else-if="authError === 'INSECURE_HTTP'" class="mt-3 p-4 bg-black-400 radius text-center">
-      <div class="mb-3" style="font-size: 48px;">⚠️</div>
+      <div class="mb-3" style="font-size: 48px">⚠️</div>
       <p class="fs-large fw-bold mb-2 c-white">Insecure Connection</p>
-      <p class="c-white mb-1" style="font-size: 14px;">This site uses HTTP (not secure).</p>
-      <p class="c-white mb-1" style="font-size: 14px;">For your security, autofill is</p>
-      <p class="c-white" style="font-size: 14px;">disabled on non-HTTPS sites.</p>
-      <p class="mt-3 fw-medium" style="font-size: 13px; color: #f59e0b;">
+      <p class="c-white mb-1" style="font-size: 14px">This site uses HTTP (not secure).</p>
+      <p class="c-white mb-1" style="font-size: 14px">For your security, autofill is</p>
+      <p class="c-white" style="font-size: 14px">disabled on non-HTTPS sites.</p>
+      <p class="mt-3 fw-medium" style="font-size: 13px; color: #f59e0b">
         🔒 Use HTTPS for secure autofill
       </p>
     </div>
 
     <!-- Security Warning: Suspicious URL -->
-    <div v-else-if="authError === 'SUSPICIOUS_URL'" class="mt-3 p-4 bg-black-400 radius text-center">
-      <div class="mb-3" style="font-size: 48px;">🚫</div>
+    <div
+      v-else-if="authError === 'SUSPICIOUS_URL'"
+      class="mt-3 p-4 bg-black-400 radius text-center"
+    >
+      <div class="mb-3" style="font-size: 48px">🚫</div>
       <p class="fs-large fw-bold mb-2 c-white">Autofill Disabled</p>
-      <p class="c-white mb-1" style="font-size: 14px;">Autofill is not available</p>
-      <p class="c-white" style="font-size: 14px;">on this type of page.</p>
-      <p class="mt-3 fw-medium" style="font-size: 13px; color: #6b7280;">
+      <p class="c-white mb-1" style="font-size: 14px">Autofill is not available</p>
+      <p class="c-white" style="font-size: 14px">on this type of page.</p>
+      <p class="mt-3 fw-medium" style="font-size: 13px; color: #6b7280">
         (Extension pages, file://, etc.)
       </p>
     </div>
@@ -114,31 +133,25 @@ export default {
       }
 
       const query = this.searchQuery.toLowerCase().trim()
-      
-      return this.logins.filter(login => {
+
+      return this.logins.filter((login) => {
         const title = (login.title || '').toLowerCase()
         const url = (login.url || '').toLowerCase()
         const username = (login.username || '').toLowerCase()
-        
-        return (
-          title.includes(query) ||
-          url.includes(query) ||
-          username.includes(query)
-        )
+
+        return title.includes(query) || url.includes(query) || username.includes(query)
       })
     }
   },
   created() {
-    this.on('LOGIN_AS_POPUP_FETCH', request => {
+    this.on('LOGIN_AS_POPUP_FETCH', (request) => {
       const payload = request.payload || {}
       const logins = payload.logins || []
       const authError = payload.authError || null
-      
+
       this.logins = logins
       this.authError = authError
     })
-
-    this.messageToContentScript({ type: 'LOGIN_AS_POPUP_FETCH' })
   },
   mounted() {
     // Tell dynamic height to content script
@@ -150,12 +163,17 @@ export default {
       })
     })
     resizeObserver.observe(this.$refs.window)
-    
+
     // Auto-focus search input if multiple logins
     this.$nextTick(() => {
       if (this.logins.length > 3 && this.$refs.searchInput) {
         this.$refs.searchInput.focus()
       }
+    })
+
+    // Ask parent for candidates after iframe is ready (prevents race)
+    this.$nextTick(() => {
+      this.messageToContentScript({ type: 'LOGIN_AS_POPUP_FETCH' })
     })
   },
   methods: {
@@ -163,7 +181,10 @@ export default {
       this.messageToContentScript({ type: 'LOGIN_AS_POPUP_CLOSE' })
     },
     onClickItem(item) {
-      this.messageToContentScript({ type: 'LOGIN_AS_POPUP_FILL_FORM', payload: item })
+      this.messageToContentScript({
+        type: 'LOGIN_AS_POPUP_FILL_FORM',
+        payload: { itemId: item.id }
+      })
     },
     clearSearch() {
       this.searchQuery = ''
@@ -241,7 +262,7 @@ export default {
 ul {
   max-height: 300px;
   overflow-y: auto;
-  
+
   li:last-child {
     margin-bottom: 0;
   }

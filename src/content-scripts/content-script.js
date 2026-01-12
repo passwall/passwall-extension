@@ -3,7 +3,6 @@ import { EVENT_TYPES } from '@/utils/constants'
 import { getHostName, getDomain, PFormParseError, sendPayload } from '@/utils/helpers'
 import { shouldExcludeField, getPlatformInfo, getPlatformRules } from '@/utils/platform-rules'
 import { checkCurrentPageSecurity, SECURITY_WARNINGS } from '@/utils/security-checks'
-import Storage from '@/utils/storage'
 import { LoginAsPopup } from './LoginAsPopup'
 import { PasswallLogo } from './PasswallLogo'
 
@@ -54,6 +53,14 @@ const log = {
   warn: (...args) => DEV_MODE && console.warn('⚠️ [Passwall]', ...args)
 }
 
+function generateNonce() {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
 /**
  * ContentScriptInjector - Manages Passwall integration in web pages
  * Detects login forms and injects Passwall logo for auto-fill functionality
@@ -67,11 +74,16 @@ class ContentScriptInjector {
     this.authError = null
     this.logos = []
     this.popupMessageListeners = []
+    this.messageRoutes = [] // { sourceWindow, origin, nonce, handler }
     this.mutationObserver = null // Enhanced: For dynamic content
     this.rescanTimeout = null // Enhanced: Debounce rescans
     this.processedFields = new WeakSet() // Enhanced: Track processed fields
     this.submittedFormData = null // Track form submissions for save detection
     this.saveNotificationShown = false // Prevent duplicate notifications
+    this.cachedCredentials = null // Cache credentials from submit button click
+    this.cacheTimestamp = 0 // Timestamp of cached credentials
+    this.saveNotificationRoute = null // { sourceWindow, nonce }
+    this.lastAutofill = null // { at, username, passwordDigest }
 
     this.initialize()
   }
@@ -105,8 +117,8 @@ class ContentScriptInjector {
     // NEW: Setup form submission detection
     this.setupFormSubmissionDetection()
 
-    // NEW: Check for pending credentials from previous page (after redirect)
-    this.checkPendingCredentials()
+    // NEW: Check for pending save from background (after redirect)
+    this.checkPendingSave()
 
     // Scan page for login forms on initialization
     this.detectAndInjectLogos()
@@ -159,7 +171,31 @@ class ContentScriptInjector {
    * @param {MessageEvent} event
    */
   async handlePopupMessage(event) {
-    this.popupMessageListeners.forEach((listener) => listener(event.data))
+    if (!event) return
+    if (typeof event.data !== 'string') return
+
+    let message
+    try {
+      message = JSON.parse(event.data)
+    } catch {
+      return
+    }
+
+    // Only accept messages coming from extension iframes we created
+    const extensionOrigin = browser.runtime.getURL('').replace(/\/$/, '')
+    if (event.origin !== extensionOrigin) {
+      return
+    }
+
+    const route = this.messageRoutes.find((r) => r.sourceWindow === event.source)
+    if (!route) return
+
+    // Nonce is mandatory for routed messages
+    if (typeof message?.nonce !== 'string' || message.nonce !== route.nonce) {
+      return
+    }
+
+    route.handler(message, event)
   }
 
   /**
@@ -218,7 +254,7 @@ class ContentScriptInjector {
       // Request matching logins from background script
       try {
         const logins = await sendPayload({
-          type: EVENT_TYPES.REQUEST_LOGINS,
+          type: EVENT_TYPES.REQUEST_PASSWORDS,
           payload: this.domain
         })
 
@@ -303,10 +339,10 @@ class ContentScriptInjector {
               // Also check if it's a form or contains forms
               if (
                 node.matches &&
-                (node.matches('form') || 
-                 node.matches('input[type="password"]') ||
-                 node.querySelector('form') ||
-                 node.querySelector('input[type="password"]'))
+                (node.matches('form') ||
+                  node.matches('input[type="password"]') ||
+                  node.querySelector('form') ||
+                  node.querySelector('input[type="password"]'))
               ) {
                 shouldCleanup = true
               }
@@ -1025,7 +1061,9 @@ class ContentScriptInjector {
         return
       }
 
-      const logo = new PasswallLogo(targetField, () => this.showLoginSelector(targetField))
+      const logo = new PasswallLogo(targetField, (event) =>
+        this.showLoginSelector(targetField, event)
+      )
 
       logo.render()
       this.logos.push(logo)
@@ -1040,15 +1078,46 @@ class ContentScriptInjector {
    * @param {HTMLElement} targetInput - Input element to position popup near
    * @private
    */
-  showLoginSelector(targetInput) {
-    log.info(`🚀 Logo clicked! Creating popup with ${this.logins.length} logins`)
+  showLoginSelector(targetInput, clickEvent) {
+    // Require a trusted user gesture to open the autofill UI
+    if (!clickEvent?.isTrusted) {
+      return
+    }
 
-    const popup = new LoginAsPopup(targetInput, this.logins, this.forms, this.authError)
+    const logins = this.logins || []
+    log.info(`🚀 Logo clicked! Creating popup with ${logins.length} logins`)
 
-    // Register popup's message handler
-    this.popupMessageListeners.push(popup.messageHandler.bind(popup))
+    const popup = new LoginAsPopup(
+      targetInput,
+      logins,
+      this.forms,
+      this.authError,
+      ({ at, username, passwordDigest }) => {
+        this.lastAutofill = { at, username, passwordDigest }
+      }
+    )
 
     popup.render()
+    const sourceWindow = popup.getIframeWindow()
+    const nonce = popup.getNonce()
+    const origin = popup.getExtensionOrigin()
+
+    if (sourceWindow && nonce && origin) {
+      this.messageRoutes.push({
+        sourceWindow,
+        origin,
+        nonce,
+        handler: (message) => {
+          // If popup closes itself, unregister route
+          if (message?.type === 'LOGIN_AS_POPUP_CLOSE') {
+            popup.destroy()
+            this.messageRoutes = this.messageRoutes.filter((r) => r.sourceWindow !== sourceWindow)
+            return
+          }
+          popup.messageHandler(message)
+        }
+      })
+    }
     log.success('Popup rendered and ready')
   }
 
@@ -1085,56 +1154,32 @@ class ContentScriptInjector {
   }
 
   /**
-   * Store pending credentials for post-redirect check
-   * @param {Object} credentials - {username, password, url}
+   * Check for pending save after page load (post-redirect).
+   * Pending secrets live only in background memory (never in chrome.storage).
    * @private
    */
-  async storePendingCredentials(credentials) {
+  async checkPendingSave() {
     try {
-      await Storage.setItem('pending_credentials', {
-        ...credentials,
-        timestamp: Date.now(),
-        domain: this.domain
+      const pending = await sendPayload({
+        type: EVENT_TYPES.CHECK_PENDING_SAVE,
+        payload: {}
       })
-      log.info('💾 Credentials stored for post-redirect check')
-    } catch (error) {
-      log.error('Failed to store pending credentials:', error)
-    }
-  }
 
-  /**
-   * Check for pending credentials after page load (post-redirect)
-   * @private
-   */
-  async checkPendingCredentials() {
-    try {
-      const pending = await Storage.getItem('pending_credentials')
-
-      if (!pending) {
+      if (!pending?.pending) {
         return
       }
 
-      // Check if credentials are still fresh (< 10 seconds old)
-      const age = Date.now() - pending.timestamp
-      if (age > 10000) {
-        log.info('Pending credentials too old, clearing')
-        await Storage.removeItem('pending_credentials')
-        return
-      }
+      log.info('🔄 Found pending save in background, showing save notification')
 
-      log.info('🔄 Found pending credentials, showing save notification')
-
-      // Clear from storage
-      await Storage.removeItem('pending_credentials')
-
-      // Show save notification
-      await this.checkIfShouldOfferSave({
-        username: pending.username,
-        password: pending.password,
-        url: pending.url
-      })
+      await this.showSaveNotification(
+        { username: pending.username, url: pending.url },
+        pending.action || 'add',
+        pending.loginId || null,
+        pending.title ? { title: pending.title } : null
+      )
     } catch (error) {
-      log.error('Error checking pending credentials:', error)
+      // Best-effort: if background restarted, pending is gone
+      log.error('Error checking pending save:', error)
     }
   }
 
@@ -1150,7 +1195,77 @@ class ContentScriptInjector {
     // Also listen for click events on submit buttons (for formless submissions)
     document.addEventListener('click', this.handleSubmitButtonClick.bind(this), true)
 
+    // NEW: Listen for input changes to cache credentials early (for React/Vue forms)
+    document.addEventListener('input', this.handleInputChange.bind(this), true)
+    document.addEventListener('change', this.handleInputChange.bind(this), true)
+
     log.success('Form submission detection initialized')
+  }
+
+  /**
+   * Handle input change events to cache credentials early
+   * @param {Event} event - Input/change event
+   * @private
+   */
+  handleInputChange(event) {
+    const input = event.target
+
+    if (!input || input.tagName !== 'INPUT') {
+      return
+    }
+
+    // Only cache if input has a value
+    if (!input.value || input.value.length < 1) {
+      return
+    }
+
+    const inputType = input.type.toLowerCase()
+    const inputName = (input.name || '').toLowerCase()
+    const inputId = (input.id || '').toLowerCase()
+
+    // Check if this is a password field
+    const isPassword =
+      inputType === 'password' ||
+      inputName.includes('password') ||
+      inputName.includes('passwd') ||
+      inputId.includes('password') ||
+      inputId.includes('passwd')
+
+    // Check if this is a username/email field
+    const isUsername =
+      inputType === 'email' ||
+      inputType === 'text' ||
+      inputName.includes('user') ||
+      inputName.includes('email') ||
+      inputName.includes('login') ||
+      inputId.includes('user') ||
+      inputId.includes('email') ||
+      inputId.includes('login')
+
+    if (isPassword || isUsername) {
+      // Find form or container
+      const form = input.closest('form')
+      const container = form || input.closest('div, section, main') || document.body
+
+      // Extract all credentials from container
+      const inputs = Array.from(container.querySelectorAll('input')).filter((el) =>
+        this.isFieldVisible(el)
+      )
+
+      // Try to extract full credentials
+      const credentials = this.extractCredentialsFromInputs(inputs)
+
+      if (credentials && credentials.username && credentials.password) {
+        // Cache complete credentials
+        this.cachedCredentials = credentials
+        this.cacheTimestamp = Date.now()
+
+        log.info('🔄 Credentials cached from input change:', {
+          username: credentials.username,
+          hasPassword: !!credentials.password
+        })
+      }
+    }
   }
 
   /**
@@ -1167,22 +1282,79 @@ class ContentScriptInjector {
 
     log.info('🔍 Form submitted, analyzing...')
 
-    // Extract credentials from form IMMEDIATELY (before form clears)
-    const credentials = this.extractCredentialsFromForm(form)
+    // Try to use cached credentials first (from submit button click)
+    let credentials = null
+    const CACHE_VALID_MS = 2000 // Cache valid for 2 seconds
+
+    if (this.cachedCredentials && Date.now() - this.cacheTimestamp < CACHE_VALID_MS) {
+      log.info('✅ Using cached credentials from submit button click')
+      credentials = this.cachedCredentials
+    } else {
+      // Fallback: Extract credentials from form IMMEDIATELY (before form clears)
+      log.info('⚠️ No valid cache, extracting from form...')
+      credentials = this.extractCredentialsFromForm(form)
+    }
 
     if (credentials) {
+      const autofillAge = this.lastAutofill?.at ? Date.now() - this.lastAutofill.at : null
+      const recentAutofillTime =
+        typeof autofillAge === 'number' &&
+        autofillAge >= 0 &&
+        autofillAge < 8000 &&
+        (this.lastAutofill?.username || '') === (credentials.username || '')
+
+      let passwordSameAsAutofill = false
+      if (recentAutofillTime && this.lastAutofill?.passwordDigest && credentials.password) {
+        try {
+          const data = new TextEncoder().encode(String(credentials.password))
+          const digest = await crypto.subtle.digest('SHA-256', data)
+          const bytes = new Uint8Array(digest)
+          let binary = ''
+          for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+          const currentDigest = btoa(binary)
+          passwordSameAsAutofill = currentDigest === this.lastAutofill.passwordDigest
+        } catch {
+          passwordSameAsAutofill = false
+        }
+      }
+
+      const recentAutofill = recentAutofillTime && passwordSameAsAutofill
+
+      if (recentAutofill) {
+        // Do not prompt save for credentials we just autofilled
+        this.lastAutofill = null
+        return
+      }
+
       log.info('✅ Credentials detected:', {
         username: credentials.username,
         hasPassword: !!credentials.password,
         url: credentials.url
       })
 
-      // Store credentials immediately (in case of redirect)
-      this.storePendingCredentials(credentials)
+      // Store credentials immediately in background memory (survives redirect)
+      try {
+        await sendPayload({
+          type: EVENT_TYPES.SET_PENDING_SAVE,
+          payload: {
+            username: credentials.username,
+            password: credentials.password,
+            url: credentials.url,
+            domain: this.domain,
+            action: 'add'
+          }
+        })
+      } catch (error) {
+        log.error('Failed to set pending save in background:', error)
+      }
+
+      // Clear cache after use
+      this.cachedCredentials = null
+      this.cacheTimestamp = 0
 
       // Also try to show immediately (if no redirect)
       setTimeout(() => {
-        this.checkIfShouldOfferSave(credentials)
+        this.checkIfShouldOfferSave({ username: credentials.username, url: credentials.url })
       }, 1000)
     } else {
       log.warn('❌ No credentials found in form')
@@ -1202,24 +1374,31 @@ class ContentScriptInjector {
       return
     }
 
-    log.info('🔍 Submit button clicked, analyzing...')
+    log.info('🔍 Submit button clicked, caching credentials...')
 
     // Find the nearest form or container
     const container = element.closest('form, div, section, main') || document.body
 
-    // Extract credentials from container
+    // Extract credentials from container BEFORE form manipulates fields
     const credentials = this.extractCredentialsFromContainer(container)
 
     if (credentials) {
-      log.info('✅ Credentials detected:', {
+      log.info('✅ Credentials detected and cached:', {
         username: credentials.username,
         hasPassword: !!credentials.password
       })
 
-      // Wait a bit for the submission to complete
-      setTimeout(() => {
-        this.checkIfShouldOfferSave(credentials)
-      }, 1000)
+      // Cache credentials for use in form submit handler
+      this.cachedCredentials = credentials
+      this.cacheTimestamp = Date.now()
+
+      // For formless submissions (no form submit event), wait and offer save
+      if (!element.closest('form')) {
+        setTimeout(() => {
+          this.checkIfShouldOfferSave(credentials)
+        }, 1000)
+      }
+      // If there's a form, let form submit handler use cached credentials
     }
   }
 
@@ -1294,6 +1473,8 @@ class ContentScriptInjector {
    */
   extractCredentialsFromInputs(inputs) {
     // Find password field (including common name variations)
+    const passwordFields = inputs.filter((input) => input.type === 'password')
+
     const passwordField = inputs.find((input) => {
       if (input.type !== 'password') return false
       if (!input.value) return false
@@ -1394,8 +1575,9 @@ class ContentScriptInjector {
   }
 
   /**
-   * Check if we should offer to save these credentials
-   * @param {Object} credentials - {username, password, url}
+   * Check if we should offer to save these credentials.
+   * Note: password is never needed here (candidates-only).
+   * @param {Object} credentials - {username, url}
    * @private
    */
   async checkIfShouldOfferSave(credentials) {
@@ -1426,32 +1608,55 @@ class ContentScriptInjector {
       })
 
       log.info(`📦 Found ${existingLogins.length} existing login(s)`)
+      const emptyUsernameCount = (existingLogins || []).filter(
+        (l) => !l?.username || String(l.username).trim().length === 0
+      ).length
 
-      // Check if exact match exists (same username AND password)
-      const exactMatch = existingLogins.find(
-        (login) =>
-          login.username === credentials.username && login.password === credentials.password
+      const raw = credentials.username || ''
+      const normalized = raw.trim().toLowerCase()
+      const normalizedMatch = existingLogins.find(
+        (login) => (login.username || '').trim().toLowerCase() === normalized
       )
-
-      if (exactMatch) {
-        log.info('✅ Exact login already exists (same username + password), not offering to save')
-        return
-      }
-
-      // Check if username exists but password is different (UPDATE scenario)
       const usernameMatch = existingLogins.find((login) => login.username === credentials.username)
 
-      if (usernameMatch) {
-        log.success(`🔄 Username exists but password is DIFFERENT - offering UPDATE`)
-        log.info('Existing login:', { id: usernameMatch.id, title: usernameMatch.title })
-        // Pass existing login data to popup (including title)
-        this.showSaveNotification(credentials, 'update', usernameMatch.id, usernameMatch)
+      const match = usernameMatch || normalizedMatch
+      if (match) {
+        log.success(`🔄 Username exists - offering UPDATE`)
+        log.info('Existing login:', { id: match.id, title: match.title })
+        // Update pending metadata in background (no password re-sent)
+        await sendPayload({
+          type: EVENT_TYPES.SET_PENDING_SAVE,
+          payload: {
+            username: credentials.username,
+            domain: this.domain,
+            action: 'update',
+            loginId: match.id,
+            title: match.title || this.domain
+          }
+        })
+
+        // Pass existing login data to popup (no password)
+        this.showSaveNotification(
+          { username: credentials.username, url: credentials.url },
+          'update',
+          match.id,
+          match
+        )
         return
       }
 
       // New login - offer to save
       log.success('🆕 New login detected - offering to SAVE')
-      this.showSaveNotification(credentials, 'add')
+      await sendPayload({
+        type: EVENT_TYPES.SET_PENDING_SAVE,
+        payload: {
+          username: credentials.username,
+          domain: this.domain,
+          action: 'add',
+          title: this.domain
+        }
+      })
+      this.showSaveNotification({ username: credentials.username, url: credentials.url }, 'add')
     } catch (error) {
       log.error('❌ Error checking existing logins:', error)
 
@@ -1465,7 +1670,16 @@ class ContentScriptInjector {
       // If no existing logins for this domain, offer to save new
       if (error.type === 'NO_LOGINS') {
         log.info('ℹ️ No existing logins for this domain, offering to save new')
-        this.showSaveNotification(credentials, 'add')
+        await sendPayload({
+          type: EVENT_TYPES.SET_PENDING_SAVE,
+          payload: {
+            username: credentials.username,
+            domain: this.domain,
+            action: 'add',
+            title: this.domain
+          }
+        })
+        this.showSaveNotification({ username: credentials.username, url: credentials.url }, 'add')
         return
       }
 
@@ -1490,10 +1704,15 @@ class ContentScriptInjector {
     this.saveNotificationShown = true
     this.submittedFormData = { credentials, action, loginId, existingLogin }
 
+    const extensionOrigin = browser.runtime.getURL('').replace(/\/$/, '')
+    const nonce = generateNonce()
+
     // Create iframe for save notification
     const iframe = document.createElement('iframe')
     iframe.id = 'passwall-save-notification'
-    iframe.src = browser.runtime.getURL('src/popup/index.html#/Inject/savePassword')
+    iframe.src = browser.runtime.getURL(
+      `src/popup/index.html?pw_nonce=${nonce}#/Inject/savePassword`
+    )
     iframe.style.cssText = `
       position: fixed !important;
       top: 20px !important;
@@ -1519,26 +1738,58 @@ class ContentScriptInjector {
       iframe.style.transform = 'translateY(0)'
     }, 100)
 
-    // Send data to iframe when it's ready
+    // Register message route for this iframe (validated in handlePopupMessage)
+    const sourceWindow = iframe.contentWindow
+    if (sourceWindow) {
+      this.saveNotificationRoute = { sourceWindow, nonce }
+      this.messageRoutes.push({
+        sourceWindow,
+        origin: extensionOrigin,
+        nonce,
+        handler: (message) => {
+          if (message?.type === 'PASSWALL_SAVE_READY') {
+            sendDataToIframe()
+            return
+          }
+
+          if (message?.type === 'PASSWALL_SAVE_RESIZE') {
+            const height = message?.data?.height
+            if (height && iframe) {
+              iframe.style.height = `${height}px`
+            }
+            return
+          }
+
+          if (message?.type === 'PASSWALL_SAVE_CONFIRMED') {
+            this.handleSaveConfirmed({ data: { data: message.data } })
+            return
+          }
+
+          if (message?.type === 'PASSWALL_SAVE_CANCELLED') {
+            this.handleSaveCancelled()
+          }
+        }
+      })
+    }
+
     const sendDataToIframe = () => {
       try {
         // Use existing login's title for update, or domain for new
         const displayTitle = existingLogin?.title || this.domain
 
         iframe.contentWindow.postMessage(
-          {
+          JSON.stringify({
             type: 'PASSWALL_SAVE_INIT',
             data: {
               username: credentials.username,
-              password: credentials.password, // Send password to iframe
               url: credentials.url,
               domain: this.domain,
               title: displayTitle, // Use existing title for update
               action,
               loginId
             }
-          },
-          '*'
+          }),
+          extensionOrigin
         )
         log.success('📤 Data sent to iframe with title:', displayTitle)
       } catch (error) {
@@ -1546,27 +1797,7 @@ class ContentScriptInjector {
       }
     }
 
-    // Listen for iframe ready message
-    const handleIframeMessage = (event) => {
-      if (event.data?.type === 'PASSWALL_SAVE_READY') {
-        sendDataToIframe()
-      } else if (event.data?.type === 'PASSWALL_SAVE_RESIZE') {
-        // Resize iframe dynamically
-        const height = event.data?.data?.height
-        if (height && iframe) {
-          iframe.style.height = `${height}px`
-        }
-      } else if (event.data?.type === 'PASSWALL_SAVE_CONFIRMED') {
-        // User clicked save - send to background
-        log.info('📨 Received SAVE_CONFIRMED from iframe:', event.data.data)
-        this.handleSaveConfirmed(event)
-      } else if (event.data?.type === 'PASSWALL_SAVE_CANCELLED') {
-        // User clicked cancel
-        this.handleSaveCancelled()
-      }
-    }
-
-    window.addEventListener('message', handleIframeMessage)
+    // Note: init data is sent after PASSWALL_SAVE_READY handshake to avoid SPA mount race
 
     // Cleanup after 30 seconds if not interacted
     setTimeout(() => {
@@ -1579,7 +1810,11 @@ class ContentScriptInjector {
           this.saveNotificationShown = false
         }, 300)
       }
-      window.removeEventListener('message', handleIframeMessage)
+      if (this.saveNotificationRoute?.sourceWindow) {
+        const sw = this.saveNotificationRoute.sourceWindow
+        this.messageRoutes = this.messageRoutes.filter((r) => r.sourceWindow !== sw)
+      }
+      this.saveNotificationRoute = null
     }, 30000)
 
     log.success('Save notification displayed')
@@ -1601,18 +1836,17 @@ class ContentScriptInjector {
     log.info('💾 User confirmed save, sending to background...')
 
     try {
-      const payloadToSend = {
-        username: data.username,
-        password: data.password,
-        url: data.url,
-        domain: data.domain || this.domain,
-        action: data.action,
-        loginId: data.loginId
-      }
-
-      const result = await sendPayload({
-        type: EVENT_TYPES.SAVE_CREDENTIALS,
-        payload: payloadToSend
+      await sendPayload({
+        type: EVENT_TYPES.CONFIRM_PENDING_SAVE,
+        payload: {
+          username: data.username,
+          password: data.password,
+          url: data.url,
+          domain: data.domain || this.domain,
+          title: data.title,
+          action: data.action,
+          loginId: data.loginId
+        }
       })
 
       log.success('✅ Credentials saved successfully!')
@@ -1631,6 +1865,7 @@ class ContentScriptInjector {
    */
   handleSaveCancelled() {
     log.info('User cancelled save')
+    sendPayload({ type: EVENT_TYPES.DISMISS_PENDING_SAVE, payload: {} }).catch(() => {})
     this.removeSaveNotification()
   }
 
@@ -1647,6 +1882,12 @@ class ContentScriptInjector {
         iframe.remove()
         this.saveNotificationShown = false
         this.submittedFormData = null
+
+        if (this.saveNotificationRoute?.sourceWindow) {
+          const sw = this.saveNotificationRoute.sourceWindow
+          this.messageRoutes = this.messageRoutes.filter((r) => r.sourceWindow !== sw)
+        }
+        this.saveNotificationRoute = null
       }, 300)
     }
   }
@@ -1723,19 +1964,59 @@ class ContentScriptInjector {
       max-width: 320px !important;
     `
 
-    notification.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-        </svg>
-        <div>
-          <div style="font-weight: 600; margin-bottom: 4px;">Authentication Required</div>
-          <div style="font-size: 13px; opacity: 0.9;">${message}</div>
-          <div style="font-size: 12px; margin-top: 6px; opacity: 0.8;">Click to open Passwall extension</div>
-        </div>
-      </div>
-    `
+    const wrapper = document.createElement('div')
+    wrapper.style.display = 'flex'
+    wrapper.style.alignItems = 'center'
+    wrapper.style.gap = '12px'
+
+    const svgNS = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(svgNS, 'svg')
+    svg.setAttribute('width', '24')
+    svg.setAttribute('height', '24')
+    svg.setAttribute('viewBox', '0 0 24 24')
+    svg.setAttribute('fill', 'none')
+    svg.setAttribute('stroke', 'currentColor')
+    svg.setAttribute('stroke-width', '2')
+
+    const rect = document.createElementNS(svgNS, 'rect')
+    rect.setAttribute('x', '3')
+    rect.setAttribute('y', '11')
+    rect.setAttribute('width', '18')
+    rect.setAttribute('height', '11')
+    rect.setAttribute('rx', '2')
+    rect.setAttribute('ry', '2')
+
+    const path = document.createElementNS(svgNS, 'path')
+    path.setAttribute('d', 'M7 11V7a5 5 0 0 1 10 0v4')
+
+    svg.appendChild(rect)
+    svg.appendChild(path)
+
+    const textBox = document.createElement('div')
+
+    const titleEl = document.createElement('div')
+    titleEl.style.fontWeight = '600'
+    titleEl.style.marginBottom = '4px'
+    titleEl.textContent = 'Authentication Required'
+
+    const messageEl = document.createElement('div')
+    messageEl.style.fontSize = '13px'
+    messageEl.style.opacity = '0.9'
+    messageEl.textContent = String(message || 'Please login to Passwall extension')
+
+    const hintEl = document.createElement('div')
+    hintEl.style.fontSize = '12px'
+    hintEl.style.marginTop = '6px'
+    hintEl.style.opacity = '0.8'
+    hintEl.textContent = 'Click to open Passwall extension'
+
+    textBox.appendChild(titleEl)
+    textBox.appendChild(messageEl)
+    textBox.appendChild(hintEl)
+
+    wrapper.appendChild(svg)
+    wrapper.appendChild(textBox)
+    notification.appendChild(wrapper)
 
     // Open extension popup when clicked
     notification.addEventListener('click', () => {

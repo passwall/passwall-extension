@@ -26,6 +26,25 @@ const MESSAGE_TYPES = {
   CLOSE: 'LOGIN_AS_POPUP_CLOSE'
 }
 
+function generateNonce() {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+async function sha256Base64(input) {
+  const data = new TextEncoder().encode(String(input || ''))
+  const digest = await crypto.subtle.digest('SHA-256', data)
+  const bytes = new Uint8Array(digest)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
+}
+
 // Development logging
 const DEV_MODE = false // Production mode
 const log = {
@@ -44,7 +63,7 @@ export class LoginAsPopup {
    * @param {Array<Object>} forms - Detected forms on page
    * @param {string} authError - Authentication error type (NO_AUTH, NO_LOGINS, or null)
    */
-  constructor(targetInput, logins, forms, authError = null) {
+  constructor(targetInput, logins, forms, authError = null, onAutofill = null) {
     if (!targetInput || !forms) {
       throw new Error('LoginAsPopup requires targetInput and forms')
     }
@@ -60,6 +79,7 @@ export class LoginAsPopup {
     this.forms = forms
     this.authError = authError
     this.domain = getHostName(window.location.href) // For platform-specific rules
+    this.onAutofill = typeof onAutofill === 'function' ? onAutofill : null
 
     this.iframeElement = null
     this.iframeReady = false // Track if iframe is ready for messages
@@ -70,9 +90,22 @@ export class LoginAsPopup {
     this.canDestroy = false
 
     this.boundClickHandler = null
-    
+
     // Security: Get extension origin for postMessage validation
     this.EXTENSION_ORIGIN = browser.runtime.getURL('').replace(/\/$/, '')
+    this.nonce = generateNonce()
+  }
+
+  getIframeWindow() {
+    return this.iframeElement?.contentWindow || null
+  }
+
+  getNonce() {
+    return this.nonce
+  }
+
+  getExtensionOrigin() {
+    return this.EXTENSION_ORIGIN
   }
 
   /**
@@ -90,14 +123,18 @@ export class LoginAsPopup {
    * @param {string} messageData - JSON string message
    */
   async messageHandler(messageData) {
-    let message
+    const message =
+      typeof messageData === 'string'
+        ? (() => {
+            try {
+              return JSON.parse(messageData)
+            } catch {
+              return null
+            }
+          })()
+        : messageData
 
-    try {
-      message = JSON.parse(messageData)
-    } catch (error) {
-      // Not a valid JSON message, ignore
-      return
-    }
+    if (!message) return
 
     switch (message.type) {
       case MESSAGE_TYPES.RESIZE:
@@ -197,13 +234,42 @@ export class LoginAsPopup {
    * Triggers all necessary events for framework compatibility (React, Vue, Angular)
    * @private
    * @param {Object} credentials
-   * @param {string} credentials.username
-   * @param {string} credentials.password
+   * @param {string} credentials.itemId
    */
-  handleFillForm({ username, password }) {
+  async handleFillForm({ itemId }) {
     if (!this.forms[0]) {
       log.error('No form available to fill')
       return
+    }
+
+    if (!itemId) {
+      log.error('Missing itemId for fill request')
+      return
+    }
+
+    let secret
+    try {
+      secret = await sendPayload({
+        type: 'GET_FILL_SECRET',
+        payload: { itemId, userGesture: true }
+      })
+    } catch (error) {
+      log.error('Failed to fetch fill secret:', error)
+      return
+    }
+
+    const username = secret?.username || ''
+    const password = secret?.password || ''
+    if (!username || !password) {
+      log.error('Fill secret missing username or password')
+      return
+    }
+
+    let passwordDigest
+    try {
+      passwordDigest = await sha256Base64(password)
+    } catch {
+      passwordDigest = null
     }
 
     let usernameFilled = false
@@ -237,6 +303,20 @@ export class LoginAsPopup {
     })
 
     log.success(`Form auto-filled for: ${username}`)
+
+    try {
+      this.onAutofill?.({ at: Date.now(), username, passwordDigest })
+    } catch {
+      // ignore
+    }
+
+    // Best-effort wipe (minimize exposure in content script memory)
+    try {
+      secret.username = null
+      secret.password = null
+    } catch {
+      // ignore
+    }
     this.destroy()
   }
 
@@ -248,7 +328,7 @@ export class LoginAsPopup {
    */
   sanitizeValue(value) {
     if (typeof value !== 'string') return ''
-    
+
     // Basic XSS prevention - remove dangerous patterns
     // Note: Passwords/usernames shouldn't contain HTML/JS, but sanitize anyway
     return value
@@ -269,7 +349,7 @@ export class LoginAsPopup {
   fillInputWithEvents(input, value) {
     // Security: Sanitize value before filling
     const sanitizedValue = this.sanitizeValue(value)
-    
+
     // Store initial state
     const initialValue = input.value
 
@@ -401,7 +481,9 @@ export class LoginAsPopup {
    */
   createIframe() {
     const iframe = document.createElement('iframe')
-    const popupUrl = browser.runtime.getURL('src/popup/index.html#/Inject/loginAsPopup')
+    const popupUrl = browser.runtime.getURL(
+      `src/popup/index.html?pw_nonce=${this.nonce}#/Inject/loginAsPopup`
+    )
 
     iframe.setAttribute('id', POPUP_CONFIG.ID)
     iframe.setAttribute('src', popupUrl)
@@ -426,6 +508,9 @@ export class LoginAsPopup {
 
       // Mark iframe as ready for communication
       this.iframeReady = true
+
+      // Handshake nonce to iframe so it can echo it back in all messages
+      this.sendMessageToIframe({ type: 'PASSWALL_HANDSHAKE', nonce: this.nonce })
 
       // Flush any messages that were queued while loading
       this.flushPendingMessages()

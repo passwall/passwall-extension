@@ -18,7 +18,10 @@ Vue.mixin({
       browser.runtime.sendMessage({ ...data, who: 'popup' })
     },
     messageToContentScript(data = {}) {
-      window.parent.postMessage(JSON.stringify(data), '*')
+      const parentOrigin = window.location?.ancestorOrigins?.[0] || '*'
+      const nonce = window.__PASSWALL_NONCE
+      const payload = nonce ? { ...data, nonce } : data
+      window.parent.postMessage(JSON.stringify(payload), parentOrigin)
     },
     on(event, func) {
       this.listeners[event] = func

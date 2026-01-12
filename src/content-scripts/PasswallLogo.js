@@ -72,9 +72,9 @@ export class PasswallLogo {
     })
 
     if (this.onClick) {
-      img.addEventListener('click', () => {
+      img.addEventListener('click', (event) => {
         log.info('🖱️ Logo clicked! Calling onClick handler')
-        this.onClick()
+        this.onClick(event)
       })
     }
 

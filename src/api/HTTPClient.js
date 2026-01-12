@@ -59,6 +59,126 @@ const processQueue = (error, token = null) => {
   failedQueue = []
 }
 
+// ============================================================
+// Token helpers (JWT exp-based proactive refresh)
+// ============================================================
+
+const TOKEN_REFRESH_LEEWAY_MS = 60 * 1000 // refresh if token expires within 60s
+
+function base64UrlDecodeToString(input) {
+  // base64url -> base64
+  let str = input.replace(/-/g, '+').replace(/_/g, '/')
+  // pad
+  while (str.length % 4) str += '='
+  return atob(str)
+}
+
+function getJwtExpMs(token) {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const payloadJson = base64UrlDecodeToString(parts[1])
+    const payload = JSON.parse(payloadJson)
+    if (!payload?.exp) return null
+    const expSec = Number(payload.exp)
+    if (!Number.isFinite(expSec)) return null
+    return expSec * 1000
+  } catch {
+    return null
+  }
+}
+
+async function refreshAccessToken() {
+  // Get refresh token from storage
+  const refresh_token = await Storage.getItem('refresh_token')
+  if (!refresh_token) {
+    throw new Error('No refresh token available')
+  }
+
+  // Call refresh endpoint directly (avoid circular imports)
+  const { data } = await client.post('/auth/refresh', { refresh_token }, { _skipAuthRefresh: true })
+
+  await Promise.all([
+    Storage.setItem('access_token', data.access_token),
+    Storage.setItem('refresh_token', data.refresh_token),
+  ])
+
+  const newToken = data.access_token
+  client.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+
+  // Notify background script to update its auth state
+  browser.runtime
+    .sendMessage({
+      type: 'TOKEN_REFRESHED',
+      who: 'api',
+      payload: {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+      },
+    })
+    .catch(() => {})
+
+  return newToken
+}
+
+async function getValidAccessTokenForRequest() {
+  const accessToken = await Storage.getItem('access_token')
+  if (!accessToken) return null
+
+  const expMs = getJwtExpMs(accessToken)
+  if (!expMs) {
+    // Not a JWT or no exp; fall back to 401-based refresh
+    return accessToken
+  }
+
+  const now = Date.now()
+  if (expMs - now > TOKEN_REFRESH_LEEWAY_MS) {
+    return accessToken
+  }
+
+  // Token is about to expire, refresh proactively (race-safe)
+  if (isRefreshing) {
+    return new Promise((resolve, reject) => {
+      failedQueue.push({ resolve, reject })
+    })
+  }
+
+  isRefreshing = true
+  try {
+    const newToken = await refreshAccessToken()
+    processQueue(null, newToken)
+    return newToken
+  } catch (err) {
+    processQueue(err, null)
+    throw err
+  } finally {
+    isRefreshing = false
+  }
+}
+
+// Request interceptor to proactively refresh token before 401
+client.interceptors.request.use(
+  async (config) => {
+    // Skip for auth endpoints and for explicit opt-out
+    if (
+      config?._skipAuthRefresh ||
+      config?.url?.includes('/auth/signin') ||
+      config?.url?.includes('/auth/refresh')
+    ) {
+      return config
+    }
+
+    const token = await getValidAccessTokenForRequest()
+    if (token) {
+      config.headers = config.headers || {}
+      config.headers['Authorization'] = `Bearer ${token}`
+    }
+
+    return config
+  },
+  (error) => Promise.reject(error)
+)
+
 // Response interceptor for automatic token refresh and retry
 client.interceptors.response.use(
   (response) => response,
@@ -94,50 +214,9 @@ client.interceptors.response.use(
       isRefreshing = true
 
       try {
-        // Token expired, attempting automatic refresh
-
-        // Get refresh token from storage
-        const refresh_token = await Storage.getItem('refresh_token')
-
-        if (!refresh_token) {
-          throw new Error('No refresh token available')
-        }
-
-        // Call refresh endpoint directly to avoid circular import
-        const { data } = await client.post('/auth/refresh', { refresh_token })
-
-        // Update tokens in storage
-        await Promise.all([
-          Storage.setItem('access_token', data.access_token),
-          Storage.setItem('refresh_token', data.refresh_token)
-        ])
-
-        // Update authorization header
-        const newToken = data.access_token
-        client.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+        const newToken = await refreshAccessToken()
         originalRequest.headers['Authorization'] = `Bearer ${newToken}`
-
-        // Token refreshed successfully, retrying original request
-
-        // Notify background script to update its auth state
-        browser.runtime
-          .sendMessage({
-            type: 'TOKEN_REFRESHED',
-            who: 'api',
-            payload: {
-              access_token: data.access_token,
-              refresh_token: data.refresh_token
-            }
-          })
-          .catch(() => {
-            // Background script might not be ready
-          })
-
-        // Process queued requests
         processQueue(null, newToken)
-
-        isRefreshing = false
-
         // Retry the original request with new token
         return client(originalRequest)
       } catch (refreshError) {
