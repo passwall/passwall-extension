@@ -8,6 +8,7 @@ import { cryptoService, SymmetricKey, DEFAULT_KDF_CONFIG, PBKDF2_MIN_ITERATIONS 
 import HTTPClient from '@/api/HTTPClient'
 import AuthService from '@/api/services/Auth'
 import Storage from '@/utils/storage'
+import SessionStorage, { SESSION_KEYS } from '@/utils/session-storage'
 import * as Helpers from '@/utils/helpers'
 import { EVENT_TYPES } from '@/utils/constants'
 
@@ -47,10 +48,14 @@ export const useAuthStore = defineStore('auth', {
       this.refresh_token = refresh_token || ''
       this.user = user
 
-      // Try to restore keys from session storage
+      // Try to restore keys from extension session storage (survives MV3 SW restarts)
       try {
-        const userKeyBase64 = sessionStorage.getItem('userKey')
-        const masterKeyBase64 = sessionStorage.getItem('masterKey')
+        await SessionStorage.setAccessLevelTrustedContexts()
+
+        const [userKeyBase64, masterKeyBase64] = await Promise.all([
+          SessionStorage.getItem(SESSION_KEYS.userKey),
+          SessionStorage.getItem(SESSION_KEYS.masterKey)
+        ])
 
         if (userKeyBase64) {
           const userKeyBytes = cryptoService.base64ToArray(userKeyBase64)
@@ -61,7 +66,22 @@ export const useAuthStore = defineStore('auth', {
           this.masterKey = cryptoService.base64ToArray(masterKeyBase64)
         }
       } catch (error) {
-        console.warn('Failed to restore keys from session:', error)
+        // Fallback to window sessionStorage for environments without storage.session
+        try {
+          const userKeyBase64 = window?.sessionStorage?.getItem?.('userKey')
+          const masterKeyBase64 = window?.sessionStorage?.getItem?.('masterKey')
+
+          if (userKeyBase64) {
+            const userKeyBytes = cryptoService.base64ToArray(userKeyBase64)
+            this.userKey = SymmetricKey.fromBytes(userKeyBytes)
+          }
+
+          if (masterKeyBase64) {
+            this.masterKey = cryptoService.base64ToArray(masterKeyBase64)
+          }
+        } catch (fallbackError) {
+          console.warn('Failed to restore keys from session:', fallbackError)
+        }
       }
 
       // Security check: If user is logged in but userKey is missing, force logout
@@ -147,8 +167,20 @@ export const useAuthStore = defineStore('auth', {
       ])
 
       // 9. Store keys in session storage (cleared on browser close)
-      sessionStorage.setItem('userKey', cryptoService.arrayToBase64(this.userKey.toBytes()))
-      sessionStorage.setItem('masterKey', cryptoService.arrayToBase64(this.masterKey))
+      const userKeyB64 = cryptoService.arrayToBase64(this.userKey.toBytes())
+      const masterKeyB64 = cryptoService.arrayToBase64(this.masterKey)
+
+      try {
+        await SessionStorage.setAccessLevelTrustedContexts()
+        await Promise.all([
+          SessionStorage.setItem(SESSION_KEYS.userKey, userKeyB64),
+          SessionStorage.setItem(SESSION_KEYS.masterKey, masterKeyB64)
+        ])
+      } catch {
+        // Fallback
+        window?.sessionStorage?.setItem?.('userKey', userKeyB64)
+        window?.sessionStorage?.setItem?.('masterKey', masterKeyB64)
+      }
 
       // 10. Notify background script
       Helpers.messageToBackground({ type: EVENT_TYPES.LOGIN })
@@ -217,8 +249,20 @@ export const useAuthStore = defineStore('auth', {
       ])
 
       // 12. Store keys in session storage
-      sessionStorage.setItem('userKey', cryptoService.arrayToBase64(this.userKey.toBytes()))
-      sessionStorage.setItem('masterKey', cryptoService.arrayToBase64(this.masterKey))
+      const userKeyB64 = cryptoService.arrayToBase64(this.userKey.toBytes())
+      const masterKeyB64 = cryptoService.arrayToBase64(this.masterKey)
+
+      try {
+        await SessionStorage.setAccessLevelTrustedContexts()
+        await Promise.all([
+          SessionStorage.setItem(SESSION_KEYS.userKey, userKeyB64),
+          SessionStorage.setItem(SESSION_KEYS.masterKey, masterKeyB64)
+        ])
+      } catch {
+        // Fallback
+        window?.sessionStorage?.setItem?.('userKey', userKeyB64)
+        window?.sessionStorage?.setItem?.('masterKey', masterKeyB64)
+      }
 
       // 13. Notify background script
       Helpers.messageToBackground({ type: EVENT_TYPES.LOGIN })
@@ -271,9 +315,13 @@ export const useAuthStore = defineStore('auth', {
       // Clear HTTP client
       HTTPClient.setHeader('Authorization', '')
 
-      // Clear session storage
-      sessionStorage.removeItem('userKey')
-      sessionStorage.removeItem('masterKey')
+      // Clear session keys (do not clear all session storage)
+      try {
+        await SessionStorage.removeItems([SESSION_KEYS.userKey, SESSION_KEYS.masterKey])
+      } catch {
+        window?.sessionStorage?.removeItem?.('userKey')
+        window?.sessionStorage?.removeItem?.('masterKey')
+      }
 
       // Preserve email and server for convenience
       const email = await Storage.getItem('email')
@@ -345,7 +393,12 @@ export const useAuthStore = defineStore('auth', {
 
       // 8. Update local state
       this.masterKey = newMasterKey
-      sessionStorage.setItem('masterKey', cryptoService.arrayToBase64(newMasterKey))
+      const masterKeyB64 = cryptoService.arrayToBase64(newMasterKey)
+      try {
+        await SessionStorage.setItem(SESSION_KEYS.masterKey, masterKeyB64)
+      } catch {
+        window?.sessionStorage?.setItem?.('masterKey', masterKeyB64)
+      }
 
       console.log('✅ Master password changed successfully')
     },

@@ -2,6 +2,7 @@ import browser from 'webextension-polyfill'
 import { EVENT_TYPES } from '@/utils/constants'
 import PasswordsService from '@/api/services/Passwords'
 import Storage from '@/utils/storage'
+import SessionStorage, { SESSION_KEYS } from '@/utils/session-storage'
 import HTTPClient from '@/api/HTTPClient'
 import CryptoUtils from '@/utils/crypto'
 import { RequestError, getDomain, getHostName } from '@/utils/helpers'
@@ -25,6 +26,13 @@ class BackgroundAgent {
    * Sets up message listeners and restores authentication state
    */
   async init() {
+    // Best-effort hardening: ensure extension-only access to session storage where supported.
+    try {
+      await SessionStorage.setAccessLevelTrustedContexts()
+    } catch {
+      // ignore
+    }
+
     await this.restoreAuthState()
     this.setupMessageListeners()
     this.setupTabListeners()
@@ -187,6 +195,13 @@ class BackgroundAgent {
       this.isAuthenticated = false
       CryptoUtils.encryptKey = null
       HTTPClient.setHeader('Authorization', '')
+
+      // Ensure decrypted keys are cleared from extension session storage (defense in depth).
+      try {
+        await SessionStorage.removeItems([SESSION_KEYS.userKey, SESSION_KEYS.masterKey])
+      } catch {
+        // ignore (popup store also clears)
+      }
       
       await this.notifyActiveTab(EVENT_TYPES.LOGOUT)
     } catch (error) {
