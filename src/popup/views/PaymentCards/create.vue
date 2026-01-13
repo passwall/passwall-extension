@@ -12,11 +12,12 @@
       </template>
     </Header>
     <div class="scroll">
-      <form @submit.prevent="onSubmit" class="create-form">
+      <form @submit.prevent="onSubmit" class="create-form pw-form-standard">
         <div class="form-row">
           <label v-text="'Title'" />
           <VFormText
             name="Title"
+            class="pw-input"
             v-on:change="saveForm"
             v-model="form.title"
             v-validate="'required'"
@@ -29,6 +30,7 @@
           <label v-text="'Name on Card'" />
           <VFormText
             name="Name on Card"
+            class="pw-input"
             v-on:change="saveForm"
             v-model="form.name_on_card"
             :placeholder="$t('ClickToFill')"
@@ -40,6 +42,7 @@
           <label v-text="'Card Type'" />
           <VFormText
             name="Card Type"
+            class="pw-input"
             v-on:change="saveForm"
             v-model="form.card_type"
             :placeholder="$t('ClickToFill')"
@@ -51,6 +54,7 @@
           <label v-text="'Card Number'" />
           <VFormText
             name="Card Number"
+            class="pw-input"
             v-on:change="saveForm"
             v-model="form.card_number"
             :placeholder="$t('ClickToFill')"
@@ -62,6 +66,7 @@
           <label v-text="'Expiration Month'" />
           <VFormText
             name="Expiration Month"
+            class="pw-input"
             v-on:change="saveForm"
             v-model="form.exp_month"
             placeholder="MM"
@@ -73,6 +78,7 @@
           <label v-text="'Expiration Year'" />
           <VFormText
             name="Expiration Year"
+            class="pw-input"
             v-on:change="saveForm"
             v-model="form.exp_year"
             placeholder="YYYY"
@@ -82,17 +88,17 @@
 
         <div class="form-row">
           <label v-text="'Security Code (CVV)'" />
-          <div class="d-flex flex-justify-between ">
+          <div class="d-flex flex-justify-between pw-row">
             <VFormText
               name="Security Code"
               v-on:change="saveForm"
-              class="flex-auto"
+              class="flex-auto pw-input"
               v-model="form.security_code"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showPass ? 'text' : 'password'"
             />
-            <div class="d-flex flex-items-center mr-3">
+            <div class="d-flex flex-items-center mr-3 pw-icons">
               <ClipboardButton :copy="form.security_code" />
               <ShowPassButton @click="showPass = $event" />
             </div>

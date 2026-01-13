@@ -14,10 +14,27 @@
           :url="item.title"
           :title="item.title"
           :subtitle="item.iban_number || item.account_number"
+          :item-data="item"
+          @edit="handleEdit"
+          @delete="handleDelete"
           @click="clickItem(item)"
         />
       </ul>
     </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <ConfirmDialog
+      v-model:show="showDeleteConfirm"
+      title="Delete Bank Account?"
+      :message="deleteConfirmMessage"
+      confirm-text="Delete"
+      cancel-text="Cancel"
+      confirm-theme="danger"
+      icon="trash"
+      icon-class="icon-danger"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </div>
 </template>
 
@@ -43,14 +60,14 @@ export default {
 
   data() {
     return {
-      _listFetched: false
+      _listFetched: false,
+      showDeleteConfirm: false,
+      deleteItem: null
     }
   },
 
   mounted() {
-    const hasBanks = this.ItemList?.filter(item => item.item_type === ItemType.Bank).length > 0
-    
-    if (!this._listFetched && !hasBanks) {
+    if (!this._listFetched) {
       this.fetchAll()
       this._listFetched = true
     }
@@ -89,6 +106,12 @@ export default {
       })
 
       return sorted
+    },
+
+    deleteConfirmMessage() {
+      if (!this.deleteItem) return ''
+      const name = this.deleteItem.title || this.deleteItem.name || 'this bank account'
+      return 'Are you sure you want to delete "' + name + '"?\n\nThis action cannot be undone.'
     }
   },
 
@@ -107,6 +130,32 @@ export default {
 
     clickItem(item) {
       this.$router.push({ name: 'BankAccountDetail', params: { id: item.id } })
+    },
+
+    handleEdit(item) {
+      this.$router.push({ name: 'BankAccountDetail', params: { id: item.id } })
+    },
+
+    handleDelete(item) {
+      this.deleteItem = item
+      this.showDeleteConfirm = true
+    },
+
+    async confirmDelete() {
+      if (!this.deleteItem) return
+      try {
+        await this.itemsStore.deleteItem(this.deleteItem.id)
+        this.$notifySuccess?.('Bank account deleted successfully')
+      } catch (error) {
+        console.error('Failed to delete bank account:', error)
+        this.$notifyError?.('Failed to delete bank account')
+      } finally {
+        this.deleteItem = null
+      }
+    },
+
+    cancelDelete() {
+      this.deleteItem = null
     }
   }
 }

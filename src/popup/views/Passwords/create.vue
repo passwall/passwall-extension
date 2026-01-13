@@ -12,11 +12,12 @@
       </template>
     </Header>
     <div class="scroll">
-      <form @submit.prevent="onSubmit" class="create-form">
+      <form @submit.prevent="onSubmit" class="create-form pw-form-standard">
         <div class="form-row">
-          <label v-text="'Title'" />
+          <label v-text="'Name'" />
           <VFormText
             name="Title"
+            class="pw-input"
             v-on:change="saveForm"
             v-model="form.title"
             v-validate="'required'"
@@ -29,6 +30,7 @@
           <label v-text="'Username'" />
           <VFormText
             name="Username"
+            class="pw-input"
             v-on:change="saveForm"
             v-model="form.username"
             :placeholder="$t('ClickToFill')"
@@ -38,17 +40,17 @@
 
         <div class="form-row">
           <label v-text="'Password'" />
-          <div class="d-flex flex-justify-between ">
+          <div class="d-flex flex-justify-between pw-row">
             <VFormText
               name="Password"
-              class="flex-auto"
+              class="flex-auto pw-input"
               v-on:change="saveForm"
               v-model="form.password"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showPass ? 'text' : 'password'"
             />
-            <div class="d-flex flex-items-center mr-3">
+            <div class="d-flex flex-items-center mr-3 pw-icons">
               <GeneratePassword v-model="form.password" />
               <CheckPassword :password="form.password" />
               <ShowPassButton @click="showPass = $event" />
@@ -59,18 +61,15 @@
         
         <div class="form-row">
           <label v-text="'Website'" />
-          <div class="d-flex flex-justify-between">
-            <VFormText
-              name="Web Site"
-              class="flex-auto"
-              v-on:change="saveForm"
-              v-model="form.url"
-              v-validate="'url'"
-              :placeholder="$t('ClickToFill')"
-              theme="no-border"
-            />
-            <LinkButton class="mr-3" :link="form.url" />
-          </div>
+          <VFormText
+            name="Web Site"
+            class="pw-input"
+            v-on:change="saveForm"
+            v-model="form.url"
+            v-validate="'url'"
+            :placeholder="$t('ClickToFill')"
+            theme="no-border"
+          />
         </div>
 
         <div>
@@ -78,8 +77,9 @@
             :placeholder="$t('ClickToFill')" 
             v-on:change="saveForm"
             v-model="form.extra" 
-            label="Extra" 
+            label="Note" 
             name="extra" 
+            minheight="80"
             isEditable
           />
         </div>
@@ -87,17 +87,17 @@
         <!-- TOTP Section -->
         <div class="form-row">
           <label v-text="'Authenticator Key (TOTP)'" />
-          <div class="d-flex flex-justify-between">
+          <div class="d-flex flex-justify-between pw-row">
             <VFormText
               name="TOTP Secret"
-              class="flex-auto"
+              class="flex-auto pw-input"
               v-on:change="saveForm"
               v-model="form.totp_secret"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showTotpSecret ? 'text' : 'password'"
             />
-            <div class="d-flex flex-items-center mr-3">
+            <div class="d-flex flex-items-center mr-3 pw-icons">
               <button 
                 type="button"
                 v-tooltip="'Capture QR Code'"
@@ -144,6 +144,7 @@
 <script>
 import { useItemsStore, ItemType } from '@/stores/items'
 import Storage from '@/utils/storage'
+import { getHostName } from '@/utils/helpers'
 import totpCaptureService from '@/utils/totp-capture'
 import TOTPCounter from '@/components/TOTPCounter.vue'
 
@@ -155,7 +156,7 @@ export default {
     const itemsStore = useItemsStore()
     
     return {
-      createLogin: itemsStore.create
+      itemsStore
     }
   },
   data() {
@@ -195,7 +196,32 @@ export default {
         return
       }
       const onSuccess = async () => {
-        await this.createLogin({ ...this.form })
+        const url = this.form.url || ''
+        const uriHint = getHostName(url) || ''
+
+        const passwordData = {
+          name: this.form.title,
+          username: this.form.username || '',
+          password: this.form.password || '',
+          // Keep bitwarden-like field name for compatibility with background and autofill
+          uris: url ? [{ uri: url, match: null }] : [],
+          // Preserve "extra" field across UI variants
+          notes: this.form.extra || '',
+          // Preserve TOTP secret if provided
+          totp_secret: this.form.totp_secret || ''
+        }
+
+        const metadata = {
+          name: this.form.title,
+          uri_hint: uriHint
+        }
+
+        await this.itemsStore.encryptAndCreate(ItemType.Password, passwordData, metadata, {
+          auto_fill: true,
+          auto_login: false
+        })
+
+        Storage.setItem('create_form', null)
         this.$router.push({ name: 'Passwords' })
       }
       this.$request(onSuccess, this.$waiters.Passwords.Create)

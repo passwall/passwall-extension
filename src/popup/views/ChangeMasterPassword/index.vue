@@ -9,12 +9,13 @@
       </template>
     </Header>
     <div class="scroll">
-      <form @submit.prevent="onSubmit" class="create-form">
+      <form @submit.prevent="onSubmit" class="create-form pw-form-standard">
 
         <div class="form-row">
           <label v-text="'E-Mail Address'" />
           <VFormText
             name="Email"
+            class="pw-input"
             v-model="form.email"
             :placeholder="$t('ClickToFill')"
             theme="no-border"
@@ -23,17 +24,17 @@
 
         <div class="form-row">
           <label v-text="'Current Master Password'" />
-          <div class="d-flex flex-justify-between ">
+          <div class="d-flex flex-justify-between pw-row">
             <VFormText
               name="Current Master Password"
-              class="flex-auto"
+              class="flex-auto pw-input"
               v-model="form.current"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showCurrent ? 'text' : 'password'"
               ref="current_master_password"
             />
-            <div class="d-flex flex-items-center mr-3">
+            <div class="d-flex flex-items-center mr-3 pw-icons">
               <CheckPassword :password="form.current" />
               <ShowPassButton @click="showCurrent = $event" />
             </div>
@@ -42,17 +43,17 @@
 
         <div class="form-row mt-2">
           <label v-text="'New Master Password'" />
-          <div class="d-flex flex-justify-between ">
+          <div class="d-flex flex-justify-between pw-row">
             <VFormText
               name="New Master Password"
-              class="flex-auto"
+              class="flex-auto pw-input"
               v-model="form.new"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showNew ? 'text' : 'password'"
               ref="new_master_password"
             />
-            <div class="d-flex flex-items-center mr-3">
+            <div class="d-flex flex-items-center mr-3 pw-icons">
               <GeneratePassword v-model="form.new" />
               <ClipboardButton :copy="form.new" />
               <CheckPassword :password="form.new" />
@@ -63,16 +64,16 @@
 
         <div class="form-row mt-2 mb-2">
           <label v-text="'New Master Password Confirm'" />
-          <div class="d-flex flex-justify-between ">
+          <div class="d-flex flex-justify-between pw-row">
             <VFormText
               name="New Master Password Confirmation"
-              class="flex-auto"
+              class="flex-auto pw-input"
               v-model="form.newConfirm"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showNewConfirm ? 'text' : 'password'"
             />
-            <div class="d-flex flex-items-center mr-3">
+            <div class="d-flex flex-items-center mr-3 pw-icons">
               <CheckPassword :password="form.newConfirm" />
               <ShowPassButton @click="showNewConfirm = $event" />
             </div>

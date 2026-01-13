@@ -12,11 +12,12 @@
       </template>
     </Header>
     <div class="scroll">
-      <form @submit.prevent="onSubmit" class="create-form">
+      <form @submit.prevent="onSubmit" class="create-form pw-form-standard">
         <div class="form-row">
           <label v-text="'Title'" />
           <VFormText
             name="title"
+            class="pw-input"
             v-on:change="saveForm"
             v-model="form.title"
             v-validate="'required'"
@@ -29,6 +30,7 @@
           <label v-text="'First Name'" />
           <VFormText
             name="first name"
+            class="pw-input"
             v-on:change="saveForm"
             v-model="form.first_name"
             :placeholder="$t('ClickToFill')"
@@ -40,6 +42,7 @@
           <label v-text="'Last Name'" />
           <VFormText
             name="last name"
+            class="pw-input"
             v-on:change="saveForm"
             v-model="form.last_name"
             :placeholder="$t('ClickToFill')"
@@ -51,6 +54,7 @@
           <label v-text="'Bank Name'" />
           <VFormText
             name="bank name"
+            class="pw-input"
             v-on:change="saveForm"
             v-model="form.bank_name"
             :placeholder="$t('ClickToFill')"
@@ -62,6 +66,7 @@
           <label v-text="'Account Type'" />
           <VFormText
             name="account type"
+            class="pw-input"
             v-on:change="saveForm"
             v-model="form.account_type"
             :placeholder="$t('ClickToFill')"
@@ -73,6 +78,7 @@
           <label v-text="'Account Number'" />
           <VFormText
             name="account number"
+            class="pw-input"
             v-on:change="saveForm"
             v-model="form.account_number"
             :placeholder="$t('ClickToFill')"
@@ -84,6 +90,7 @@
           <label v-text="'IBAN Number'" />
           <VFormText
             name="iban number"
+            class="pw-input"
             v-on:change="saveForm"
             v-model="form.iban_number"
             :placeholder="$t('ClickToFill')"
@@ -93,17 +100,17 @@
 
         <div class="form-row">
           <label v-text="'PIN'" />
-          <div class="d-flex flex-justify-between ">
+          <div class="d-flex flex-justify-between pw-row">
             <VFormText
               name="PIN"
               v-on:change="saveForm"
-              class="flex-auto"
+              class="flex-auto pw-input"
               v-model="form.pin"
               :placeholder="$t('ClickToFill')"
               theme="no-border"
               :type="showPass ? 'text' : 'password'"
             />
-            <div class="d-flex flex-items-center mr-3">
+            <div class="d-flex flex-items-center mr-3 pw-icons">
               <ClipboardButton :copy="form.pin" />
               <ShowPassButton @click="showPass = $event" />
             </div>

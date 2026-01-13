@@ -7,11 +7,11 @@
       <VIcon name="refresh" size="20px" />
     </button>
 
-    <template #popper>
+    <template #popper="{ hide }">
       <div class="generate-password">
         <span v-text="password || 'Generating...'" />
         <hr />
-        <VButton size="mini" @click="onClickUseThis">
+        <VButton size="mini" @click.stop="onClickUseThis(hide)">
           {{ $t('UseThis') }}
         </VButton>
       </div>
@@ -41,12 +41,21 @@ export default {
   },
 
   methods: {
-    onClickUseThis() {
+    onClickUseThis(hide) {
       if (!this.password) return
       this.$emit('update:modelValue', this.password)
       this.$emit('input', this.password)
-      // Generate new password for next time
-      this.$helpers.generatePassword().then(p => this.password = p)
+
+      // Close dropdown (user expects "Use this" to apply & close)
+      if (typeof hide === 'function') {
+        document.activeElement?.blur()
+        hide()
+      }
+
+      // Prepare a new password for next time (after close so it doesn't look like it "changed")
+      setTimeout(() => {
+        this.$helpers.generatePassword().then(p => (this.password = p))
+      }, 0)
     }
   }
 }

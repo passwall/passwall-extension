@@ -5,6 +5,16 @@ export const TABS = [
     createRouteName: 'PasswordCreate'
   },
   {
+    name: 'Secure Notes',
+    iconName: 'clipboard-secure',
+    createRouteName: 'NoteCreate'
+  },
+  {
+    name: 'Addresses',
+    iconName: 'map-pin',
+    createRouteName: 'AddressCreate'
+  },
+  {
     name: 'Payment Cards',
     iconName: 'credit-card',
     createRouteName: 'PaymentCardCreate'
@@ -13,11 +23,6 @@ export const TABS = [
     name: 'Bank Accounts',
     iconName: 'shield-check',
     createRouteName: 'BankAccountCreate'
-  },
-  {
-    name: 'Private Notes',
-    iconName: 'clipboard-secure',
-    createRouteName: 'NoteCreate'
   }
 ]
 

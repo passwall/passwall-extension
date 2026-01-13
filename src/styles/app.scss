@@ -211,6 +211,56 @@ hr {
   flex-direction: column;
 }
 
+/**
+ * Standard form/input styling (used across create forms)
+ * Goal: keep VFormText fields consistent and prevent popup horizontal overflow.
+ */
+.pw-form-standard {
+  padding: 0 12px;
+}
+
+.pw-form-standard .form-row label {
+  display: inline-block;
+  margin-bottom: 3px;
+}
+
+// Use on flex rows that contain an input + icons
+.pw-row {
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+// Use on the icon cluster to avoid pushing layout off-screen
+.pw-icons {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: 120px;
+}
+
+// Apply to VFormText via `class="pw-input"`
+.pw-input {
+  // Override VFormText min-width: 280px (causes horizontal scroll in popup)
+  min-width: 0 !important;
+
+  // Keep input chrome minimal but show focus like Sign In
+  background-color: transparent !important;
+  border: 1px solid #151c27 !important; // same as VFormText default theme
+  outline: none !important;
+  box-shadow: none !important;
+
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.pw-input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: $color-primary !important;
+}
+
 .detail {
   height: 450px;
 }

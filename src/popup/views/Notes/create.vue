@@ -12,11 +12,12 @@
       </template>
     </Header>
     <div class="scroll">
-      <form @submit.prevent="onSubmit" class="create-form">
+      <form @submit.prevent="onSubmit" class="create-form pw-form-standard">
         <div class="form-row">
           <label v-text="'Title'" />
           <VFormText
             name="Title"
+            class="pw-input"
             v-on:change="saveForm"
             v-model="form.title"
             v-validate="'required'"

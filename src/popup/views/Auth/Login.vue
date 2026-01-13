@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="login-root">
     <div class="d-flex flex-justify-center flex-items-center header">
       <VIcon name="passwall-with-text" width="140px" height="32px" />
     </div>
@@ -62,6 +62,8 @@
         </VButton>
       </form>
     </div>
+
+    <div class="app-version" aria-label="app version">v{{ appVersion }}</div>
   </div>
 </template>
 
@@ -81,6 +83,7 @@ export default {
   },
   data() {
     return {
+      appVersion: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '',
       // Show server URL input (from environment config)
       showServerUrl: ENV_CONFIG.SHOW_SERVER_URL,
       LoginForm: {
@@ -219,8 +222,23 @@ export default {
 </script>
 
 <style lang="scss">
+.login-root {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .header {
   height: 95px;
   border-bottom: 2px solid $color-black;
+}
+
+.app-version {
+  margin-top: auto;
+  padding: 10px 0 12px;
+  text-align: center;
+  font-size: 12px;
+  color: $color-gray-300;
+  user-select: none;
 }
 </style>

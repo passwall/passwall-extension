@@ -15,9 +15,16 @@ export default async (to, _, next) => {
   if (access_token) {
     // Check if user key exists in extension session storage
     let userKeyBase64 = null
-    try {
-      userKeyBase64 = await SessionStorage.getItem(SESSION_KEYS.userKey)
-    } catch {
+    if (SessionStorage.isSupported()) {
+      try {
+        userKeyBase64 = await SessionStorage.getItem(SESSION_KEYS.userKey)
+      } catch {
+        // ignore, fallback below
+      }
+    }
+
+    // Fallback / migration path: older builds may have used window.sessionStorage
+    if (!userKeyBase64) {
       userKeyBase64 = window?.sessionStorage?.getItem?.('userKey') ?? null
     }
     
@@ -26,12 +33,15 @@ export default async (to, _, next) => {
       console.warn('User key missing from session. Clearing session...')
       await Storage.clear()
       // Clear only our session keys; don't nuke unrelated session storage.
-      try {
-        await SessionStorage.removeItems([SESSION_KEYS.userKey, SESSION_KEYS.masterKey])
-      } catch {
-        window?.sessionStorage?.removeItem?.('userKey')
-        window?.sessionStorage?.removeItem?.('masterKey')
+      if (SessionStorage.isSupported()) {
+        try {
+          await SessionStorage.removeItems([SESSION_KEYS.userKey, SESSION_KEYS.masterKey])
+        } catch {
+          // ignore, fallback below
+        }
       }
+      window?.sessionStorage?.removeItem?.('userKey')
+      window?.sessionStorage?.removeItem?.('masterKey')
       return next({ name: 'Login' })
     }
 

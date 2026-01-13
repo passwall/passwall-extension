@@ -39,6 +39,26 @@ function getApiErrorMessage(error, fallback) {
   return error.response?.data?.error || fallback
 }
 
+function safeHostName(url) {
+  if (!url) return ''
+  try {
+    const parsed = url.includes('://') ? new URL(url) : new URL(`https://${url}`)
+    return parsed.hostname || ''
+  } catch {
+    return ''
+  }
+}
+
+function mergeDecryptedItem(item, decryptedData) {
+  return {
+    ...item,
+    ...decryptedData,
+    // Flatten for component compatibility
+    title: item.metadata?.name || decryptedData?.name || '',
+    url: item.metadata?.uri_hint || decryptedData?.uris?.[0]?.uri || ''
+  }
+}
+
 /**
  * Get item type display name
  */
@@ -140,6 +160,73 @@ export const useItemsStore = defineStore('items', {
   },
 
   actions: {
+    /**
+     * Backward-compatible: create a Password item from legacy popup form shape.
+     * NOTE: Prefer using encryptAndCreate directly for new code.
+     *
+     * @param {Object} form
+     * @returns {Promise<Object>}
+     */
+    async create(form = {}) {
+      const title = form.title || form.name || 'Untitled'
+      const url = form.url || ''
+      const uriHint = safeHostName(url)
+
+      const passwordData = {
+        name: title,
+        username: form.username || '',
+        password: form.password || '',
+        uris: url ? [{ uri: url, match: null }] : [],
+        notes: form.extra || form.notes || '',
+        totp_secret: form.totp_secret || form.totp || ''
+      }
+
+      const metadata = {
+        name: title,
+        uri_hint: uriHint
+      }
+
+      return await this.encryptAndCreate(ItemType.Password, passwordData, metadata, {
+        auto_fill: true,
+        auto_login: false
+      })
+    },
+
+    /**
+     * Backward-compatible: update a Password item from legacy popup form shape.
+     * NOTE: Prefer using updateItem directly for new code.
+     *
+     * @param {Object} form
+     * @returns {Promise<Object>}
+     */
+    async update(form = {}) {
+      const id = form.id
+      if (!id) {
+        throw new Error('Item id is required')
+      }
+
+      const title = form.title || form.name || 'Untitled'
+      const url = form.url || ''
+      const uriHint = safeHostName(url)
+
+      const passwordData = {
+        name: title,
+        username: form.username || '',
+        password: form.password || '',
+        uris: url ? [{ uri: url, match: null }] : [],
+        notes: form.extra || form.notes || '',
+        totp_secret: form.totp_secret || form.totp || ''
+      }
+
+      return await this.updateItem(id, {
+        data: passwordData,
+        metadata: {
+          name: title,
+          uri_hint: uriHint
+        }
+      })
+    },
+
     /**
      * Fetch items from server
      *
@@ -252,12 +339,25 @@ export const useItemsStore = defineStore('items', {
       this.error = null
 
       try {
-        const { data } = await HTTPClient.post('/api/items', req)
+        const { data: createdItem } = await HTTPClient.post('/api/items', req)
 
-        this.items = [data, ...this.items]
+        // Normalize: decrypt and flatten so list pages don't crash on missing fields
+        let normalized = createdItem
+        try {
+          const decryptedData = await this.decryptItem(createdItem)
+          normalized = mergeDecryptedItem(createdItem, decryptedData)
+        } catch (error) {
+          normalized = {
+            ...createdItem,
+            title: createdItem.metadata?.name || '[Encrypted]',
+            url: createdItem.metadata?.uri_hint || ''
+          }
+        }
+
+        this.items = [normalized, ...this.items]
         this.isLoading = false
 
-        return data
+        return normalized
       } catch (error) {
         this.error = getApiErrorMessage(error, 'Failed to create item')
         this.isLoading = false
@@ -301,12 +401,25 @@ export const useItemsStore = defineStore('items', {
           }
         }
 
-        const { data } = await HTTPClient.put(`/api/items/${id}`, finalReq)
+        const { data: updatedItem } = await HTTPClient.put(`/api/items/${id}`, finalReq)
 
-        this.items = this.items.map((item) => (item.id === id ? data : item))
+        // Normalize: decrypt and flatten so detail/list views remain compatible
+        let normalized = updatedItem
+        try {
+          const decryptedData = await this.decryptItem(updatedItem)
+          normalized = mergeDecryptedItem(updatedItem, decryptedData)
+        } catch (error) {
+          normalized = {
+            ...updatedItem,
+            title: updatedItem.metadata?.name || '[Encrypted]',
+            url: updatedItem.metadata?.uri_hint || ''
+          }
+        }
+
+        this.items = this.items.map((item) => (item.id === id ? normalized : item))
         this.isLoading = false
 
-        return data
+        return normalized
       } catch (error) {
         this.error = getApiErrorMessage(error, 'Failed to update item')
         this.isLoading = false

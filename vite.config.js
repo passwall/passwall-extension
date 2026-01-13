@@ -40,7 +40,9 @@ export default defineConfig({
     // Global and Buffer polyfills
     global: 'globalThis',
     // Custom: Development mode flag (injected to content scripts)
-    __DEV_MODE__: process.env.NODE_ENV === 'development'
+    __DEV_MODE__: process.env.NODE_ENV === 'development',
+    // Custom: App version (from extension manifest)
+    __APP_VERSION__: JSON.stringify(manifest.version)
   },
   
   resolve: {

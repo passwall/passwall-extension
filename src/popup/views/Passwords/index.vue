@@ -70,9 +70,8 @@ export default {
   },
 
   mounted() {
-    const hasPasswords = this.ItemList?.filter(item => item.item_type === ItemType.Password).length > 0
-    
-    if (!this._listFetched && !hasPasswords) {
+    // Always fetch on mount so list is complete after create (store may contain only the newly created item).
+    if (!this._listFetched) {
       this.fetchAll()
       this._listFetched = true
     }

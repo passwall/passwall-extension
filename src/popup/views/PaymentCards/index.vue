@@ -14,10 +14,27 @@
           :url="item.title"
           :title="item.title"
           :subtitle="item.card_number"
+          :item-data="item"
+          @edit="handleEdit"
+          @delete="handleDelete"
           @click="clickItem(item)"
         />
       </ul>
     </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <ConfirmDialog
+      v-model:show="showDeleteConfirm"
+      title="Delete Payment Card?"
+      :message="deleteConfirmMessage"
+      confirm-text="Delete"
+      cancel-text="Cancel"
+      confirm-theme="danger"
+      icon="trash"
+      icon-class="icon-danger"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </div>
 </template>
 
@@ -43,14 +60,14 @@ export default {
 
   data() {
     return {
-      _listFetched: false
+      _listFetched: false,
+      showDeleteConfirm: false,
+      deleteItem: null
     }
   },
 
   mounted() {
-    const hasCards = this.ItemList?.filter(item => item.item_type === ItemType.Card).length > 0
-    
-    if (!this._listFetched && !hasCards) {
+    if (!this._listFetched) {
       this.fetchAll()
       this._listFetched = true
     }
@@ -89,6 +106,12 @@ export default {
       })
 
       return sorted
+    },
+
+    deleteConfirmMessage() {
+      if (!this.deleteItem) return ''
+      const name = this.deleteItem.title || this.deleteItem.name || 'this card'
+      return 'Are you sure you want to delete "' + name + '"?\n\nThis action cannot be undone.'
     }
   },
 
@@ -107,6 +130,32 @@ export default {
 
     clickItem(item) {
       this.$router.push({ name: 'PaymentCardDetail', params: { id: item.id } })
+    },
+
+    handleEdit(item) {
+      this.$router.push({ name: 'PaymentCardDetail', params: { id: item.id } })
+    },
+
+    handleDelete(item) {
+      this.deleteItem = item
+      this.showDeleteConfirm = true
+    },
+
+    async confirmDelete() {
+      if (!this.deleteItem) return
+      try {
+        await this.itemsStore.deleteItem(this.deleteItem.id)
+        this.$notifySuccess?.('Payment card deleted successfully')
+      } catch (error) {
+        console.error('Failed to delete payment card:', error)
+        this.$notifyError?.('Failed to delete payment card')
+      } finally {
+        this.deleteItem = null
+      }
+    },
+
+    cancelDelete() {
+      this.deleteItem = null
     }
   }
 }

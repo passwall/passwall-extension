@@ -13,10 +13,27 @@
           :key="item.id"
           :url="item.title"
           :title="item.title"
+          :item-data="item"
+          @edit="handleEdit"
+          @delete="handleDelete"
           @click="clickItem(item)"
         />
       </ul>
     </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <ConfirmDialog
+      v-model:show="showDeleteConfirm"
+      title="Delete Secure Note?"
+      :message="deleteConfirmMessage"
+      confirm-text="Delete"
+      cancel-text="Cancel"
+      confirm-theme="danger"
+      icon="trash"
+      icon-class="icon-danger"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </div>
 </template>
 
@@ -42,14 +59,14 @@ export default {
 
   data() {
     return {
-      _listFetched: false
+      _listFetched: false,
+      showDeleteConfirm: false,
+      deleteItem: null
     }
   },
 
   mounted() {
-    const hasNotes = this.ItemList?.filter(item => item.item_type === ItemType.Note).length > 0
-    
-    if (!this._listFetched && !hasNotes) {
+    if (!this._listFetched) {
       this.fetchAll()
       this._listFetched = true
     }
@@ -88,6 +105,12 @@ export default {
       })
 
       return sorted
+    },
+
+    deleteConfirmMessage() {
+      if (!this.deleteItem) return ''
+      const name = this.deleteItem.title || this.deleteItem.name || 'this note'
+      return 'Are you sure you want to delete "' + name + '"?\n\nThis action cannot be undone.'
     }
   },
 
@@ -106,6 +129,32 @@ export default {
 
     clickItem(item) {
       this.$router.push({ name: 'NoteDetail', params: { id: item.id } })
+    },
+
+    handleEdit(item) {
+      this.$router.push({ name: 'NoteDetail', params: { id: item.id } })
+    },
+
+    handleDelete(item) {
+      this.deleteItem = item
+      this.showDeleteConfirm = true
+    },
+
+    async confirmDelete() {
+      if (!this.deleteItem) return
+      try {
+        await this.itemsStore.deleteItem(this.deleteItem.id)
+        this.$notifySuccess?.('Note deleted successfully')
+      } catch (error) {
+        console.error('Failed to delete note:', error)
+        this.$notifyError?.('Failed to delete note')
+      } finally {
+        this.deleteItem = null
+      }
+    },
+
+    cancelDelete() {
+      this.deleteItem = null
     }
   }
 }
