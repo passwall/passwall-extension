@@ -24,7 +24,7 @@
               <VIcon name="duplicate" width="16px" height="16px" />
               <span>Copy Password</span>
             </button>
-            <button v-if="itemData.totp_secret" class="dropdown-item" @click.stop="copyTOTP(hide)">
+            <button v-if="totpSecret" class="dropdown-item" @click.stop="copyTOTP(hide)">
               <VIcon name="duplicate" width="16px" height="16px" />
               <span>Copy TOTP</span>
             </button>
@@ -87,6 +87,13 @@ export default {
     }
   },
 
+  computed: {
+    totpSecret() {
+      const item = this.itemData || {}
+      return item.totp_secret || item.totp || item.totpSecret || item.totpSecretKey || ''
+    }
+  },
+
   methods: {
     async copyUsername(hide) {
       // Blur active element before hiding dropdown (accessibility fix)
@@ -136,7 +143,7 @@ export default {
       // Blur active element before hiding dropdown (accessibility fix)
       document.activeElement?.blur()
 
-      const secret = this.itemData.totp_secret
+      const secret = this.totpSecret
       if (!secret) {
         this.$notifyError?.('No TOTP secret configured')
         hide()
