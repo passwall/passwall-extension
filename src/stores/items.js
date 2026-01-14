@@ -36,7 +36,26 @@ export const ItemType = {
 // ============================================================
 
 function getApiErrorMessage(error, fallback) {
-  return error.response?.data?.error || fallback
+  return error.response?.data?.error || error.message || fallback
+}
+
+function isNetworkOrTimeoutError(error) {
+  // Axios "network error": no HTTP response (offline / DNS / CORS / etc.)
+  // Axios timeout: code === 'ECONNABORTED'
+  if (!error) return false
+  if (!error.response) return true
+  return error.code === 'ECONNABORTED'
+}
+
+async function forceReLogin(authStore) {
+  try {
+    await authStore.logout()
+  } finally {
+    // Hash routing (popup) – force navigate to login even if UI is mid-render.
+    if (window.location.hash !== '#/login') {
+      window.location.hash = '#/login'
+    }
+  }
 }
 
 function safeHostName(url) {
@@ -315,6 +334,16 @@ export const useItemsStore = defineStore('items', {
         
         this.isLoading = false
       } catch (error) {
+        // If request failed due to network issues/timeout, the popup can get stuck behind a loader.
+        // In that case, force the user back to sign-in (also clears auth state so route guard won't bounce).
+        if (isNetworkOrTimeoutError(error)) {
+          const authStore = useAuthStore()
+          this.isLoading = false
+          this.error = getApiErrorMessage(error, 'Network error')
+          await forceReLogin(authStore)
+          return
+        }
+
         this.error = getApiErrorMessage(error, 'Failed to fetch items')
         this.isLoading = false
         throw error

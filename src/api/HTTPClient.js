@@ -13,6 +13,9 @@ let baseURL = 'https://api.passwall.io'
 
 const client = Axios.create({
   baseURL,
+  // Prevent the popup UI from getting stuck forever on hanging requests.
+  // 10s is a reasonable balance for slow networks while still failing fast.
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json; charset=utf-8',
     Accept: 'application/json, text/plain, */*'
@@ -100,7 +103,7 @@ async function refreshAccessToken() {
 
   await Promise.all([
     Storage.setItem('access_token', data.access_token),
-    Storage.setItem('refresh_token', data.refresh_token),
+    Storage.setItem('refresh_token', data.refresh_token)
   ])
 
   const newToken = data.access_token
@@ -113,8 +116,8 @@ async function refreshAccessToken() {
       who: 'api',
       payload: {
         access_token: data.access_token,
-        refresh_token: data.refresh_token,
-      },
+        refresh_token: data.refresh_token
+      }
     })
     .catch(() => {})
 
