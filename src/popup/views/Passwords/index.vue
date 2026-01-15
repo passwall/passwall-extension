@@ -119,6 +119,28 @@ export default {
   },
   
   methods: {
+    getLoadPasswordsErrorMessage(error) {
+      const status = error?.response?.status
+
+      if (status === 401) {
+        return 'Session expired. Please sign in again.'
+      }
+      if (status === 403) {
+        return 'Access denied. Please check your permissions.'
+      }
+      if (typeof status === 'number' && status >= 500) {
+        return 'Server error. Please try again later.'
+      }
+      if (!error?.response) {
+        return 'Cannot reach server. Please check your connection.'
+      }
+
+      const apiMessage = error?.response?.data?.message || error?.response?.data?.Message
+      if (apiMessage) {
+        return `Failed to load passwords: ${apiMessage}`
+      }
+      return 'Failed to load passwords.'
+    },
     async fetchAll() {
       try {
         await this.itemsStore.fetchItems({ 
@@ -127,7 +149,7 @@ export default {
         })
       } catch (error) {
         console.error('Failed to fetch passwords:', error)
-        this.$notifyError?.('Failed to load passwords')
+        this.$notifyError?.(this.getLoadPasswordsErrorMessage(error))
       }
     },
 

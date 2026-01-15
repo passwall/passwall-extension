@@ -265,12 +265,14 @@ class ContentScriptInjector {
         log.success(`Passwall ready: ${logins.length} login(s) for ${this.domain}`)
       } catch (error) {
         // Handle authentication and no logins errors
-        if (error.type === 'NO_AUTH') {
+        if (error.type === 'NO_AUTH' || error.type === 'AUTH_EXPIRED') {
           // User not logged in - still show logo but with empty logins
           // Popup will show authentication message
           this.logins = []
           this.authError = 'NO_AUTH'
           this.injectLogo()
+          // Also surface an in-page notification; background will open login UI best-effort.
+          this.showAuthRequiredNotification(error?.message)
           log.warn('User not authenticated - logo will prompt login')
         } else if (error.type === 'NO_LOGINS') {
           // No logins for this domain - still show logo
@@ -852,9 +854,10 @@ class ContentScriptInjector {
       this.authError = null
       log.success(`Passwall ready (multi-step): ${logins.length} login(s) for ${this.domain}`)
     } catch (error) {
-      if (error.type === 'NO_AUTH') {
+      if (error.type === 'NO_AUTH' || error.type === 'AUTH_EXPIRED') {
         this.logins = []
         this.authError = 'NO_AUTH'
+        this.showAuthRequiredNotification(error?.message)
         log.warn('User not authenticated - logo will prompt login (multi-step)')
       } else if (error.type === 'NO_LOGINS') {
         this.logins = []
@@ -2019,9 +2022,18 @@ class ContentScriptInjector {
     notification.appendChild(wrapper)
 
     // Open extension popup when clicked
-    notification.addEventListener('click', () => {
-      browser.runtime.sendMessage({ type: 'OPEN_POPUP', who: 'content-script' })
-      notification.remove()
+    notification.addEventListener('click', async () => {
+      try {
+        const res = await browser.runtime.sendMessage({ type: 'OPEN_POPUP', who: 'content-script' })
+        // If we could open the popup, close the notification; otherwise keep it so user can click the icon.
+        if (res?.ok === true) {
+          notification.remove()
+        } else {
+          hintEl.textContent = 'Please click the Passwall extension icon to sign in'
+        }
+      } catch {
+        hintEl.textContent = 'Please click the Passwall extension icon to sign in'
+      }
     })
 
     document.body.appendChild(notification)

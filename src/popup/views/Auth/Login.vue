@@ -63,7 +63,8 @@
       </form>
     </div>
 
-    <div class="app-version" aria-label="app version">v{{ appVersion }}</div>
+    <!-- Version overlay (login only, does not affect layout height) -->
+    <div v-if="appVersion" class="pw-login-version" aria-label="app version">v{{ appVersion }}</div>
   </div>
 </template>
 
@@ -129,19 +130,10 @@ export default {
     if (ENV_CONFIG.DEV_PASSWORD) {
       setTimeout(() => {
         this.LoginForm.master_password = ENV_CONFIG.DEV_PASSWORD
-        console.log(
-          '✅ Dev password auto-filled:',
-          this.LoginForm.master_password.length,
-          'characters'
-        )
-        console.log('📋 Login form state:', {
-          server: this.LoginForm.server,
-          email: this.LoginForm.email,
-          password: this.LoginForm.master_password ? '***' : 'EMPTY'
-        })
+        if (ENV_CONFIG.DEV_MODE) {
+          console.log('✅ Dev password auto-filled:', this.LoginForm.master_password.length, 'chars')
+        }
       }, 100)
-    } else {
-      console.log('⚠️ DEV_PASSWORD not found in ENV_CONFIG')
     }
   },
 
@@ -178,7 +170,9 @@ export default {
         }
 
         this.$notifyError(errorMessage)
-        console.error('API endpoint validation failed:', error)
+        if (ENV_CONFIG.DEV_MODE) {
+          console.warn('API endpoint validation failed:', error?.message)
+        }
         return
       }
 
@@ -233,12 +227,18 @@ export default {
   border-bottom: 2px solid $color-black;
 }
 
-.app-version {
-  margin-top: auto;
-  padding: 10px 0 12px;
+.pw-login-version {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 6px;
   text-align: center;
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1;
   color: $color-gray-300;
+  opacity: 0.7;
   user-select: none;
+  pointer-events: none;
+  z-index: 2147483647;
 }
 </style>

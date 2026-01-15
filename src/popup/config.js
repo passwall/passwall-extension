@@ -80,6 +80,8 @@ export function setupPlugins(app, router, pinia, i18n) {
   app.config.globalProperties.$notifyWarn = (text) => notify({ type: 'warn', text })
   app.config.globalProperties.$notifySuccess = (text) => notify({ type: 'success', text })
 
+  // No auth-expired toast/notice (user preference).
+
   // Global directives
   app.directive('click-outside', {
     mounted(el, binding) {

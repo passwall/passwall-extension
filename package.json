@@ -1,6 +1,6 @@
 {
   "name": "passwall-extension",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,9 +9,9 @@
     "build:dev": "vite build --mode development && node scripts/fix-manifest-mv3.js",
     "package": "yarn build && cd dist && zip -r ../passwall-extension-v$(node -p \"require('../package.json').version\").zip . -x '*.DS_Store' && cd ..",
     "preview": "vite preview",
-    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .gitignore",
-    "test": "vitest",
-    "test:build": "yarn build && vitest run"
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .eslintignore",
+    "test": "vitest --passWithNoTests",
+    "test:build": "yarn build && vitest run --passWithNoTests"
   },
   "dependencies": {
     "@kyvg/vue3-notification": "^3.1.3",

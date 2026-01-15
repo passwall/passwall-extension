@@ -1,0 +1,12 @@
+dist/
+node_modules/
+
+# vendor / generated
+public/js/jquery.js
+
+# tooling config files that may use newer syntax than eslint parser supports
+vite.config.js
+vitest.config.js
+vitest.setup.js
+vue.config.js
+

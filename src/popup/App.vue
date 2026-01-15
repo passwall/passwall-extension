@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="pw-popup-root">
     <!-- Content -->
     <transition name="fade" mode="out-in">
       <router-view />

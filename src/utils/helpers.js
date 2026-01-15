@@ -196,11 +196,28 @@ export class RequestError extends Error {
   /**
    *
    * @param {string} message
-   * @param {('NO_AUTH' | 'NO_LOGINS')} type
+   * @param {('NO_AUTH' | 'NO_LOGINS' | 'AUTH_EXPIRED' | 'FETCH_ERROR' | 'SAVE_ERROR' | 'VALIDATION_ERROR')} type
    */
   constructor(message, type) {
     super(message)
     this.type = type
+  }
+}
+
+/**
+ * Create a minimal, non-sensitive error shape for logging.
+ * IMPORTANT: Never log raw Axios errors (they may include request headers/tokens).
+ * @param {any} err
+ * @returns {{name?: string, message?: string, code?: string, type?: string, status?: number}}
+ */
+export function toSafeError(err) {
+  const status = err?.response?.status
+  return {
+    name: typeof err?.name === 'string' ? err.name : undefined,
+    message: typeof err?.message === 'string' ? err.message : undefined,
+    code: typeof err?.code === 'string' ? err.code : undefined,
+    type: typeof err?.type === 'string' ? err.type : undefined,
+    status: typeof status === 'number' ? status : undefined
   }
 }
 

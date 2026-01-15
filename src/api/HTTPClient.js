@@ -2,12 +2,21 @@ import Axios from 'axios'
 import browser from 'webextension-polyfill'
 import Storage from '@/utils/storage'
 import ENV_CONFIG from '@/config/env'
+import { toSafeError } from '@/utils/helpers'
 
 // Security: Whitelist of allowed API domains (from centralized config)
 const ALLOWED_API_DOMAINS = ENV_CONFIG.ALLOWED_API_DOMAINS
 
 // Security: Whitelist of allowed ports (from centralized config)
 const ALLOWED_PORTS = ENV_CONFIG.ALLOWED_PORTS
+
+// Build-time injected dev flag (guarded for tests)
+const DEV_MODE = typeof __DEV_MODE__ !== 'undefined' ? __DEV_MODE__ : false
+const log = {
+  info: (...args) => DEV_MODE && console.log('[HTTP]', ...args),
+  warn: (...args) => DEV_MODE && console.warn('[HTTP]', ...args),
+  error: (...args) => console.error('[HTTP]', ...args)
+}
 
 let baseURL = 'https://api.passwall.io'
 
@@ -25,6 +34,21 @@ const client = Axios.create({
 // Track if refresh is in progress to avoid multiple simultaneous refreshes
 let isRefreshing = false
 let failedQueue = []
+
+function tryRedirectToLogin() {
+  // HTTPClient is used in background/service-worker contexts too; guard window usage.
+  try {
+    if (typeof window === 'undefined') return
+    if (!window?.location) return
+
+    // Use hash routing (Vue Router createWebHashHistory)
+    if (window.location.hash !== '#/login') {
+      window.location.hash = '#/login'
+    }
+  } catch {
+    // ignore
+  }
+}
 
 // Security: Rate Limiter to prevent API abuse
 class RateLimiter {
@@ -99,7 +123,16 @@ async function refreshAccessToken() {
   }
 
   // Call refresh endpoint directly (avoid circular imports)
-  const { data } = await client.post('/auth/refresh', { refresh_token }, { _skipAuthRefresh: true })
+  let data
+  try {
+    ;({ data } = await client.post(
+      '/auth/refresh',
+      { refresh_token },
+      { _skipAuthRefresh: true }
+    ))
+  } catch (err) {
+    throw err
+  }
 
   await Promise.all([
     Storage.setItem('access_token', data.access_token),
@@ -152,6 +185,26 @@ async function getValidAccessTokenForRequest() {
     processQueue(null, newToken)
     return newToken
   } catch (err) {
+    // Proactive refresh failed (e.g. refresh token expired/invalid) BEFORE any request is sent.
+    // Ensure we clear auth state and bring the popup UI back to login.
+    try {
+      await Storage.removeItem('access_token')
+      await Storage.removeItem('refresh_token')
+      await Storage.removeItem('master_hash')
+
+      browser.runtime
+        .sendMessage({
+          type: 'AUTH_ERROR',
+          who: 'api',
+          payload: { status: 401, reason: 'refresh_failed' }
+        })
+        .catch(() => {})
+    } catch {
+      // ignore
+    } finally {
+      tryRedirectToLogin()
+    }
+
     processQueue(err, null)
     throw err
   } finally {
@@ -223,7 +276,7 @@ client.interceptors.response.use(
         // Retry the original request with new token
         return client(originalRequest)
       } catch (refreshError) {
-        console.error('❌ Token refresh failed:', refreshError)
+        log.error('Token refresh failed', toSafeError(refreshError))
 
         // Process queue with error
         processQueue(refreshError, null)
@@ -245,7 +298,10 @@ client.interceptors.response.use(
               // Background script might not be ready
             })
         } catch (err) {
-          console.error('Failed to clear auth state:', err)
+          log.error('Failed to clear auth state', toSafeError(err))
+        } finally {
+          // Ensure UI navigates to login when refresh token is invalid/expired.
+          tryRedirectToLogin()
         }
 
         return Promise.reject(refreshError)
@@ -254,7 +310,7 @@ client.interceptors.response.use(
 
     // Handle 403 Forbidden (insufficient permissions)
     if (status === 403) {
-      console.warn('🔐 Access forbidden (403)')
+      log.warn('Access forbidden (403)')
       // Don't auto-logout for 403, might be permission issue
     }
 
@@ -337,9 +393,9 @@ export default class HTTPClient {
       }
 
       client.defaults.baseURL = url
-      console.log('✅ API endpoint validated and set:', hostname)
+      log.info('API endpoint validated and set', hostname)
     } catch (error) {
-      console.error('❌ Invalid API endpoint:', error.message)
+      log.error('Invalid API endpoint', toSafeError(error))
       throw error
     }
   }

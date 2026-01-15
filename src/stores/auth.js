@@ -12,6 +12,40 @@ import SessionStorage, { SESSION_KEYS } from '@/utils/session-storage'
 import * as Helpers from '@/utils/helpers'
 import { EVENT_TYPES } from '@/utils/constants'
 
+// Build-time injected dev flag (guarded for tests)
+const DEV_MODE = typeof __DEV_MODE__ !== 'undefined' ? __DEV_MODE__ : false
+
+const isUUID = (value) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''))
+
+const createUUIDv4 = () => {
+  const buf = new Uint8Array(16)
+  crypto.getRandomValues(buf)
+  // RFC 4122 v4
+  buf[6] = (buf[6] & 0x0f) | 0x40
+  buf[8] = (buf[8] & 0x3f) | 0x80
+  const hex = Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(
+    16,
+    20
+  )}-${hex.slice(20)}`
+}
+
+async function getOrCreateExtensionDeviceId(email) {
+  const normalizedEmail = String(email || '').trim().toLowerCase()
+  const key = `passwall:extension:device_id:${normalizedEmail}`
+
+  const existing = await Storage.getItem(key)
+  if (existing && isUUID(existing)) return existing
+
+  const newId =
+    globalThis.crypto && 'randomUUID' in globalThis.crypto
+      ? globalThis.crypto.randomUUID()
+      : createUUIDv4()
+  await Storage.setItem(key, newId)
+  return newId
+}
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     access_token: '',
@@ -83,12 +117,16 @@ export const useAuthStore = defineStore('auth', {
           }
         }
       } catch (error) {
-        console.warn('Failed to restore keys from session:', error)
+        if (DEV_MODE) {
+          console.warn('Failed to restore keys from session:', Helpers.toSafeError(error))
+        }
       }
 
       // Security check: If user is logged in but userKey is missing, force logout
       if (access_token && !this.userKey) {
-        console.error('User key missing but access token exists. Forcing logout for security...')
+        if (DEV_MODE) {
+          console.warn('User key missing but access token exists. Forcing logout for security...')
+        }
         await this.logout()
         return
       }
@@ -141,9 +179,12 @@ export const useAuthStore = defineStore('auth', {
       const authKeyBase64 = cryptoService.arrayToBase64(authKey)
 
       // 4. Sign in with server
+      const deviceId = await getOrCreateExtensionDeviceId(email)
       const { data } = await AuthService.SignIn({
         email,
-        master_password_hash: authKeyBase64
+        master_password_hash: authKeyBase64,
+        device_id: deviceId,
+        app: 'extension'
       })
 
       // 5. Unwrap User Key (decrypt with Master Key)
@@ -425,7 +466,10 @@ export const useAuthStore = defineStore('auth', {
         window?.sessionStorage?.setItem?.('masterKey', masterKeyB64)
       }
 
-      console.log('✅ Master password changed successfully')
+      // No console logs in production; UI should provide feedback if needed.
+      if (DEV_MODE) {
+        console.log('Master password changed successfully')
+      }
     },
 
     setSearchQuery(event) {

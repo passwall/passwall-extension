@@ -4,13 +4,12 @@
   "homepage_url": "https://passwall.io",
   "description": "Passwall is an open source password manager",
   "default_locale": "en",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline'"
   },
   "permissions": [
     "tabs",
-    "activeTab",
     "storage"
   ],
   "host_permissions": [
@@ -40,7 +39,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["*.html", "icons/48.png"],
+      "resources": ["src/popup/index.html", "icons/48.png"],
       "matches": ["<all_urls>"]
     }
   ],

@@ -4,9 +4,17 @@ import Storage from '@/utils/storage'
 import SessionStorage, { SESSION_KEYS } from '@/utils/session-storage'
 import HTTPClient from '@/api/HTTPClient'
 import CryptoUtils, { cryptoService, SymmetricKey } from '@/utils/crypto'
-import { RequestError, getDomain, getHostName } from '@/utils/helpers'
+import { RequestError, getDomain, getHostName, toSafeError } from '@/utils/helpers'
 import { isHostnameBlacklisted, getEquivalentDomains } from '@/utils/platform-rules'
 import { ItemType } from '@/stores/items'
+
+// Build-time injected dev flag (guarded for tests)
+const DEV_MODE = typeof __DEV_MODE__ !== 'undefined' ? __DEV_MODE__ : false
+const log = {
+  info: (...args) => DEV_MODE && console.log('[Background]', ...args),
+  warn: (...args) => DEV_MODE && console.warn('[Background]', ...args),
+  error: (...args) => console.error('[Background]', ...args)
+}
 
 /**
  * Background Script Agent
@@ -20,6 +28,7 @@ class BackgroundAgent {
     this.initPromise = null // Track initialization state
     this.pendingSaveByTab = new Map() // tabId -> { username, password, url, domain, title, action, loginId, expiresAt }
     this.lastSecretFetchByTab = new Map() // tabId -> timestamp (rate limiting)
+    this.lastLoginUiOpenAt = 0 // Rate-limit opening login UI
     this.initPromise = this.init()
   }
 
@@ -47,18 +56,29 @@ class BackgroundAgent {
    */
   async restoreAuthState() {
     try {
-      console.log('[Background] Restoring auth state...')
-
-      const [accessToken, masterHash] = await Promise.all([
+      const [accessToken, masterHash, server] = await Promise.all([
         Storage.getItem('access_token'),
         Storage.getItem('master_hash')
+        ,Storage.getItem('server')
       ])
+      log.info('Restoring auth state', {
+        hasAccessToken: !!accessToken,
+        hasMasterHash: !!masterHash,
+        hasServer: !!server
+      })
 
-      console.log('[Background] Access token:', accessToken ? 'EXISTS' : 'MISSING')
-      console.log('[Background] Master hash:', masterHash ? 'EXISTS' : 'MISSING')
+      // Ensure HTTPClient baseURL is set in background context too.
+      // Popup/store sets this, but background/service worker has its own module instance.
+      if (server) {
+        try {
+          HTTPClient.setBaseURL(server)
+        } catch (e) {
+          // ignore
+        }
+      }
 
       if (!accessToken) {
-        console.warn('[Background] Missing access token, not authenticated')
+        log.warn('Missing access token, not authenticated')
         this.isAuthenticated = false
         return
       }
@@ -76,28 +96,23 @@ class BackgroundAgent {
       try {
         await SessionStorage.setAccessLevelTrustedContexts()
         const userKeyBase64 = await SessionStorage.getItem(SESSION_KEYS.userKey)
-
-        console.log('[Background] UserKey from session:', userKeyBase64 ? 'EXISTS' : 'MISSING')
+        log.info('UserKey from session', { hasUserKey: !!userKeyBase64 })
 
         if (userKeyBase64) {
           const userKeyBytes = cryptoService.base64ToArray(userKeyBase64)
           this.userKey = SymmetricKey.fromBytes(userKeyBytes)
-          console.log('✅ [Background] Modern encryption keys restored successfully')
+          log.info('Modern encryption keys restored successfully')
         } else {
-          console.warn('[Background] UserKey not found in session storage')
+          log.warn('UserKey not found in session storage')
         }
       } catch (error) {
-        console.warn('[Background] Failed to restore modern keys, using legacy:', error)
+        log.warn('Failed to restore modern keys, using legacy', toSafeError(error))
       }
 
       this.isAuthenticated = true
-      console.log(
-        '✅ [Background] Authentication state restored, isAuthenticated:',
-        this.isAuthenticated
-      )
-      console.log('[Background] UserKey available:', !!this.userKey)
+      log.info('Authentication state restored', { isAuthenticated: this.isAuthenticated, hasUserKey: !!this.userKey })
     } catch (error) {
-      console.error('[Background] Failed to restore auth state:', error)
+      log.error('Failed to restore auth state', toSafeError(error))
       this.isAuthenticated = false
     }
   }
@@ -108,6 +123,19 @@ class BackgroundAgent {
    */
   setupMessageListeners() {
     browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      // Best-effort: allow content scripts to request opening the extension UI.
+      // This is used by in-page notifications (user click) and auth-expired flows.
+      if (request?.type === 'OPEN_POPUP') {
+        this.initPromise
+          .then(() => this.openExtensionUI(request?.payload))
+          .then(() => sendResponse({ ok: true }))
+          .catch((err) => {
+            log.error('OPEN_POPUP error', toSafeError(err))
+            sendResponse({ ok: false, error: err?.message || 'OPEN_POPUP failed' })
+          })
+        return true
+      }
+
       // Content script messages require async responses
       if (request.who === 'content-script') {
         // Wait for initialization to complete before processing message
@@ -115,7 +143,7 @@ class BackgroundAgent {
           .then(() => this.handleContentScriptMessage(request, sender))
           .then((data) => sendResponse(data))
           .catch((err) => {
-            console.error('Content script message error:', err)
+            log.error('Content script message error', toSafeError(err))
             sendResponse({
               error: err.message,
               errorType: err.type || 'UNKNOWN',
@@ -130,7 +158,7 @@ class BackgroundAgent {
         this.initPromise
           .then(() => this.handlePopupMessage(request))
           .catch((err) => {
-            console.error('Popup message error:', err)
+            log.error('Popup message error', toSafeError(err))
           })
         return false
       }
@@ -139,7 +167,7 @@ class BackgroundAgent {
       if (request.who === 'api' && request.type === 'TOKEN_REFRESHED') {
         // Token refreshed by API, updating background state
         this.restoreAuthState().catch((err) => {
-          console.error('Failed to restore auth after token refresh:', err)
+          log.error('Failed to restore auth after token refresh', toSafeError(err))
         })
         return false
       }
@@ -148,12 +176,12 @@ class BackgroundAgent {
       if (request.who === 'api' && request.type === 'AUTH_ERROR') {
         const reason = request.payload?.reason
         if (reason === 'refresh_failed') {
-          console.warn('🔐 Token refresh failed, logging out...')
+          log.warn('Token refresh failed, logging out...')
         } else {
-          console.warn('🔐 Auth error from API, logging out...')
+          log.warn('Auth error from API, logging out...')
         }
         this.handleLogout().catch((err) => {
-          console.error('Logout after auth error failed:', err)
+          log.error('Logout after auth error failed', toSafeError(err))
         })
         return false
       }
@@ -227,8 +255,39 @@ class BackgroundAgent {
       case EVENT_TYPES.DISMISS_PENDING_SAVE:
         return await this.dismissPendingSave(sender)
 
+      // Legacy/custom message type used by content scripts to open the popup UI
+      // (e.g. "Authentication Required" in-page notification).
+      case 'OPEN_POPUP':
+        return { ok: await this.openExtensionUI() }
+
       default:
         return null
+    }
+  }
+
+  /**
+   * Best-effort: open the extension action popup.
+   *
+   * Important: We intentionally do NOT open a new tab to the extension URL.
+   * Opening `chrome-extension://.../src/popup/index.html#/login` in a normal tab
+   * is a poor UX and was causing full-page redirects.
+   */
+  async openExtensionUI() {
+    const now = Date.now()
+    // Avoid spamming openPopup attempts.
+    if (now - (this.lastLoginUiOpenAt || 0) < 30_000) {
+      return false
+    }
+    this.lastLoginUiOpenAt = now
+
+    try {
+      if (browser.action?.openPopup) {
+        await browser.action.openPopup()
+        return true
+      }
+      return false
+    } catch {
+      return false
     }
   }
 
@@ -242,7 +301,7 @@ class BackgroundAgent {
       await this.restoreAuthState()
       await this.notifyActiveTab(EVENT_TYPES.REFRESH_TOKENS)
     } catch (error) {
-      console.error('Auth refresh failed:', error)
+      log.error('Auth refresh failed', toSafeError(error))
     }
   }
 
@@ -269,7 +328,7 @@ class BackgroundAgent {
 
       await this.notifyActiveTab(EVENT_TYPES.LOGOUT)
     } catch (error) {
-      console.error('Logout notification failed:', error)
+      log.error('Logout notification failed', toSafeError(error))
     }
   }
 
@@ -286,7 +345,7 @@ class BackgroundAgent {
         await browser.tabs.sendMessage(tabs[0].id, { type, payload }).catch(() => {}) // Ignore if content script not ready
       }
     } catch (error) {
-      console.error(`Failed to notify tab for ${type}:`, error)
+      log.error(`Failed to notify tab for ${type}`, toSafeError(error))
     }
   }
 
@@ -391,7 +450,7 @@ class BackgroundAgent {
             }
             return null
           } catch (error) {
-            console.error(`[Background] Failed to decrypt item ${item.id}:`, error)
+            log.error(`Failed to decrypt item ${item.id}`, toSafeError(error))
             return null
           }
         })
@@ -413,7 +472,7 @@ class BackgroundAgent {
       // Check if it's an authentication error
       const status = error.response?.status
       if (status === 401 || status === 403) {
-        console.warn('🔐 Session expired or unauthorized, clearing auth state...')
+        log.warn('Session expired or unauthorized, clearing auth state...')
         this.isAuthenticated = false
         throw new RequestError(
           'Session expired. Please login again to Passwall extension.',
@@ -422,7 +481,7 @@ class BackgroundAgent {
       }
 
       // Network or other errors
-      console.error('Failed to fetch logins:', error)
+      log.error('Failed to fetch logins', toSafeError(error))
       const errorMessage = error.message || 'Failed to fetch logins from server'
       throw new RequestError(errorMessage, 'FETCH_ERROR')
     }
@@ -488,7 +547,7 @@ class BackgroundAgent {
 
       return true
     } catch (error) {
-      console.error('Error matching domain:', error, { item, currentHostname })
+      log.error('Error matching domain', toSafeError(error))
       return false
     }
   }
@@ -553,7 +612,7 @@ class BackgroundAgent {
             }
           })
         } catch (fetchError) {
-          console.error('Failed to fetch existing item, creating new instead:', fetchError)
+          log.warn('Failed to fetch existing item, creating new instead', toSafeError(fetchError))
           // Fallback to create if fetch fails
           const itemData = {
             username,
@@ -608,7 +667,7 @@ class BackgroundAgent {
       // Check if it's an authentication error
       const status = error.response?.status
       if (status === 401 || status === 403) {
-        console.warn('🔐 Session expired during save, clearing auth state...')
+        log.warn('Session expired during save, clearing auth state...')
         this.isAuthenticated = false
         throw new RequestError(
           'Session expired. Please login again to Passwall extension.',
@@ -616,13 +675,8 @@ class BackgroundAgent {
         )
       }
 
-      console.error('Failed to save credentials:', error)
-      console.error('Error details:', {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        message: error.message
-      })
+      // IMPORTANT: avoid logging raw error objects (may contain Authorization header)
+      log.error('Failed to save credentials', toSafeError(error))
 
       const errorMessage =
         error.response?.data?.message || error.message || 'Failed to save credentials'

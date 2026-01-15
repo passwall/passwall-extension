@@ -18,6 +18,8 @@ export default class AuthService {
    * @param {Object} payload
    * @param {string} payload.email - User's email
    * @param {string} payload.master_password_hash - HKDF(masterKey, "auth") base64
+   * @param {string} [payload.device_id] - Stable device/app identifier (uuid)
+   * @param {string} [payload.app] - Client type: vault|extension|mobile|desktop
    * @returns {Promise} Response with tokens and protected_user_key
    */
   static async SignIn(payload) {
