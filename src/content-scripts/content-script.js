@@ -1,7 +1,7 @@
 import browser from 'webextension-polyfill'
 import { EVENT_TYPES } from '@/utils/constants'
 import { getHostName, getDomain, PFormParseError, sendPayload } from '@/utils/helpers'
-import { shouldExcludeField, getPlatformInfo, getPlatformRules } from '@/utils/platform-rules'
+import { shouldIgnoreField, getPlatformInfo, getPlatformRules } from '@/utils/platform-rules'
 import { checkCurrentPageSecurity, SECURITY_WARNINGS } from '@/utils/security-checks'
 import { LoginAsPopup } from './LoginAsPopup'
 import { PasswallLogo } from './PasswallLogo'
@@ -83,7 +83,10 @@ class ContentScriptInjector {
     this.cachedCredentials = null // Cache credentials from submit button click
     this.cacheTimestamp = 0 // Timestamp of cached credentials
     this.saveNotificationRoute = null // { sourceWindow, nonce }
-    this.lastAutofill = null // { at, username, passwordDigest }
+    this.lastAutofill = null // { at, username, passwordDigest, itemId }
+    this.lastSeenUsername = null // { username, domain, at }
+    this.lastSeenPassword = null // { password, at }
+    this.recentlySavedCredentials = null // { username, url, passwordDigest, at }
 
     this.initialize()
   }
@@ -182,20 +185,31 @@ class ContentScriptInjector {
     }
 
     // Only accept messages coming from extension iframes we created
-    const extensionOrigin = browser.runtime.getURL('').replace(/\/$/, '')
+    let extensionOrigin
+    try {
+      extensionOrigin = browser.runtime.getURL('').replace(/\/$/, '')
+    } catch (error) {
+      throw error
+    }
     if (event.origin !== extensionOrigin) {
       return
     }
 
     const route = this.messageRoutes.find((r) => r.sourceWindow === event.source)
-    if (!route) return
+    if (!route) {
+      return
+    }
 
     // Nonce is mandatory for routed messages
     if (typeof message?.nonce !== 'string' || message.nonce !== route.nonce) {
       return
     }
 
-    route.handler(message, event)
+    try {
+      route.handler(message, event)
+    } catch (error) {
+      throw error
+    }
   }
 
   /**
@@ -326,6 +340,20 @@ class ContentScriptInjector {
           }
         }
 
+        // Check for attribute changes that reveal hidden password fields
+        if (mutation.type === 'attributes' && mutation.target?.nodeType === Node.ELEMENT_NODE) {
+          const attrName = mutation.attributeName || ''
+          if (['class', 'style', 'hidden', 'aria-hidden'].includes(attrName)) {
+            const target = mutation.target
+            if (
+              target.matches?.('input[type="password"]') ||
+              target.querySelector?.('input[type="password"]')
+            ) {
+              shouldRescan = true
+            }
+          }
+        }
+
         // Check for removed nodes - cleanup logos if their input fields are gone
         if (mutation.removedNodes.length > 0) {
           for (const node of mutation.removedNodes) {
@@ -383,7 +411,9 @@ class ContentScriptInjector {
     if (document.body) {
       this.mutationObserver.observe(document.body, {
         childList: true,
-        subtree: true
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'style', 'hidden', 'aria-hidden']
       })
       log.success('MutationObserver setup complete - watching for dynamic content')
     } else {
@@ -394,7 +424,9 @@ class ContentScriptInjector {
           clearInterval(bodyCheck)
           this.mutationObserver.observe(document.body, {
             childList: true,
-            subtree: true
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class', 'style', 'hidden', 'aria-hidden']
           })
           log.success('MutationObserver setup complete (delayed)')
         }
@@ -446,6 +478,247 @@ class ContentScriptInjector {
   }
 
   /**
+   * Get the deepest active element across iframes and shadow roots
+   * @param {Document} doc
+   * @returns {Element|null}
+   * @private
+   */
+  getDeepActiveElement(doc = document) {
+    let active = doc.activeElement
+
+    // Same-origin iframe chain
+    while (active && active.tagName === 'IFRAME') {
+      try {
+        const nextDoc = active.contentDocument
+        if (!nextDoc) break
+        doc = nextDoc
+        active = nextDoc.activeElement
+      } catch {
+        break
+      }
+    }
+
+    // Shadow root chain
+    while (active && active.shadowRoot && active.shadowRoot.activeElement) {
+      active = active.shadowRoot.activeElement
+    }
+
+    return active || null
+  }
+
+  /**
+   * Resolve aria-labelledby text for an input
+   * @param {HTMLInputElement} input
+   * @returns {string}
+   * @private
+   */
+  getAriaLabelledbyText(input) {
+    const ids = (input.getAttribute('aria-labelledby') || '').trim()
+    if (!ids) return ''
+
+    const texts = ids
+      .split(/\s+/)
+      .map((id) => document.getElementById(id))
+      .filter(Boolean)
+      .map((el) => (el.textContent || '').trim())
+      .filter(Boolean)
+
+    return texts.join(' ')
+  }
+
+  /**
+   * Get associated label text (label + aria-labelledby)
+   * @param {HTMLInputElement} input
+   * @returns {string}
+   * @private
+   */
+  getLabelText(input) {
+    const ariaLabelledbyText = this.getAriaLabelledbyText(input)
+    if (ariaLabelledbyText) {
+      return ariaLabelledbyText.toLowerCase()
+    }
+
+    const label = this.getAssociatedLabel(input)
+    return label ? (label.textContent || '').toLowerCase() : ''
+  }
+
+  /**
+   * Detect search fields to avoid false positives
+   * @param {HTMLInputElement} input
+   * @returns {boolean}
+   * @private
+   */
+  isSearchField(input) {
+    if (!input) return false
+    const attributes = {
+      name: (input.name || '').toLowerCase(),
+      id: (input.id || '').toLowerCase(),
+      placeholder: (input.placeholder || '').toLowerCase(),
+      ariaLabel: (input.getAttribute('aria-label') || '').toLowerCase(),
+      role: (input.getAttribute('role') || '').toLowerCase(),
+      type: (input.type || '').toLowerCase()
+    }
+
+    const labelText = this.getLabelText(input)
+    const allText = [
+      attributes.name,
+      attributes.id,
+      attributes.placeholder,
+      attributes.ariaLabel,
+      labelText
+    ].join(' ')
+
+    return (
+      /search|query|q\b|buscar|suche|recherche|検索/.test(allText) ||
+      attributes.role === 'searchbox' ||
+      attributes.role === 'search' ||
+      attributes.type === 'search' ||
+      attributes.name === 'q' ||
+      attributes.id === 'q'
+    )
+  }
+
+  /**
+   * Check if an input is likely credential-related
+   * @param {HTMLInputElement} input
+   * @returns {boolean}
+   * @private
+   */
+  isLikelyCredentialInput(input) {
+    if (!input || input.tagName !== 'INPUT') return false
+    if (this.isSearchField(input)) return false
+    if (this.shouldIgnoreFieldForCapture(input)) return false
+
+    const type = (input.type || '').toLowerCase()
+    if (type === 'password') return true
+
+    const fieldType = this.identifyFieldType(input)
+    return fieldType === FIELD_TYPES.USERNAME || fieldType === FIELD_TYPES.EMAIL
+  }
+
+  async setLastSeenUsername(username) {
+    const normalized = String(username || '').trim()
+    if (!normalized) return
+
+    const entry = { username: normalized, domain: this.domain, at: Date.now() }
+    this.lastSeenUsername = entry
+
+    try {
+      await sendPayload({
+        type: EVENT_TYPES.SET_LAST_SEEN_USERNAME,
+        payload: { domain: this.domain, username: normalized }
+      })
+    } catch {
+      // Best-effort; local memory is enough for same-page flows
+    }
+  }
+
+  shouldIgnoreFieldForCapture(input) {
+    return shouldIgnoreField(input, this.domain, { respectAutocompleteOff: false })
+  }
+
+  setLastSeenPassword(password) {
+    const normalized = String(password || '')
+    if (!normalized) return
+    this.lastSeenPassword = { password: normalized, at: Date.now() }
+  }
+
+  async getLastSeenUsername() {
+    const now = Date.now()
+    const local = this.lastSeenUsername
+    if (local && local.domain === this.domain && now - local.at < 5 * 60_000) {
+      return local.username
+    }
+
+    try {
+      const res = await sendPayload({
+        type: EVENT_TYPES.GET_LAST_SEEN_USERNAME,
+        payload: { domain: this.domain }
+      })
+      return res?.username || ''
+    } catch {
+      return ''
+    }
+  }
+
+  getLastSeenPassword() {
+    const local = this.lastSeenPassword
+    if (!local) return ''
+    if (Date.now() - local.at > 2 * 60_000) {
+      this.lastSeenPassword = null
+      return ''
+    }
+    return local.password || ''
+  }
+
+  /**
+   * Resolve the best container for credential extraction
+   * @param {HTMLElement} startElement
+   * @returns {HTMLElement|null}
+   * @private
+   */
+  findBestContainerForCapture(startElement) {
+    if (!startElement) return null
+
+    const candidates = []
+    let current = startElement
+    const selectors = ['form', 'div', 'section', 'main', 'article', 'aside']
+
+    while (current && current !== document.body) {
+      if (current.matches && selectors.some((selector) => current.matches(selector))) {
+        candidates.push(current)
+      }
+      current = current.parentElement
+    }
+
+    let best = null
+    let bestScore = Infinity
+
+    for (const candidate of candidates) {
+      const inputs = Array.from(candidate.querySelectorAll('input')).filter((el) =>
+        this.isFieldVisible(el)
+      )
+
+      const passwordInputs = inputs.filter(
+        (input) => input.type === 'password' && !this.shouldIgnoreFieldForCapture(input)
+      )
+      if (passwordInputs.length === 0) continue
+
+      let nearestDistance = Infinity
+      for (const passwordInput of passwordInputs) {
+        const distance = this.calculateDOMDistance(passwordInput, startElement)
+        if (distance < nearestDistance) {
+          nearestDistance = distance
+        }
+      }
+
+      const score = nearestDistance * 10 + inputs.length
+      if (score < bestScore) {
+        bestScore = score
+        best = candidate
+      }
+    }
+
+    return best || candidates[0] || null
+  }
+
+  /**
+   * Resolve submit button from a composed event path (shadow DOM safe)
+   * @param {Event} event
+   * @returns {HTMLElement|null}
+   * @private
+   */
+  getSubmitButtonFromEvent(event) {
+    const path = typeof event.composedPath === 'function' ? event.composedPath() : []
+    for (const node of path) {
+      if (node && node.nodeType === Node.ELEMENT_NODE && this.isSubmitButton(node)) {
+        return node
+      }
+    }
+    return null
+  }
+
+  /**
    * Find all input elements including those in Shadow DOM
    * @param {Document|ShadowRoot} root
    * @returns {HTMLInputElement[]}
@@ -470,9 +743,31 @@ class ContentScriptInjector {
   }
 
   /**
+   * Find all action elements (buttons/links) including those in Shadow DOM
+   * @param {Document|ShadowRoot} root
+   * @returns {HTMLElement[]}
+   * @private
+   */
+  findAllActionElements(root = document) {
+    const actions = []
+    const selector = 'button, a, [role="button"]'
+
+    actions.push(...root.querySelectorAll(selector))
+
+    const elementsWithShadow = root.querySelectorAll('*')
+    elementsWithShadow.forEach((element) => {
+      if (element.shadowRoot) {
+        actions.push(...this.findAllActionElements(element.shadowRoot))
+      }
+    })
+
+    return actions
+  }
+
+  /**
    * Identify the type/purpose of an input field using heuristics
    * Note: Platform-specific exclusions (account IDs, etc.) are handled separately
-   * via shouldExcludeField() - this method only identifies credential fields
+   * via shouldIgnoreField() - this method only identifies credential fields
    * @param {HTMLInputElement} input
    * @returns {string} Field type from FIELD_TYPES
    * @private
@@ -492,9 +787,8 @@ class ContentScriptInjector {
       type: input.type || 'text'
     }
 
-    // Get associated label text
-    const label = this.getAssociatedLabel(input)
-    const labelText = label ? (label.textContent || '').toLowerCase() : ''
+    // Get associated label text (label + aria-labelledby)
+    const labelText = this.getLabelText(input)
 
     // Combine all text for pattern matching
     const allText = [
@@ -591,6 +885,8 @@ class ContentScriptInjector {
     for (const field of candidateFields) {
       // Skip if same field or not visible
       if (field === passwordField || !this.isFieldVisible(field)) continue
+      if (shouldIgnoreField(field, this.domain)) continue
+      if (this.isSearchField(field)) continue
 
       // Username field should come before password field in DOM
       const position = field.compareDocumentPosition(passwordField)
@@ -640,7 +936,10 @@ class ContentScriptInjector {
     // Find all password fields (including Shadow DOM)
     const allInputs = this.findAllInputs()
     const passwordFields = allInputs.filter(
-      (input) => input.type === 'password' && this.isFieldVisible(input)
+      (input) =>
+        input.type === 'password' &&
+        this.isFieldVisible(input) &&
+        !shouldIgnoreField(input, this.domain)
     )
 
     log.info(`Found ${passwordFields.length} password field(s)`)
@@ -742,8 +1041,8 @@ class ContentScriptInjector {
     const potentialLoginFields = allInputs.filter((input) => {
       if (!this.isFieldVisible(input)) return false
 
-      // EXCLUDE: Platform-specific fields (account IDs, organization IDs, etc.)
-      if (shouldExcludeField(input, this.domain)) {
+      // EXCLUDE: Platform-specific fields or opt-out fields
+      if (shouldIgnoreField(input, this.domain)) {
         log.info(`Excluding platform-specific field: ${input.name || input.id || 'unnamed'}`)
         return false
       }
@@ -776,8 +1075,7 @@ class ContentScriptInjector {
         type: input.type || 'text'
       }
 
-      const label = this.getAssociatedLabel(input)
-      const labelText = label ? (label.textContent || '').toLowerCase() : ''
+      const labelText = this.getLabelText(input)
 
       const allText = [
         attributes.name,
@@ -788,14 +1086,7 @@ class ContentScriptInjector {
       ].join(' ')
 
       // EXCLUDE: Search boxes, search bars (Gmail, etc.)
-      if (
-        /search|query|q\b|buscar|suche|recherche|検索/.test(allText) ||
-        attributes.role === 'searchbox' ||
-        attributes.role === 'search' ||
-        attributes.type === 'search' ||
-        attributes.name === 'q' ||
-        attributes.id === 'q'
-      ) {
+      if (this.isSearchField(input)) {
         log.info(`Skipping search field: ${input.name || input.id || 'unnamed'}`)
         return false
       }
@@ -815,10 +1106,30 @@ class ContentScriptInjector {
       return
     }
 
-    log.success(`🔍 Multi-step login detected: ${likelyLoginFields.length} field(s)`)
+    const actionCandidates = this.findAllActionElements().filter(
+      (element) => this.isFieldVisible(element) && this.isActionElement(element)
+    )
+
+    let selectedLoginFields = likelyLoginFields
+    if (actionCandidates.length > 0) {
+      const actionDistanceThreshold = 4
+      const actionFilteredFields = likelyLoginFields.filter((input) =>
+        actionCandidates.some(
+          (action) =>
+            this.calculateDOMDistance(action, input) <= actionDistanceThreshold ||
+            this.calculateDOMDistance(input, action) <= actionDistanceThreshold
+        )
+      )
+
+      if (actionFilteredFields.length > 0) {
+        selectedLoginFields = actionFilteredFields
+      }
+    }
+
+    log.success(`🔍 Multi-step login detected: ${selectedLoginFields.length} field(s)`)
 
     // Create pseudo login fields for multi-step
-    this.loginFields = likelyLoginFields.map((field) => ({
+    this.loginFields = selectedLoginFields.map((field) => ({
       username: field,
       password: null, // No password yet (multi-step)
       form: field.closest('form'),
@@ -846,7 +1157,7 @@ class ContentScriptInjector {
     // Try to fetch logins
     try {
       const logins = await sendPayload({
-        type: EVENT_TYPES.REQUEST_LOGINS,
+        type: EVENT_TYPES.REQUEST_PASSWORDS,
         payload: this.domain
       })
 
@@ -880,7 +1191,10 @@ class ContentScriptInjector {
     // Check if any VISIBLE password fields exist (including Shadow DOM)
     const allInputs = this.findAllInputs()
     const passwordInputExists = allInputs.some(
-      (input) => input.type === 'password' && this.isFieldVisible(input)
+      (input) =>
+        input.type === 'password' &&
+        this.isFieldVisible(input) &&
+        !shouldIgnoreField(input, this.domain)
     )
 
     if (!passwordInputExists) {
@@ -934,7 +1248,9 @@ class ContentScriptInjector {
       const inputs = this.getFormInputs(form)
 
       // Valid login form must have at least one password field
-      const passwordField = inputs.find((input) => input.type === INPUT_TYPES.PASSWORD)
+      const passwordField = inputs.find(
+        (input) => input.type === INPUT_TYPES.PASSWORD && !shouldIgnoreField(input, this.domain)
+      )
       if (!passwordField) return
 
       // Skip if already processed
@@ -951,7 +1267,7 @@ class ContentScriptInjector {
         }
 
         // Check platform-specific exclusions (AWS account ID, Azure tenant ID, etc.)
-        if (shouldExcludeField(input, this.domain)) {
+        if (shouldIgnoreField(input, this.domain)) {
           log.info(`Skipping platform-excluded field: ${input.name || input.id}`)
           return false
         }
@@ -1034,7 +1350,10 @@ class ContentScriptInjector {
     ]
 
     return [...inputs].filter(
-      (input) => relevantTypes.includes(input.type) && this.isFieldVisible(input)
+      (input) =>
+        relevantTypes.includes(input.type) &&
+        this.isFieldVisible(input) &&
+        !shouldIgnoreField(input, this.domain)
     )
   }
 
@@ -1088,15 +1407,37 @@ class ContentScriptInjector {
     }
 
     const logins = this.logins || []
-    log.info(`🚀 Logo clicked! Creating popup with ${logins.length} logins`)
+    let popupLogins = logins
+    const lastAutofill = this.lastAutofill
+    const isPasswordStep = targetInput?.type === 'password'
+    const autofillAge = lastAutofill?.at ? Date.now() - lastAutofill.at : null
+    const isRecentAutofill =
+      typeof autofillAge === 'number' && autofillAge >= 0 && autofillAge < 5 * 60_000
+
+    if (isPasswordStep && isRecentAutofill && lastAutofill) {
+      if (lastAutofill.itemId) {
+        popupLogins = logins.filter((login) => login?.id === lastAutofill.itemId)
+      } else if (lastAutofill.username) {
+        const selectedUsername = String(lastAutofill.username).toLowerCase()
+        popupLogins = logins.filter(
+          (login) => String(login?.username || '').toLowerCase() === selectedUsername
+        )
+      }
+
+      if (popupLogins.length === 0) {
+        popupLogins = logins
+      }
+    }
+
+    log.info(`🚀 Logo clicked! Creating popup with ${popupLogins.length} logins`)
 
     const popup = new LoginAsPopup(
       targetInput,
-      logins,
+      popupLogins,
       this.forms,
       this.authError,
-      ({ at, username, passwordDigest }) => {
-        this.lastAutofill = { at, username, passwordDigest }
+      ({ at, username, passwordDigest, itemId }) => {
+        this.lastAutofill = { at, username, passwordDigest, itemId }
       }
     )
 
@@ -1175,10 +1516,19 @@ class ContentScriptInjector {
       log.info('🔄 Found pending save in background, showing save notification')
 
       await this.showSaveNotification(
-        { username: pending.username, url: pending.url },
+        {
+          username: pending.username,
+          password: pending.password,
+          url: pending.url,
+          folder_id: pending.folder_id,
+          auto_fill: pending.auto_fill,
+          auto_login: pending.auto_login,
+          reprompt: pending.reprompt
+        },
         pending.action || 'add',
         pending.loginId || null,
-        pending.title ? { title: pending.title } : null
+        pending.title ? { title: pending.title } : null,
+        'pending_save'
       )
     } catch (error) {
       // Best-effort: if background restarted, pending is gone
@@ -1201,6 +1551,9 @@ class ContentScriptInjector {
     // NEW: Listen for input changes to cache credentials early (for React/Vue forms)
     document.addEventListener('input', this.handleInputChange.bind(this), true)
     document.addEventListener('change', this.handleInputChange.bind(this), true)
+
+    // NEW: Listen for Enter key submits (keyboard-only flows)
+    document.addEventListener('keydown', this.handleKeydownEnter.bind(this), true)
 
     log.success('Form submission detection initialized')
   }
@@ -1226,13 +1579,19 @@ class ContentScriptInjector {
     const inputName = (input.name || '').toLowerCase()
     const inputId = (input.id || '').toLowerCase()
 
+    if (this.shouldIgnoreFieldForCapture(input)) {
+      return
+    }
+
     // Check if this is a password field
     const isPassword =
       inputType === 'password' ||
       inputName.includes('password') ||
       inputName.includes('passwd') ||
+      inputName.includes('pwd') ||
       inputId.includes('password') ||
-      inputId.includes('passwd')
+      inputId.includes('passwd') ||
+      inputId.includes('pwd')
 
     // Check if this is a username/email field
     const isUsername =
@@ -1244,6 +1603,36 @@ class ContentScriptInjector {
       inputId.includes('user') ||
       inputId.includes('email') ||
       inputId.includes('login')
+
+    if (isPassword) {
+      if (this.lastAutofill?.passwordDigest) {
+        try {
+          const currentValue = String(input.value || '')
+          const data = new TextEncoder().encode(currentValue)
+          crypto.subtle
+            .digest('SHA-256', data)
+            .then((digest) => {
+              const bytes = new Uint8Array(digest)
+              let binary = ''
+              for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+              const currentDigest = btoa(binary)
+              const matchesAutofill = currentDigest === this.lastAutofill.passwordDigest
+              if (!matchesAutofill) {
+                this.lastAutofill = null
+                log.info('🔄 Password changed after autofill, clearing autofill state')
+              }
+            })
+            .catch(() => {})
+        } catch {
+          // ignore
+        }
+      }
+      this.setLastSeenPassword(input.value)
+    }
+
+    if (isUsername && !this.isSearchField(input)) {
+      this.setLastSeenUsername(input.value)
+    }
 
     if (isPassword || isUsername) {
       // Find form or container
@@ -1295,7 +1684,23 @@ class ContentScriptInjector {
     } else {
       // Fallback: Extract credentials from form IMMEDIATELY (before form clears)
       log.info('⚠️ No valid cache, extracting from form...')
-      credentials = this.extractCredentialsFromForm(form)
+      const fallbackUsername = await this.getLastSeenUsername()
+      const fallbackPassword = this.getLastSeenPassword()
+      const deepActiveElement = this.getDeepActiveElement()
+      const activeContainer = deepActiveElement
+        ? this.findBestContainerForCapture(deepActiveElement)
+        : null
+
+      if (activeContainer && activeContainer !== form) {
+        credentials = this.extractCredentialsFromContainer(activeContainer, {
+          fallbackUsername,
+          fallbackPassword
+        })
+      }
+
+      if (!credentials) {
+        credentials = this.extractCredentialsFromForm(form, { fallbackUsername, fallbackPassword })
+      }
     }
 
     if (credentials) {
@@ -1356,9 +1761,15 @@ class ContentScriptInjector {
       this.cacheTimestamp = 0
 
       // Also try to show immediately (if no redirect)
-      setTimeout(() => {
-        this.checkIfShouldOfferSave({ username: credentials.username, url: credentials.url })
-      }, 1000)
+      // Don't set up new timers if a save notification is already active
+      if (!this.saveNotificationShown) {
+        setTimeout(() => {
+          // Check if save notification is already shown before offering
+          if (!this.saveNotificationShown) {
+            this.checkIfShouldOfferSave(credentials)
+          }
+        }, 1000)
+      }
     } else {
       log.warn('❌ No credentials found in form')
     }
@@ -1370,7 +1781,7 @@ class ContentScriptInjector {
    * @private
    */
   async handleSubmitButtonClick(event) {
-    const element = event.target
+    const element = this.getSubmitButtonFromEvent(event) || event.target
 
     // Check if this looks like a submit button
     if (!this.isSubmitButton(element)) {
@@ -1379,11 +1790,20 @@ class ContentScriptInjector {
 
     log.info('🔍 Submit button clicked, caching credentials...')
 
-    // Find the nearest form or container
-    const container = element.closest('form, div, section, main') || document.body
+    const deepActiveElement = this.getDeepActiveElement()
+    const baseElement = deepActiveElement || element
+    const container =
+      this.findBestContainerForCapture(baseElement) ||
+      element.closest('form, div, section, main') ||
+      document.body
 
     // Extract credentials from container BEFORE form manipulates fields
-    const credentials = this.extractCredentialsFromContainer(container)
+    const fallbackUsername = await this.getLastSeenUsername()
+    const fallbackPassword = this.getLastSeenPassword()
+    const credentials = this.extractCredentialsFromContainer(container, {
+      fallbackUsername,
+      fallbackPassword
+    })
 
     if (credentials) {
       log.info('✅ Credentials detected and cached:', {
@@ -1396,13 +1816,117 @@ class ContentScriptInjector {
       this.cacheTimestamp = Date.now()
 
       // For formless submissions (no form submit event), wait and offer save
-      if (!element.closest('form')) {
+      // Don't set up new timers if a save notification is already active
+      if (!element.closest('form') && !this.saveNotificationShown) {
         setTimeout(() => {
-          this.checkIfShouldOfferSave(credentials)
+          // Check if save notification is already shown before offering
+          if (!this.saveNotificationShown) {
+            this.checkIfShouldOfferSave(credentials)
+          }
         }, 1000)
       }
       // If there's a form, let form submit handler use cached credentials
     }
+  }
+
+  /**
+   * Handle Enter key submits (keyboard-only flows)
+   * @param {KeyboardEvent} event
+   * @private
+   */
+  async handleKeydownEnter(event) {
+    if (event.key !== 'Enter') return
+    if (event.defaultPrevented) return
+    if (!event.isTrusted) return
+
+    const target = event.target
+    if (target?.isContentEditable || target?.tagName === 'TEXTAREA') {
+      return
+    }
+
+    const deepActiveElement = this.getDeepActiveElement()
+    const input =
+      deepActiveElement?.tagName === 'INPUT'
+        ? deepActiveElement
+        : target?.tagName === 'INPUT'
+          ? target
+          : null
+
+    if (!input || !this.isLikelyCredentialInput(input)) {
+      return
+    }
+
+    const container =
+      this.findBestContainerForCapture(input) ||
+      input.closest('form, div, section, main') ||
+      document.body
+
+    const fallbackUsername = await this.getLastSeenUsername()
+    const fallbackPassword = this.getLastSeenPassword()
+    const credentials = this.extractCredentialsFromContainer(container, {
+      fallbackUsername,
+      fallbackPassword
+    })
+
+    if (!credentials) {
+      return
+    }
+
+    this.cachedCredentials = credentials
+    this.cacheTimestamp = Date.now()
+
+    // Don't set up new timers if a save notification is already active
+    if (!input.closest('form') && !this.saveNotificationShown) {
+      setTimeout(() => {
+        // Check if save notification is already shown before offering
+        if (!this.saveNotificationShown) {
+          this.checkIfShouldOfferSave(credentials)
+        }
+      }, 1000)
+    }
+  }
+
+  /**
+   * Check if element looks like an action button (next/continue/login)
+   * @param {HTMLElement} element
+   * @returns {boolean}
+   * @private
+   */
+  isActionElement(element) {
+    if (!element) return false
+
+    const tagName = typeof element.tagName === 'string' ? element.tagName.toLowerCase() : ''
+    const role =
+      typeof element.getAttribute === 'function'
+        ? (element.getAttribute('role') || '').toLowerCase()
+        : ''
+
+    if (tagName !== 'button' && tagName !== 'a' && role !== 'button') {
+      return false
+    }
+
+    const textParts = [
+      element.textContent,
+      typeof element.getAttribute === 'function' ? element.getAttribute('aria-label') : '',
+      typeof element.getAttribute === 'function' ? element.getAttribute('title') : '',
+      typeof element.value === 'string' ? element.value : ''
+    ]
+      .filter(Boolean)
+      .map((value) => String(value).toLowerCase())
+      .join(' ')
+
+    const actionKeywords = [
+      'login',
+      'sign in',
+      'log in',
+      'submit',
+      'continue',
+      'next',
+      'proceed',
+      'enter'
+    ]
+
+    return actionKeywords.some((keyword) => textParts.includes(keyword))
   }
 
   /**
@@ -1414,9 +1938,14 @@ class ContentScriptInjector {
   isSubmitButton(element) {
     if (!element) return false
 
-    const tagName = element.tagName.toLowerCase()
-    const type = (element.type || '').toLowerCase()
-    const role = (element.getAttribute('role') || '').toLowerCase()
+    const tagName = typeof element.tagName === 'string' ? element.tagName.toLowerCase() : ''
+    const typeAttr = typeof element.getAttribute === 'function' ? element.getAttribute('type') : null
+    const rawType = typeof element.type === 'string' ? element.type : typeAttr
+    const type = typeof rawType === 'string' ? rawType.toLowerCase() : ''
+    const role =
+      typeof element.getAttribute === 'function'
+        ? (element.getAttribute('role') || '').toLowerCase()
+        : ''
 
     // Check if it's a submit input or button
     if (type === 'submit') return true
@@ -1446,12 +1975,10 @@ class ContentScriptInjector {
    * @returns {Object|null} - {username, password, url}
    * @private
    */
-  extractCredentialsFromForm(form) {
-    const formInputs = Array.from(form.elements).filter(
-      (el) => el.tagName === 'INPUT' && this.isFieldVisible(el)
-    )
+  extractCredentialsFromForm(form, options = {}) {
+    const formInputs = Array.from(form.elements).filter((el) => el.tagName === 'INPUT')
 
-    return this.extractCredentialsFromInputs(formInputs)
+    return this.extractCredentialsFromInputs(formInputs, options)
   }
 
   /**
@@ -1460,12 +1987,10 @@ class ContentScriptInjector {
    * @returns {Object|null} - {username, password, url}
    * @private
    */
-  extractCredentialsFromContainer(container) {
-    const inputs = Array.from(container.querySelectorAll('input')).filter((el) =>
-      this.isFieldVisible(el)
-    )
+  extractCredentialsFromContainer(container, options = {}) {
+    const inputs = Array.from(container.querySelectorAll('input'))
 
-    return this.extractCredentialsFromInputs(inputs)
+    return this.extractCredentialsFromInputs(inputs, options)
   }
 
   /**
@@ -1474,46 +1999,84 @@ class ContentScriptInjector {
    * @returns {Object|null} - {username, password, url}
    * @private
    */
-  extractCredentialsFromInputs(inputs) {
+  extractCredentialsFromInputs(inputs, options = {}) {
+    const fallbackUsername = String(options.fallbackUsername || '').trim()
+    const fallbackPassword = String(options.fallbackPassword || '')
+    const visibleInputs = inputs.filter((input) => this.isFieldVisible(input))
+
     // Find password field (including common name variations)
-    const passwordFields = inputs.filter((input) => input.type === 'password')
+    const passwordField = visibleInputs.find(
+      (input) => input.type === 'password' && !this.shouldIgnoreFieldForCapture(input)
+    )
 
-    const passwordField = inputs.find((input) => {
-      if (input.type !== 'password') return false
-      if (!input.value) return false
+    const resolvedPassword = (passwordField?.value || fallbackPassword || '').trim()
 
-      // Common password field names
-      const name = (input.name || '').toLowerCase()
-      const id = (input.id || '').toLowerCase()
+    if (!resolvedPassword) {
+      log.info('No password value found')
+      return null
+    }
 
-      // Accept any password field with value
-      return true
-    })
-
-    if (!passwordField || !passwordField.value) {
+    if (!passwordField && !fallbackPassword) {
       log.info('No password field found with value')
       return null
     }
 
     log.info('Password field found:', {
-      name: passwordField.name,
-      id: passwordField.id,
-      hasValue: !!passwordField.value
+      name: passwordField?.name || null,
+      id: passwordField?.id || null,
+      hasValue: !!passwordField?.value
     })
 
     // Find username field with priority order
     // 1. Email type inputs
     // 2. Inputs with username-related names (WordPress: user_login, log, etc.)
     // 3. Any text/tel input
-    const usernameFields = inputs.filter(
+    const usernameFields = visibleInputs.filter(
       (input) =>
         ['email', 'text', 'tel'].includes(input.type) &&
         input.value &&
         input !== passwordField &&
-        !shouldExcludeField(input, this.domain)
+        !this.shouldIgnoreFieldForCapture(input)
     )
 
     if (usernameFields.length === 0) {
+      const hiddenUsernameFields = inputs.filter((input) => {
+        if (this.isFieldVisible(input)) return false
+        if (!['email', 'text', 'tel'].includes(input.type)) return false
+        if (!input.value) return false
+        if (input === passwordField) return false
+        if (this.shouldIgnoreFieldForCapture(input)) return false
+
+        const fieldType = this.identifyFieldType(input)
+        const autocomplete = (input.getAttribute('autocomplete') || '').toLowerCase()
+        return (
+          fieldType === FIELD_TYPES.USERNAME ||
+          fieldType === FIELD_TYPES.EMAIL ||
+          autocomplete === 'username' ||
+          autocomplete === 'email'
+        )
+      })
+
+      if (hiddenUsernameFields.length > 0) {
+        const hiddenUsernameField = hiddenUsernameFields[0]
+        log.info('Username field found (hidden fallback):', {
+          name: hiddenUsernameField.name,
+          id: hiddenUsernameField.id
+        })
+        return {
+          username: hiddenUsernameField.value,
+          password: resolvedPassword,
+          url: window.location.href
+        }
+      }
+
+      if (fallbackUsername) {
+        return {
+          username: fallbackUsername,
+          password: resolvedPassword,
+          url: window.location.href
+        }
+      }
       log.info('No username field found with value')
       return null
     }
@@ -1564,7 +2127,7 @@ class ContentScriptInjector {
 
     const result = {
       username: usernameField.value,
-      password: passwordField.value,
+      password: resolvedPassword,
       url: window.location.href
     }
 
@@ -1579,8 +2142,8 @@ class ContentScriptInjector {
 
   /**
    * Check if we should offer to save these credentials.
-   * Note: password is never needed here (candidates-only).
-   * @param {Object} credentials - {username, url}
+   * Note: password is optional, but used to prefill the popup.
+   * @param {Object} credentials - {username, password, url}
    * @private
    */
   async checkIfShouldOfferSave(credentials) {
@@ -1590,6 +2153,48 @@ class ContentScriptInjector {
     if (this.saveNotificationShown) {
       log.info('⏭️ Save notification already shown, skipping')
       return
+    }
+
+    // Don't offer save for recently saved credentials (within 60 seconds)
+    if (this.recentlySavedCredentials) {
+      const timeSinceLastSave = Date.now() - this.recentlySavedCredentials.at
+      if (timeSinceLastSave < 60000) {
+        // Check if it's the same credentials
+        // Compare domains instead of full URLs (to handle navigation within same site)
+        const savedDomain = this.recentlySavedCredentials.url ? getDomain(this.recentlySavedCredentials.url) : ''
+        const currentDomain = credentials?.url ? getDomain(credentials.url) : ''
+        
+        if (
+          this.recentlySavedCredentials.username === credentials?.username &&
+          savedDomain === currentDomain &&
+          savedDomain // Ensure domain is not empty
+        ) {
+          // If password provided, also check password digest
+          if (credentials?.password) {
+            try {
+              const data = new TextEncoder().encode(credentials.password)
+              const digest = await crypto.subtle.digest('SHA-256', data)
+              const bytes = new Uint8Array(digest)
+              let binary = ''
+              for (let i = 0; i < bytes.length; i++) {
+                binary += String.fromCharCode(bytes[i])
+              }
+              const passwordDigest = btoa(binary)
+              
+              if (this.recentlySavedCredentials.passwordDigest === passwordDigest) {
+                log.info('⏭️ Credentials recently saved, skipping offer')
+                return
+              }
+            } catch (err) {
+              log.warn('Failed to digest password for comparison:', err)
+            }
+          } else {
+            // No password in current credentials, just check username/domain
+            log.info('⏭️ Credentials recently saved (no pwd check), skipping offer')
+            return
+          }
+        }
+      }
     }
 
     // Security check
@@ -1631,6 +2236,7 @@ class ContentScriptInjector {
           type: EVENT_TYPES.SET_PENDING_SAVE,
           payload: {
             username: credentials.username,
+            password: credentials.password,
             domain: this.domain,
             action: 'update',
             loginId: match.id,
@@ -1640,10 +2246,11 @@ class ContentScriptInjector {
 
         // Pass existing login data to popup (no password)
         this.showSaveNotification(
-          { username: credentials.username, url: credentials.url },
+          { username: credentials.username, password: credentials.password, url: credentials.url },
           'update',
           match.id,
-          match
+          match,
+          'offer_update'
         )
         return
       }
@@ -1659,7 +2266,13 @@ class ContentScriptInjector {
           title: this.domain
         }
       })
-      this.showSaveNotification({ username: credentials.username, url: credentials.url }, 'add')
+      this.showSaveNotification(
+        { username: credentials.username, password: credentials.password, url: credentials.url },
+        'add',
+        null,
+        null,
+        'offer_add'
+      )
     } catch (error) {
       log.error('❌ Error checking existing logins:', error)
 
@@ -1682,7 +2295,13 @@ class ContentScriptInjector {
             title: this.domain
           }
         })
-        this.showSaveNotification({ username: credentials.username, url: credentials.url }, 'add')
+        this.showSaveNotification(
+          { username: credentials.username, password: credentials.password, url: credentials.url },
+          'add',
+          null,
+          null,
+          'offer_add_no_logins'
+        )
         return
       }
 
@@ -1703,7 +2322,13 @@ class ContentScriptInjector {
    * @param {Object} existingLogin - Existing login data (for update, to show current title)
    * @private
    */
-  async showSaveNotification(credentials, action = 'add', loginId = null, existingLogin = null) {
+  async showSaveNotification(
+    credentials,
+    action = 'add',
+    loginId = null,
+    existingLogin = null,
+    source = 'unknown'
+  ) {
     this.saveNotificationShown = true
     this.submittedFormData = { credentials, action, loginId, existingLogin }
 
@@ -1779,12 +2404,33 @@ class ContentScriptInjector {
       try {
         // Use existing login's title for update, or domain for new
         const displayTitle = existingLogin?.title || this.domain
+        const resolvedFolderId =
+          credentials?.folder_id !== undefined && credentials?.folder_id !== null
+            ? credentials.folder_id
+            : existingLogin?.folder_id ?? null
+        const resolvedAutoFill =
+          typeof credentials?.auto_fill === 'boolean'
+            ? credentials.auto_fill
+            : existingLogin?.auto_fill ?? true
+        const resolvedAutoLogin =
+          typeof credentials?.auto_login === 'boolean'
+            ? credentials.auto_login
+            : existingLogin?.auto_login ?? false
+        const resolvedReprompt =
+          typeof credentials?.reprompt === 'boolean'
+            ? credentials.reprompt
+            : existingLogin?.reprompt ?? false
 
         iframe.contentWindow.postMessage(
           JSON.stringify({
             type: 'PASSWALL_SAVE_INIT',
             data: {
               username: credentials.username,
+              password: credentials.password,
+              folder_id: resolvedFolderId,
+              auto_fill: resolvedAutoFill,
+              auto_login: resolvedAutoLogin,
+              reprompt: resolvedReprompt,
               url: credentials.url,
               domain: this.domain,
               title: displayTitle, // Use existing title for update
@@ -1802,7 +2448,7 @@ class ContentScriptInjector {
 
     // Note: init data is sent after PASSWALL_SAVE_READY handshake to avoid SPA mount race
 
-    // Cleanup after 30 seconds if not interacted
+    // Cleanup after 90 seconds if not interacted
     setTimeout(() => {
       const existingIframe = document.getElementById('passwall-save-notification')
       if (existingIframe) {
@@ -1818,7 +2464,7 @@ class ContentScriptInjector {
         this.messageRoutes = this.messageRoutes.filter((r) => r.sourceWindow !== sw)
       }
       this.saveNotificationRoute = null
-    }, 30000)
+    }, 90000)
 
     log.success('Save notification displayed')
   }
@@ -1844,6 +2490,10 @@ class ContentScriptInjector {
         payload: {
           username: data.username,
           password: data.password,
+          folder_id: data.folder_id,
+          auto_fill: data.auto_fill,
+          auto_login: data.auto_login,
+          reprompt: data.reprompt,
           url: data.url,
           domain: data.domain || this.domain,
           title: data.title,
@@ -1853,6 +2503,37 @@ class ContentScriptInjector {
       })
 
       log.success('✅ Credentials saved successfully!')
+      
+      // Record saved credentials to prevent duplicate offers
+      if (data.password) {
+        try {
+          const pwdData = new TextEncoder().encode(data.password)
+          const digest = await crypto.subtle.digest('SHA-256', pwdData)
+          const bytes = new Uint8Array(digest)
+          let binary = ''
+          for (let i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i])
+          }
+          const passwordDigest = btoa(binary)
+          
+          this.recentlySavedCredentials = {
+            username: data.username,
+            url: data.url,
+            passwordDigest,
+            at: Date.now()
+          }
+        } catch (err) {
+          log.warn('Failed to record saved credentials:', err)
+        }
+      } else {
+        this.recentlySavedCredentials = {
+          username: data.username,
+          url: data.url,
+          passwordDigest: null,
+          at: Date.now()
+        }
+      }
+      
       this.showSaveSuccessMessage()
     } catch (error) {
       log.error('❌ Error saving credentials:', error)

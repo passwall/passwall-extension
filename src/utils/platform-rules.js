@@ -249,6 +249,40 @@ export function shouldExcludeField(input, hostname) {
 }
 
 /**
+ * Check if a field should be ignored for detection or capture
+ * (platform rules + opt-out attributes)
+ *
+ * @param {HTMLInputElement} input - Input element to check
+ * @param {string} hostname - Current page hostname
+ * @param {Object} [options]
+ * @param {boolean} [options.respectAutocompleteOff=true] - Respect autocomplete="off"
+ * @returns {boolean}
+ */
+export function shouldIgnoreField(input, hostname, options = {}) {
+  if (!input) return false
+
+  const respectAutocompleteOff = options.respectAutocompleteOff !== false
+  const autocomplete = (input.getAttribute('autocomplete') || '').toLowerCase()
+
+  const hasLpIgnore =
+    input.hasAttribute('data-lpignore') ||
+    input.hasAttribute('data-lp-ignore') ||
+    input.hasAttribute('lpignore')
+
+  const hasPasswallIgnore = input.hasAttribute('data-passwall-ignore')
+
+  if (hasPasswallIgnore || hasLpIgnore) {
+    return true
+  }
+
+  if (respectAutocompleteOff && (autocomplete === 'off' || autocomplete === 'false')) {
+    return true
+  }
+
+  return shouldExcludeField(input, hostname)
+}
+
+/**
  * Get platform-specific configuration for logging/debugging
  *
  * @param {string} hostname - Current page hostname
@@ -368,6 +402,7 @@ export default {
   DOMAIN_MATCH_BLACKLIST,
   getPlatformRules,
   shouldExcludeField,
+  shouldIgnoreField,
   getPlatformInfo,
   addPlatformRule,
   getEquivalentDomains,

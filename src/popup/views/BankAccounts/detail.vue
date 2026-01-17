@@ -132,6 +132,7 @@ export default {
   data() {
     return {
       form: {
+        id: null,
         title: '',
         first_name: '',
         last_name: '',
@@ -195,6 +196,7 @@ export default {
     }
 
     this.form = {
+      id: item.id,
       title: item.title || item.name || item.metadata?.name || '',
       first_name: item.first_name || '',
       last_name: item.last_name || '',
@@ -242,7 +244,7 @@ export default {
         const bankData = { ...this.form }
         const metadata = { name: this.form.title, category: this.form.account_type }
 
-        await this.itemsStore.updateItem(itemId, {
+        const updated = await this.itemsStore.updateItem(itemId, {
           item_type: ItemType.Bank,
           data: bankData,
           metadata
@@ -251,7 +253,12 @@ export default {
         this.$notifySuccess?.('Bank account updated successfully')
         this.isEditMode = false
 
-        await this.itemsStore.fetchItems({ type: ItemType.Bank })
+        this.itemsStore.setDetail(updated)
+        this.form = {
+          ...this.form,
+          ...updated,
+          title: updated.title || updated.metadata?.name || this.form.title
+        }
       } catch (error) {
         console.error('Failed to update bank account:', error)
         this.$notifyError?.('Failed to update bank account')

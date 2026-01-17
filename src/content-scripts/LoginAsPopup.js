@@ -1,6 +1,6 @@
 import browser from 'webextension-polyfill'
 import { getOffset, sendPayload, getHostName } from '@/utils/helpers'
-import { shouldExcludeField } from '@/utils/platform-rules'
+import { shouldIgnoreField } from '@/utils/platform-rules'
 
 const INPUT_TYPES = {
   PASSWORD: 'password',
@@ -281,7 +281,7 @@ export class LoginAsPopup {
       }
 
       // Skip platform-specific excluded fields (AWS account ID, Azure tenant ID, etc.)
-      if (shouldExcludeField(input, this.domain)) {
+      if (shouldIgnoreField(input, this.domain)) {
         log.info(`Skipping excluded field (platform rule): ${input.name || input.id}`)
         return
       }
@@ -305,7 +305,7 @@ export class LoginAsPopup {
     log.success(`Form auto-filled for: ${username}`)
 
     try {
-      this.onAutofill?.({ at: Date.now(), username, passwordDigest })
+      this.onAutofill?.({ at: Date.now(), username, passwordDigest, itemId })
     } catch {
       // ignore
     }

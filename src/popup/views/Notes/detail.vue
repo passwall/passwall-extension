@@ -68,6 +68,7 @@ export default {
   data() {
     return {
       form: {
+        id: null,
         title: '',
         note: ''
       },
@@ -120,6 +121,7 @@ export default {
     }
 
     this.form = {
+      id: item.id,
       title: item.title || item.metadata?.name || '',
       note: item.notes || item.note || ''
     }
@@ -159,7 +161,7 @@ export default {
         }
         const metadata = { name: this.form.title }
 
-        await this.itemsStore.updateItem(itemId, {
+        const updated = await this.itemsStore.updateItem(itemId, {
           item_type: ItemType.Note,
           data: noteData,
           metadata
@@ -168,8 +170,13 @@ export default {
         this.$notifySuccess?.('Note updated successfully')
         this.isEditMode = false
 
-        // Refresh data
-        await this.itemsStore.fetchItems({ type: ItemType.Note })
+        this.itemsStore.setDetail(updated)
+        this.form = {
+          ...this.form,
+          ...updated,
+          title: updated.title || updated.metadata?.name || this.form.title,
+          note: updated.notes || updated.note || this.form.note
+        }
       } catch (error) {
         console.error('Failed to update note:', error)
         this.$notifyError?.('Failed to update note')

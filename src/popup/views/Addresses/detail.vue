@@ -136,6 +136,7 @@ export default {
   data() {
     return {
       form: {
+        id: null,
         title: '',
         first_name: '',
         middle_name: '',
@@ -205,6 +206,7 @@ export default {
     }
 
     this.form = {
+      id: item.id,
       title: item.title || item.metadata?.name || '',
       first_name: item.first_name || '',
       middle_name: item.middle_name || '',
@@ -239,7 +241,7 @@ export default {
         const addressData = { ...this.form }
         const metadata = { name: this.form.title }
 
-        await this.itemsStore.updateItem(itemId, {
+        const updated = await this.itemsStore.updateItem(itemId, {
           item_type: ItemType.Address,
           data: addressData,
           metadata
@@ -248,8 +250,12 @@ export default {
         this.$notifySuccess?.('Address updated successfully')
         this.isEditMode = false
 
-        // Refresh data
-        await this.itemsStore.fetchItems({ type: ItemType.Address })
+        this.itemsStore.setDetail(updated)
+        this.form = {
+          ...this.form,
+          ...updated,
+          title: updated.title || updated.metadata?.name || this.form.title
+        }
       } catch (error) {
         console.error('Failed to update address:', error)
         this.$notifyError?.('Failed to update address')

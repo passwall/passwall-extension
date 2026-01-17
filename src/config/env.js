@@ -33,7 +33,7 @@ const DEV_CONFIG = {
 
   // Auto-login credentials (ONLY for development!)
   SERVER_URL: 'http://localhost:3625',
-  EMAIL: 'test@passwall.io',
+  EMAIL: 'admin@passwall.io',
   PASSWORD: '123456Pw.'
 }
 // ========================================

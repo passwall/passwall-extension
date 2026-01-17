@@ -28,6 +28,7 @@ class BackgroundAgent {
     this.initPromise = null // Track initialization state
     this.pendingSaveByTab = new Map() // tabId -> { username, password, url, domain, title, action, loginId, expiresAt }
     this.lastSecretFetchByTab = new Map() // tabId -> timestamp (rate limiting)
+    this.lastSeenUsernameByTab = new Map() // tabId -> { domain, username, expiresAt }
     this.lastLoginUiOpenAt = 0 // Rate-limit opening login UI
     this.initPromise = this.init()
   }
@@ -255,6 +256,12 @@ class BackgroundAgent {
       case EVENT_TYPES.DISMISS_PENDING_SAVE:
         return await this.dismissPendingSave(sender)
 
+      case EVENT_TYPES.SET_LAST_SEEN_USERNAME:
+        return await this.setLastSeenUsername(request.payload, sender)
+
+      case EVENT_TYPES.GET_LAST_SEEN_USERNAME:
+        return await this.getLastSeenUsername(request.payload, sender)
+
       // Legacy/custom message type used by content scripts to open the popup UI
       // (e.g. "Authentication Required" in-page notification).
       case 'OPEN_POPUP':
@@ -318,6 +325,7 @@ class BackgroundAgent {
       HTTPClient.setHeader('Authorization', '')
       this.pendingSaveByTab.clear()
       this.lastSecretFetchByTab.clear()
+      this.lastSeenUsernameByTab.clear()
 
       // Ensure decrypted keys are cleared from extension session storage (defense in depth).
       try {
@@ -421,10 +429,20 @@ class BackgroundAgent {
           try {
             // Modern encryption: item has data and metadata
             if (this.userKey && item.data) {
+              let decryptionKey = this.userKey
+
+              if (item.item_key_enc) {
+                const itemKeyBytes = await cryptoService.decryptAesCbcHmac(
+                  item.item_key_enc,
+                  this.userKey
+                )
+                decryptionKey = SymmetricKey.fromBytes(itemKeyBytes)
+              }
+
               // Decrypt the data object (contains username, password, url, etc)
               const decryptedDataBytes = await cryptoService.decryptAesCbcHmac(
                 item.data,
-                this.userKey
+                decryptionKey
               )
               const decryptedDataStr = new TextDecoder().decode(decryptedDataBytes)
               const decryptedData = JSON.parse(decryptedDataStr)
@@ -573,7 +591,19 @@ class BackgroundAgent {
       throw new RequestError('User key not found. Please login again.', 'NO_USER_KEY')
     }
 
-    const { username, password, url, domain, action, loginId, title: providedTitle } = payload
+    const {
+      username,
+      password,
+      url,
+      domain,
+      action,
+      loginId,
+      title: providedTitle,
+      folder_id,
+      auto_fill,
+      auto_login,
+      reprompt
+    } = payload
 
     // Validate required fields
     if (!username || !password) {
@@ -603,13 +633,26 @@ class BackgroundAgent {
             this.userKey
           )
 
+          const resolvedAutoFill =
+            typeof auto_fill === 'boolean' ? auto_fill : existingItem.auto_fill ?? true
+          const resolvedAutoLogin =
+            typeof auto_login === 'boolean' ? auto_login : existingItem.auto_login ?? false
+          const resolvedReprompt =
+            typeof reprompt === 'boolean' ? reprompt : existingItem.reprompt ?? false
+          const resolvedFolderId =
+            folder_id !== undefined ? folder_id : existingItem.folder_id ?? null
+
           // Update item
           result = await HTTPClient.put(`/api/items/${loginId}`, {
             data: encryptedData,
             metadata: {
               name: existingItem.metadata?.name || title,
               uri_hint: uriHint || existingItem.metadata?.uri_hint
-            }
+            },
+            folder_id: resolvedFolderId,
+            auto_fill: resolvedAutoFill,
+            auto_login: resolvedAutoLogin,
+            reprompt: resolvedReprompt
           })
         } catch (fetchError) {
           log.warn('Failed to fetch existing item, creating new instead', toSafeError(fetchError))
@@ -632,8 +675,10 @@ class BackgroundAgent {
               name: title,
               uri_hint: uriHint
             },
-            auto_fill: true,
-            auto_login: false
+            folder_id: folder_id ?? null,
+            auto_fill: typeof auto_fill === 'boolean' ? auto_fill : true,
+            auto_login: typeof auto_login === 'boolean' ? auto_login : false,
+            reprompt: typeof reprompt === 'boolean' ? reprompt : false
           })
         }
       } else {
@@ -657,8 +702,10 @@ class BackgroundAgent {
             name: title,
             uri_hint: uriHint
           },
-          auto_fill: true,
-          auto_login: false
+          folder_id: folder_id ?? null,
+          auto_fill: typeof auto_fill === 'boolean' ? auto_fill : true,
+          auto_login: typeof auto_login === 'boolean' ? auto_login : false,
+          reprompt: typeof reprompt === 'boolean' ? reprompt : false
         })
       }
 
@@ -724,7 +771,20 @@ class BackgroundAgent {
       throw new RequestError('Item data missing', 'NOT_FOUND')
     }
 
-    const decryptedDataBytes = await cryptoService.decryptAesCbcHmac(item.data, this.userKey)
+    let decryptionKey = this.userKey
+
+    if (item.item_key_enc) {
+      const itemKeyBytes = await cryptoService.decryptAesCbcHmac(
+        item.item_key_enc,
+        this.userKey
+      )
+      decryptionKey = SymmetricKey.fromBytes(itemKeyBytes)
+    }
+
+    const decryptedDataBytes = await cryptoService.decryptAesCbcHmac(
+      item.data,
+      decryptionKey
+    )
     const decryptedDataStr = new TextDecoder().decode(decryptedDataBytes)
     const decryptedData = JSON.parse(decryptedDataStr)
 
@@ -743,12 +803,33 @@ class BackgroundAgent {
     }
   }
 
+  purgeExpiredLastSeenUsernames() {
+    const now = Date.now()
+    for (const [tabId, entry] of this.lastSeenUsernameByTab.entries()) {
+      if (!entry || entry.expiresAt <= now) {
+        this.lastSeenUsernameByTab.delete(tabId)
+      }
+    }
+  }
+
   async setPendingSave(payload, sender) {
     const tabId = sender?.tab?.id
     if (tabId == null) {
       throw new RequestError('Tab context missing', 'NO_TAB')
     }
-    const { username, password, url, domain, title, action, loginId } = payload || {}
+    const {
+      username,
+      password,
+      url,
+      domain,
+      title,
+      action,
+      loginId,
+      folder_id,
+      auto_fill,
+      auto_login,
+      reprompt
+    } = payload || {}
     const existing = this.pendingSaveByTab.get(tabId)
     const finalUsername = username || existing?.username
     const finalPassword = password || existing?.password
@@ -759,6 +840,25 @@ class BackgroundAgent {
     let resolvedAction = action ?? existing?.action ?? 'add'
     let resolvedLoginId = loginId ?? existing?.loginId ?? null
     let resolvedTitle = title ?? existing?.title ?? ''
+    const resolvedFolderId = folder_id !== undefined ? folder_id : existing?.folder_id ?? null
+    const resolvedAutoFill =
+      typeof auto_fill === 'boolean'
+        ? auto_fill
+        : typeof existing?.auto_fill === 'boolean'
+          ? existing.auto_fill
+          : true
+    const resolvedAutoLogin =
+      typeof auto_login === 'boolean'
+        ? auto_login
+        : typeof existing?.auto_login === 'boolean'
+          ? existing.auto_login
+          : false
+    const resolvedReprompt =
+      typeof reprompt === 'boolean'
+        ? reprompt
+        : typeof existing?.reprompt === 'boolean'
+          ? existing.reprompt
+          : false
 
     // If action is "add", try to resolve to "update" based on existing candidates for domain.
     if (resolvedAction === 'add' && domain && finalUsername) {
@@ -790,6 +890,10 @@ class BackgroundAgent {
       title: resolvedTitle,
       action: resolvedAction,
       loginId: resolvedLoginId,
+      folder_id: resolvedFolderId,
+      auto_fill: resolvedAutoFill,
+      auto_login: resolvedAutoLogin,
+      reprompt: resolvedReprompt,
       expiresAt: Date.now() + 60_000
     })
 
@@ -811,11 +915,16 @@ class BackgroundAgent {
     return {
       pending: true,
       username: entry.username || '',
+      password: entry.password || '',
       url: entry.url || '',
       domain: entry.domain || '',
       title: entry.title || '',
       action: entry.action || 'add',
-      loginId: entry.loginId || null
+      loginId: entry.loginId || null,
+      folder_id: entry.folder_id ?? null,
+      auto_fill: typeof entry.auto_fill === 'boolean' ? entry.auto_fill : true,
+      auto_login: typeof entry.auto_login === 'boolean' ? entry.auto_login : false,
+      reprompt: typeof entry.reprompt === 'boolean' ? entry.reprompt : false
     }
   }
 
@@ -840,7 +949,27 @@ class BackgroundAgent {
       domain: overrides.domain || entry.domain,
       title: overrides.title || entry.title,
       action: overrides.action || entry.action,
-      loginId: overrides.loginId || entry.loginId
+      loginId: overrides.loginId || entry.loginId,
+      folder_id:
+        overrides.folder_id !== undefined ? overrides.folder_id : entry.folder_id ?? null,
+      auto_fill:
+        typeof overrides.auto_fill === 'boolean'
+          ? overrides.auto_fill
+          : typeof entry.auto_fill === 'boolean'
+            ? entry.auto_fill
+            : true,
+      auto_login:
+        typeof overrides.auto_login === 'boolean'
+          ? overrides.auto_login
+          : typeof entry.auto_login === 'boolean'
+            ? entry.auto_login
+            : false,
+      reprompt:
+        typeof overrides.reprompt === 'boolean'
+          ? overrides.reprompt
+          : typeof entry.reprompt === 'boolean'
+            ? entry.reprompt
+            : false
     }
 
     const result = await this.saveCredentials(finalPayload)
@@ -854,6 +983,44 @@ class BackgroundAgent {
       this.pendingSaveByTab.delete(tabId)
     }
     return { pending: false }
+  }
+
+  async setLastSeenUsername(payload, sender) {
+    const tabId = sender?.tab?.id
+    if (tabId == null) {
+      return { ok: false }
+    }
+
+    const { domain, username } = payload || {}
+    const normalized = String(username || '').trim()
+    if (!domain || !normalized) {
+      return { ok: false }
+    }
+
+    this.purgeExpiredLastSeenUsernames()
+    this.lastSeenUsernameByTab.set(tabId, {
+      domain,
+      username: normalized,
+      expiresAt: Date.now() + 5 * 60_000
+    })
+
+    return { ok: true }
+  }
+
+  async getLastSeenUsername(payload, sender) {
+    const tabId = sender?.tab?.id
+    if (tabId == null) {
+      return { username: '' }
+    }
+
+    const domain = payload?.domain
+    this.purgeExpiredLastSeenUsernames()
+    const entry = this.lastSeenUsernameByTab.get(tabId)
+    if (!entry || !domain || entry.domain !== domain) {
+      return { username: '' }
+    }
+
+    return { username: entry.username || '' }
   }
 }
 

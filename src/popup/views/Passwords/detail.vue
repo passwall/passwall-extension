@@ -204,6 +204,7 @@ export default {
 
     // Populate form with item data
     this.form = {
+      id: item.id,
       title: item.title || item.metadata?.name || '',
       username: item.username || '',
       password: item.password || '',
@@ -218,13 +219,13 @@ export default {
       this.$router.push({ name: 'Passwords', params: { cache: true } })
     },
 
+    updatePassword(payload) {
+      return this.itemsStore.update(payload)
+    },
+
     async confirmDelete() {
       const onSuccess = async () => {
-        await this.deleteLogin(this.form.id)
-        const index = this.ItemList.findIndex((item) => item.id == this.form.id)
-        if (index !== -1) {
-          this.ItemList.splice(index, 1)
-        }
+        await this.itemsStore.deleteItem(this.form.id)
         this.$notifySuccess?.('Password deleted successfully')
         this.$router.push({ name: 'Passwords', params: { cache: true } })
       }
@@ -234,7 +235,7 @@ export default {
 
     async onClickUpdate() {
       const onSuccess = async () => {
-        const updated = await this.updateLogin({ ...this.form })
+        const updated = await this.updatePassword({ ...this.form })
         // keep detail page open and sync form with updated data
         this.form = { ...this.form, ...updated }
         this.itemsStore.setDetail(updated)

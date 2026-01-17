@@ -87,11 +87,13 @@ export class PasswallLogo {
    * @private
    * @returns {number} Additional offset needed to avoid overlap
    */
-  detectExistingIcons() {
-    const inputRect = this.input.getBoundingClientRect()
+  detectExistingIcons(inputRect, targetRect) {
     const inputRight = inputRect.right
     const inputTop = inputRect.top
     const inputBottom = inputRect.bottom
+    const inputLeft = inputRect.left
+    const inputWidth = inputRect.width
+    const rightZoneLeft = inputRight - Math.max(inputRect.height * 1.5, 36)
 
     // Common selectors for other password manager icons
     const iconSelectors = [
@@ -108,7 +110,8 @@ export class PasswallLogo {
       'input + span > img' // Generic icon in span after input
     ]
 
-    let maxOffset = 0
+    let maxShift = 0
+    const candidates = new Set()
 
     // Check each selector
     iconSelectors.forEach((selector) => {
@@ -116,34 +119,65 @@ export class PasswallLogo {
         const icons = document.querySelectorAll(selector)
 
         icons.forEach((icon) => {
-          // Skip our own icon
-          if (icon === this.imageElement) return
-
-          const iconRect = icon.getBoundingClientRect()
-
-          // Check if icon is in the same vertical area as our input
-          const sameVerticalArea = iconRect.top < inputBottom && iconRect.bottom > inputTop
-
-          // Check if icon is positioned inside or near the input field
-          const nearInput = iconRect.left >= inputRect.left - 50 && iconRect.left <= inputRight + 50
-
-          if (sameVerticalArea && nearInput) {
-            // Calculate how much space this icon takes
-            const iconWidth = iconRect.width
-            const iconOffset = inputRight - iconRect.left + 10 // 10px gap
-
-            if (iconOffset > maxOffset) {
-              maxOffset = iconOffset
-              log.info(`Detected existing icon: ${icon.tagName}, offset: ${iconOffset}px`)
-            }
-          }
+          candidates.add(icon)
         })
       } catch (e) {
         // Ignore selector errors
       }
     })
 
-    return maxOffset
+    // Also detect in-field icons like show/hide buttons within the same container
+    let container =
+      this.input.closest('[data-slot], .relative, .input-wrapper, .form-control') ||
+      this.input.parentElement ||
+      document.body
+    if (container === this.input) {
+      container = this.input.parentElement || document.body
+    }
+    const localIcons = container.querySelectorAll('button, [role="button"], svg, img')
+    localIcons.forEach((icon) => candidates.add(icon))
+    if (container !== this.input.parentElement && this.input.parentElement) {
+      const siblingIcons = this.input.parentElement.querySelectorAll(
+        'button, [role="button"], svg, img'
+      )
+      siblingIcons.forEach((icon) => candidates.add(icon))
+    }
+
+    const gap = 10
+
+    candidates.forEach((icon) => {
+      // Skip our own icon and the input itself
+      if (icon === this.imageElement || icon === this.input) return
+
+      const buttonAnchor =
+        typeof icon.closest === 'function'
+          ? icon.closest('button, [role="button"]')
+          : null
+      const iconRect = (buttonAnchor || icon).getBoundingClientRect()
+      if (!iconRect.width || !iconRect.height) return
+
+      const sameVerticalArea = iconRect.top < inputBottom && iconRect.bottom > inputTop
+      if (!sameVerticalArea) return
+
+      const overlapsTarget =
+        targetRect.left < iconRect.right && targetRect.right > iconRect.left
+      const insideInput = iconRect.left < inputRight && iconRect.right > inputLeft
+      const inRightZone = iconRect.left >= rightZoneLeft
+      const reasonableSize =
+        iconRect.width <= inputRect.height * 2 && iconRect.height <= inputRect.height * 2
+      const isRightSideSibling =
+        iconRect.left >= inputLeft + inputWidth * 0.5 && (buttonAnchor || icon).parentElement
+
+      if ((overlapsTarget || insideInput || isRightSideSibling) && inRightZone && reasonableSize) {
+        const shift = targetRect.right - iconRect.left + gap
+        if (shift > maxShift) {
+          maxShift = shift
+          log.info(`Detected existing icon: ${icon.tagName}, shift: ${shift}px`)
+        }
+      }
+    })
+
+    return maxShift
   }
 
   /**
@@ -158,6 +192,9 @@ export class PasswallLogo {
     }
 
     const { top, left, height, width } = getOffset(this.input)
+    const inputRect = this.input.getBoundingClientRect()
+    const computedStyle = window.getComputedStyle(this.input)
+    const paddingRight = parseFloat(computedStyle.paddingRight || '0') || 0
 
     // Calculate logo size with fixed maximum and minimum
     let size = height * LOGO_CONFIG.SIZE_RATIO
@@ -177,12 +214,20 @@ export class PasswallLogo {
 
     const topPosition = top + (height - size) / 2 // Center vertically
 
-    // Detect existing icons and adjust position
-    const existingIconOffset = this.detectExistingIcons()
-    const additionalOffset = existingIconOffset > 0 ? existingIconOffset + size : 0
+    const defaultLeft = left + width - size - LOGO_CONFIG.OFFSET
+    const targetRect = {
+      left: defaultLeft,
+      right: defaultLeft + size,
+      top: topPosition,
+      bottom: topPosition + size
+    }
 
-    // Calculate left position with collision avoidance
-    const leftPosition = left + width - size - LOGO_CONFIG.OFFSET - additionalOffset
+    // Detect existing icons and adjust position (collision-based)
+    const existingShift = this.detectExistingIcons(inputRect, targetRect)
+    const additionalOffset = Math.max(0, existingShift - paddingRight)
+
+    // Calculate left position with collision and padding awareness
+    const leftPosition = defaultLeft - additionalOffset
 
     if (additionalOffset > 0) {
       log.success(`Adjusted position to avoid overlap: -${additionalOffset}px`)

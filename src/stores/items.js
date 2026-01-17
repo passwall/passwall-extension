@@ -12,7 +12,7 @@
  */
 
 import { defineStore } from 'pinia'
-import { cryptoService } from '@/utils/crypto'
+import { cryptoService, SymmetricKey } from '@/utils/crypto'
 import { useAuthStore } from './auth'
 import HTTPClient from '@/api/HTTPClient'
 
@@ -78,6 +78,20 @@ function mergeDecryptedItem(item, decryptedData) {
   }
 }
 
+function generateItemKey() {
+  const randomBytes = crypto.getRandomValues(new Uint8Array(64))
+  return new SymmetricKey(randomBytes.slice(0, 32), randomBytes.slice(32, 64))
+}
+
+async function wrapItemKeyWithUserKey(itemKey, userKey) {
+  return await cryptoService.encryptAesCbcHmac(itemKey.toBytes(), userKey)
+}
+
+async function unwrapItemKeyWithUserKey(itemKeyEnc, userKey) {
+  const itemKeyBytes = await cryptoService.decryptAesCbcHmac(itemKeyEnc, userKey)
+  return SymmetricKey.fromBytes(itemKeyBytes)
+}
+
 /**
  * Get item type display name
  */
@@ -138,7 +152,8 @@ export const useItemsStore = defineStore('items', {
   state: () => ({
     items: [],
     isLoading: false,
-    error: null
+    error: null,
+    detail: {}
   }),
 
   getters: {
@@ -419,14 +434,30 @@ export const useItemsStore = defineStore('items', {
             throw new Error('Session expired. Please sign in again.')
           }
 
+          const existingItem = this.items.find((item) => item.id === id)
+          let itemKeyEnc =
+            req.item_key_enc ||
+            (typeof existingItem?.item_key_enc === 'string'
+              ? existingItem?.item_key_enc
+              : undefined)
+
+          let itemKey
+          if (itemKeyEnc) {
+            itemKey = await unwrapItemKeyWithUserKey(itemKeyEnc, authStore.userKey)
+          } else {
+            itemKey = generateItemKey()
+            itemKeyEnc = await wrapItemKeyWithUserKey(itemKey, authStore.userKey)
+          }
+
           const encryptedData = await cryptoService.encryptAesCbcHmac(
             JSON.stringify(req.data),
-            authStore.userKey
+            itemKey
           )
 
           finalReq = {
             ...req,
-            data: encryptedData
+            data: encryptedData,
+            item_key_enc: itemKeyEnc
           }
         }
 
@@ -447,6 +478,7 @@ export const useItemsStore = defineStore('items', {
 
         this.items = this.items.map((item) => (item.id === id ? normalized : item))
         this.isLoading = false
+        this.detail = normalized
 
         return normalized
       } catch (error) {
@@ -477,6 +509,10 @@ export const useItemsStore = defineStore('items', {
       }
     },
 
+    setDetail(data) {
+      this.detail = data || {}
+    },
+
     /**
      * Decrypt item data with User Key
      *
@@ -491,8 +527,20 @@ export const useItemsStore = defineStore('items', {
       }
 
       try {
-        // Decrypt EncString with User Key
-        const decryptedBytes = await cryptoService.decryptAesCbcHmac(item.data, authStore.userKey)
+        let decryptionKey = authStore.userKey
+
+        if (item.item_key_enc) {
+          decryptionKey = await unwrapItemKeyWithUserKey(
+            item.item_key_enc,
+            authStore.userKey
+          )
+        }
+
+        // Decrypt EncString with determined key
+        const decryptedBytes = await cryptoService.decryptAesCbcHmac(
+          item.data,
+          decryptionKey
+        )
 
         // Convert bytes to string
         const decryptedJSON = new TextDecoder().decode(decryptedBytes)
@@ -526,16 +574,18 @@ export const useItemsStore = defineStore('items', {
         throw new Error('Session expired. Please sign in again.')
       }
 
-      // Encrypt entire data object with User Key
+      const itemKey = generateItemKey()
       const encryptedData = await cryptoService.encryptAesCbcHmac(
         JSON.stringify(data),
-        authStore.userKey
+        itemKey
       )
+      const itemKeyEnc = await wrapItemKeyWithUserKey(itemKey, authStore.userKey)
 
       // Create item with encrypted data
       return await this.createItem({
         item_type: itemType,
         data: encryptedData,
+        item_key_enc: itemKeyEnc,
         metadata,
         is_favorite: options.is_favorite ?? false,
         folder_id: options.folder_id,

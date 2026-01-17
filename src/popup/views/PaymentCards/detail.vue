@@ -105,6 +105,7 @@ export default {
   data() {
     return {
       form: {
+        id: null,
         title: '',
         name_on_card: '',
         card_type: '',
@@ -163,6 +164,7 @@ export default {
     }
 
     this.form = {
+      id: item.id,
       title: item.title || item.name || item.metadata?.name || '',
       name_on_card: item.name_on_card || '',
       card_type: item.card_type || '',
@@ -205,7 +207,7 @@ export default {
         const cardData = { ...this.form }
         const metadata = { name: this.form.title, brand: this.form.card_type }
 
-        await this.itemsStore.updateItem(itemId, {
+        const updated = await this.itemsStore.updateItem(itemId, {
           item_type: ItemType.Card,
           data: cardData,
           metadata
@@ -214,7 +216,12 @@ export default {
         this.$notifySuccess?.('Card updated successfully')
         this.isEditMode = false
 
-        await this.itemsStore.fetchItems({ type: ItemType.Card })
+        this.itemsStore.setDetail(updated)
+        this.form = {
+          ...this.form,
+          ...updated,
+          title: updated.title || updated.metadata?.name || this.form.title
+        }
       } catch (error) {
         console.error('Failed to update card:', error)
         this.$notifyError?.('Failed to update card')
