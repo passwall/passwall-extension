@@ -16,6 +16,20 @@ const log = {
   error: (...args) => console.error('[Background]', ...args)
 }
 
+function generateItemKey() {
+  const randomBytes = crypto.getRandomValues(new Uint8Array(64))
+  return new SymmetricKey(randomBytes.slice(0, 32), randomBytes.slice(32, 64))
+}
+
+async function wrapItemKeyWithUserKey(itemKey, userKey) {
+  return await cryptoService.encryptAesCbcHmac(itemKey.toBytes(), userKey)
+}
+
+async function unwrapItemKeyWithUserKey(itemKeyEnc, userKey) {
+  const itemKeyBytes = await cryptoService.decryptAesCbcHmac(itemKeyEnc, userKey)
+  return SymmetricKey.fromBytes(itemKeyBytes)
+}
+
 /**
  * Background Script Agent
  * Manages authentication state and orchestrates communication between
@@ -627,10 +641,20 @@ class BackgroundAgent {
             uris: url ? [{ uri: url, match: null }] : []
           }
 
-          // Encrypt data with user key
+          let itemKeyEnc =
+            typeof existingItem?.item_key_enc === 'string' ? existingItem.item_key_enc : undefined
+          let itemKey
+          if (itemKeyEnc) {
+            itemKey = await unwrapItemKeyWithUserKey(itemKeyEnc, this.userKey)
+          } else {
+            itemKey = generateItemKey()
+            itemKeyEnc = await wrapItemKeyWithUserKey(itemKey, this.userKey)
+          }
+
+          // Encrypt data with item key
           const encryptedData = await cryptoService.encryptAesCbcHmac(
             JSON.stringify(itemData),
-            this.userKey
+            itemKey
           )
 
           const resolvedAutoFill =
@@ -645,6 +669,7 @@ class BackgroundAgent {
           // Update item
           result = await HTTPClient.put(`/api/items/${loginId}`, {
             data: encryptedData,
+            item_key_enc: itemKeyEnc,
             metadata: {
               name: existingItem.metadata?.name || title,
               uri_hint: uriHint || existingItem.metadata?.uri_hint
@@ -663,14 +688,17 @@ class BackgroundAgent {
             uris: url ? [{ uri: url, match: null }] : []
           }
 
+          const itemKey = generateItemKey()
+          const itemKeyEnc = await wrapItemKeyWithUserKey(itemKey, this.userKey)
           const encryptedData = await cryptoService.encryptAesCbcHmac(
             JSON.stringify(itemData),
-            this.userKey
+            itemKey
           )
 
           result = await HTTPClient.post('/api/items', {
             item_type: ItemType.Password,
             data: encryptedData,
+            item_key_enc: itemKeyEnc,
             metadata: {
               name: title,
               uri_hint: uriHint
@@ -689,15 +717,18 @@ class BackgroundAgent {
           uris: url ? [{ uri: url, match: null }] : []
         }
 
-        // Encrypt data with user key
+        // Encrypt data with item key
+        const itemKey = generateItemKey()
+        const itemKeyEnc = await wrapItemKeyWithUserKey(itemKey, this.userKey)
         const encryptedData = await cryptoService.encryptAesCbcHmac(
           JSON.stringify(itemData),
-          this.userKey
+          itemKey
         )
 
         result = await HTTPClient.post('/api/items', {
           item_type: ItemType.Password,
           data: encryptedData,
+          item_key_enc: itemKeyEnc,
           metadata: {
             name: title,
             uri_hint: uriHint
@@ -828,13 +859,16 @@ class BackgroundAgent {
       folder_id,
       auto_fill,
       auto_login,
-      reprompt
+      reprompt,
+      manual
     } = payload || {}
     const existing = this.pendingSaveByTab.get(tabId)
     const finalUsername = username || existing?.username
     const finalPassword = password || existing?.password
     if (!finalUsername || !finalPassword) {
-      throw new RequestError('Username and password are required', 'VALIDATION_ERROR')
+      if (!manual) {
+        throw new RequestError('Username and password are required', 'VALIDATION_ERROR')
+      }
     }
 
     let resolvedAction = action ?? existing?.action ?? 'add'

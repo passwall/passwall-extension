@@ -8,7 +8,20 @@
         <ListLoader />
       </div>
       <div v-else-if="filteredList.length === 0">
-        <EmptyState />
+        <button
+          v-if="showDomainEmptyState"
+          class="empty-domain-card"
+          type="button"
+          @click="openCreate"
+        >
+          <VIcon name="lock" size="22px" class="card-icon" />
+          <div class="card-text">
+            <p class="domain">{{ currentDomain }}</p>
+            <p class="subtitle">Add new password</p>
+          </div>
+          <VIcon name="plus" size="18px" class="card-plus" />
+        </button>
+        <EmptyState v-else />
       </div>
       <ul v-else class="items" data-testid="result">
         <ListItem
@@ -44,6 +57,8 @@
 import { useItemsStore, ItemType } from '@/stores/items'
 import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
+import browser from 'webextension-polyfill'
+import { getDomain } from '@/utils/helpers'
 
 export default {
   name: 'Passwords',
@@ -65,7 +80,8 @@ export default {
     return {
       showDeleteConfirm: false,
       deleteItem: null,
-      _listFetched: false
+      _listFetched: false,
+      currentDomain: ''
     }
   },
 
@@ -75,6 +91,8 @@ export default {
       this.fetchAll()
       this._listFetched = true
     }
+
+    this.loadCurrentDomain()
   },
   
   computed: {
@@ -111,6 +129,12 @@ export default {
       return sorted
     },
 
+    showDomainEmptyState() {
+      if (!this.currentDomain) return false
+      if (!this.searchQuery) return true
+      return this.searchQuery.toLowerCase() === this.currentDomain.toLowerCase()
+    },
+
     deleteConfirmMessage() {
       if (!this.deleteItem) return ''
       const name = this.deleteItem.title || this.deleteItem.url
@@ -119,6 +143,22 @@ export default {
   },
   
   methods: {
+    async loadCurrentDomain() {
+      try {
+        const tabs = await browser.tabs.query({ active: true, currentWindow: true })
+        if (tabs && tabs[0] && tabs[0].url) {
+          const domain = getDomain(tabs[0].url)
+          if (domain && domain !== 'chrome' && domain !== 'edge') {
+            this.currentDomain = domain
+          }
+        }
+      } catch (error) {
+        console.error('Failed to get current tab domain:', error)
+      }
+    },
+    openCreate() {
+      this.$router.push({ name: 'PasswordCreate' })
+    },
     getLoadPasswordsErrorMessage(error) {
       const status = error?.response?.status
 
@@ -186,4 +226,47 @@ export default {
 }
 </script>
 
-<style scoped lang="scss"></style>
+<style scoped lang="scss">
+.empty-domain-card {
+  width: 100%;
+  border: 1px solid $color-gray-500;
+  background: $color-gray-600;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: $color-white;
+  cursor: pointer;
+  text-align: left;
+}
+
+.empty-domain-card:hover {
+  border-color: $color-gray-400;
+}
+
+.card-icon {
+  color: $color-white;
+  flex-shrink: 0;
+}
+
+.card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.domain {
+  font-weight: 600;
+}
+
+.subtitle {
+  color: $color-gray-300;
+  font-size: 12px;
+}
+
+.card-plus {
+  margin-left: auto;
+  color: $color-white;
+}
+</style>

@@ -87,8 +87,29 @@ class ContentScriptInjector {
     this.lastSeenUsername = null // { username, domain, at }
     this.lastSeenPassword = null // { password, at }
     this.recentlySavedCredentials = null // { username, url, passwordDigest, at }
+    this.lastButtonClick = null // { element, text, timestamp }
 
     this.initialize()
+  }
+
+  /**
+   * Track button clicks to detect logout intent
+   * @private
+   */
+  setupButtonClickTracking() {
+    document.addEventListener('click', (event) => {
+      const target = event.target
+      if (target.matches('button, input[type="submit"], a')) {
+        const text = target.textContent?.toLowerCase().trim() || ''
+        const isLogoutRelated = text.includes('logout') || text.includes('sign out') || text.includes('log out')
+        this.lastButtonClick = {
+          element: target.tagName + (target.id ? '#' + target.id : ''),
+          text: text,
+          isLogoutRelated: isLogoutRelated,
+          timestamp: Date.now()
+        }
+      }
+    }, true)
   }
 
   /**
@@ -98,6 +119,9 @@ class ContentScriptInjector {
   initialize() {
     // Set domain first
     this.domain = getHostName(window.location.href)
+
+    // Track button clicks to detect logout intent
+    this.setupButtonClickTracking()
 
     // Log platform-specific rules if any
     const platformInfo = getPlatformInfo(this.domain)
@@ -1458,6 +1482,35 @@ class ContentScriptInjector {
             this.messageRoutes = this.messageRoutes.filter((r) => r.sourceWindow !== sourceWindow)
             return
           }
+          if (message?.type === 'LOGIN_AS_POPUP_OPEN_SAVE') {
+            popup.destroy()
+            this.messageRoutes = this.messageRoutes.filter((r) => r.sourceWindow !== sourceWindow)
+
+            const pageUrl = window.location.href
+            const baseDomain = getDomain(pageUrl) || this.domain
+            const payload = {
+              username: '',
+              password: '',
+              url: pageUrl,
+              domain: baseDomain,
+              action: 'add',
+              title: baseDomain,
+              manual: true
+            }
+
+            sendPayload({ type: EVENT_TYPES.SET_PENDING_SAVE, payload }).catch((error) => {
+              log.error('Failed to set pending save from login popup:', error)
+            })
+
+            this.showSaveNotification(
+              { username: '', password: '', url: pageUrl },
+              'add',
+              null,
+              null,
+              'manual_add'
+            )
+            return
+          }
           popup.messageHandler(message)
         }
       })
@@ -2141,6 +2194,109 @@ class ContentScriptInjector {
   }
 
   /**
+   * Check if the current form submission looks like a login form
+   * rather than logout, registration, or other forms
+   * @param {Object} credentials - {username, password, url}
+   * @returns {boolean} True if this appears to be a login form
+   * @private
+   */
+  isLikelyLoginForm(credentials) {
+    // Must have both username and password for login forms
+    if (!credentials?.username?.trim() || !credentials?.password?.trim()) {
+      log.info('🚫 Missing username or password, not a login form')
+      return false
+    }
+
+    // Check for logout-related elements on the page
+    const logoutSelectors = [
+      'button[type="submit"]:contains("logout")',
+      'button[type="submit"]:contains("sign out")',
+      'button[type="submit"]:contains("log out")',
+      'a:contains("logout")',
+      'a:contains("sign out")',
+      'a:contains("log out")',
+      'form[action*="logout"]',
+      'form[action*="signout"]',
+      'form[action*="sign-out"]',
+      '[data-testid*="logout"]',
+      '[data-cy*="logout"]',
+      '.logout',
+      '#logout'
+    ]
+
+    // Check if last button click was logout-related
+    if (this.lastButtonClick && this.lastButtonClick.isLogoutRelated) {
+      const timeSinceClick = Date.now() - this.lastButtonClick.timestamp
+      if (timeSinceClick < 5000) { // Within 5 seconds
+        log.info('🚫 Recent logout button click detected, not offering save')
+        return false
+      }
+    }
+
+    // Check if form action indicates logout or redirect after logout
+    const formAction = document.activeElement?.closest('form')?.action || ''
+    const currentUrl = window.location.href
+    const isSignInPage = currentUrl.includes('/sign-in') || currentUrl.includes('/login')
+    const isLogoutAction = formAction.includes('logout') || formAction.includes('signout') || formAction.includes('sign-out')
+
+    if (isLogoutAction) {
+      log.info('🚫 Form action indicates logout, not offering save')
+      return false
+    }
+
+    // Check for redirect loop patterns (common after logout)
+    if (isSignInPage && document.referrer) {
+      const referrerDomain = new URL(document.referrer).hostname
+      const currentDomain = new URL(currentUrl).hostname
+      if (referrerDomain === currentDomain) {
+        // Same domain redirect to sign-in page - likely post-logout
+        log.info('🚫 Redirect to sign-in from same domain detected, likely post-logout')
+        return false
+      }
+    }
+
+    for (const selector of logoutSelectors) {
+      try {
+        // Simple text contains check for buttons/links
+        if (selector.includes(':contains(')) {
+          const textMatch = selector.match(/:contains\("([^"]+)"\)/i)
+          if (textMatch) {
+            const searchText = textMatch[1].toLowerCase()
+            const elements = document.querySelectorAll('button, a, input[type="submit"]')
+            for (const el of elements) {
+              if (el.textContent?.toLowerCase().includes(searchText)) {
+                log.info(`🚫 Found logout element with text "${searchText}", not offering save`)
+                return false
+              }
+            }
+          }
+        } else {
+          // Regular selector check
+          const elements = document.querySelectorAll(selector)
+          if (elements.length > 0) {
+            log.info(`🚫 Found logout element matching "${selector}", not offering save`)
+            return false
+          }
+        }
+      } catch (e) {
+        // Ignore invalid selectors
+      }
+    }
+
+    // Check if this is within a reasonable time after page load
+    // (logout forms are often triggered immediately after login)
+    const timeSinceLoad = Date.now() - (window.performance?.timing?.navigationStart || Date.now())
+    if (timeSinceLoad < 2000) {
+      // Very quick form submissions might be logout/redirect forms
+      log.info('🚫 Form submitted too quickly after page load, likely not a login')
+      return false
+    }
+
+    log.info('✅ Form appears to be a login form')
+    return true
+  }
+
+  /**
    * Check if we should offer to save these credentials.
    * Note: password is optional, but used to prefill the popup.
    * @param {Object} credentials - {username, password, url}
@@ -2206,6 +2362,12 @@ class ContentScriptInjector {
 
     log.info('🔐 Security check passed, proceeding...')
 
+    // Check if this looks like a login form (not logout, registration, etc.)
+    if (!this.isLikelyLoginForm(credentials)) {
+      log.info('🚫 Form does not appear to be a login form, skipping save offer')
+      return
+    }
+
     // Check if we already have this login
     try {
       log.info('📡 Fetching existing logins for domain:', this.domain)
@@ -2229,6 +2391,12 @@ class ContentScriptInjector {
 
       const match = usernameMatch || normalizedMatch
       if (match) {
+        // Additional check: ensure password is present and not empty/placeholder for updates
+        if (!credentials.password || credentials.password.trim().length === 0) {
+          log.info('🚫 Password is empty or missing, not offering update (likely logout form)')
+          return
+        }
+
         log.success(`🔄 Username exists - offering UPDATE`)
         log.info('Existing login:', { id: match.id, title: match.title })
         // Update pending metadata in background (no password re-sent)
@@ -2504,6 +2672,24 @@ class ContentScriptInjector {
 
       log.success('✅ Credentials saved successfully!')
       
+      try {
+        const refreshDomain = getDomain(data?.url) || data?.domain || this.domain
+        const updatedLogins = await sendPayload({
+          type: EVENT_TYPES.REQUEST_PASSWORDS,
+          payload: refreshDomain
+        })
+        this.logins = updatedLogins
+        this.authError = null
+      } catch (refreshError) {
+        if (refreshError?.type === 'NO_LOGINS') {
+          this.logins = []
+          this.authError = 'NO_LOGINS'
+        } else if (refreshError?.type === 'NO_AUTH' || refreshError?.type === 'AUTH_EXPIRED') {
+          this.logins = []
+          this.authError = 'NO_AUTH'
+        }
+      }
+
       // Record saved credentials to prevent duplicate offers
       if (data.password) {
         try {

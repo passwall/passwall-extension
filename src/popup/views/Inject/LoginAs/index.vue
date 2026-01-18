@@ -56,14 +56,15 @@
     </div>
 
     <!-- No Passwords Found Message -->
-    <div v-else-if="authError === 'NO_LOGINS'" class="mt-3 p-4 bg-black-400 radius text-center">
-      <div class="mb-3" style="font-size: 48px">📝</div>
-      <p class="fs-large fw-bold mb-2 c-white">No Passwords Found</p>
-      <p class="c-white mb-1" style="font-size: 14px">You don't have any saved passwords</p>
-      <p class="c-white" style="font-size: 14px">for this website.</p>
-      <p class="mt-3 fw-medium" style="font-size: 14px; color: #a78bfa">
-        Add one from the Passwall extension →
-      </p>
+    <div v-else-if="authError === 'NO_LOGINS'" class="mt-3">
+      <button class="empty-domain-card" type="button" @click="openSave">
+        <VIcon name="lock" size="22px" class="card-icon" />
+        <div class="card-text">
+          <p class="domain">{{ displayDomain }}</p>
+          <p class="subtitle">Add new password</p>
+        </div>
+        <VIcon name="plus" size="18px" class="card-plus" />
+      </button>
     </div>
 
     <!-- Security Warning: Insecure HTTP -->
@@ -113,13 +114,16 @@
 </template>
 
 <script>
+import { getDomain } from '@/utils/helpers'
+
 export default {
   name: 'LoginAsPopup',
   data() {
     return {
       logins: [],
       authError: null,
-      searchQuery: ''
+      searchQuery: '',
+      currentDomain: ''
     }
   },
   computed: {
@@ -141,6 +145,9 @@ export default {
 
         return title.includes(query) || url.includes(query) || username.includes(query)
       })
+    },
+    displayDomain() {
+      return this.currentDomain || 'This site'
     }
   },
   created() {
@@ -151,6 +158,7 @@ export default {
 
       this.logins = logins
       this.authError = authError
+      this.currentDomain = getDomain(payload.url || '') || payload.domain || ''
     })
   },
   mounted() {
@@ -192,6 +200,9 @@ export default {
     },
     onSearchInput() {
       // Search input changed - filtered list will auto-update via computed property
+    },
+    openSave() {
+      this.messageToContentScript({ type: 'LOGIN_AS_POPUP_OPEN_SAVE' })
     }
   }
 }
@@ -266,5 +277,48 @@ ul {
   li:last-child {
     margin-bottom: 0;
   }
+}
+
+.empty-domain-card {
+  width: 100%;
+  border: 1px solid $color-gray-500;
+  background: $color-gray-600;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: $color-white;
+  cursor: pointer;
+  text-align: left;
+}
+
+.empty-domain-card:hover {
+  border-color: $color-gray-400;
+}
+
+.card-icon {
+  color: $color-white;
+  flex-shrink: 0;
+}
+
+.card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.domain {
+  font-weight: 600;
+}
+
+.subtitle {
+  color: $color-gray-300;
+  font-size: 12px;
+}
+
+.card-plus {
+  margin-left: auto;
+  color: $color-white;
 }
 </style>

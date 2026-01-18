@@ -222,7 +222,9 @@ export class LoginAsPopup {
       type: MESSAGE_TYPES.FETCH,
       payload: {
         logins: this.logins,
-        authError: this.authError
+        authError: this.authError,
+        domain: this.domain,
+        url: window.location.href
       }
     })
     log.info(`Sent ${this.logins.length} logins to popup (authError: ${this.authError})`)

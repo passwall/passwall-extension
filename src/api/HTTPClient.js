@@ -18,7 +18,11 @@ const log = {
   error: (...args) => console.error('[HTTP]', ...args)
 }
 
-let baseURL = 'https://api.passwall.io'
+const defaultBaseURL =
+  ENV_CONFIG.DEV_MODE && ENV_CONFIG.DEV_SERVER_URL
+    ? ENV_CONFIG.DEV_SERVER_URL
+    : 'https://api.passwall.io'
+let baseURL = defaultBaseURL
 
 const client = Axios.create({
   baseURL,

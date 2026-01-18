@@ -88,7 +88,9 @@ export default {
       // Show server URL input (from environment config)
       showServerUrl: ENV_CONFIG.SHOW_SERVER_URL,
       LoginForm: {
-        server: 'https://api.passwall.io',
+        server: ENV_CONFIG.DEV_MODE && ENV_CONFIG.DEV_SERVER_URL
+          ? ENV_CONFIG.DEV_SERVER_URL
+          : 'https://api.passwall.io',
         email: '',
         master_password: ''
       }
@@ -122,7 +124,10 @@ export default {
     if (!savedEmail && ENV_CONFIG.DEV_EMAIL) {
       this.LoginForm.email = ENV_CONFIG.DEV_EMAIL
     }
-    if (!savedServer && ENV_CONFIG.DEV_SERVER_URL) {
+    if (ENV_CONFIG.DEV_MODE && ENV_CONFIG.DEV_SERVER_URL) {
+      this.LoginForm.server = ENV_CONFIG.DEV_SERVER_URL
+      await this.$storage.setItem('server', ENV_CONFIG.DEV_SERVER_URL)
+    } else if (!savedServer && ENV_CONFIG.DEV_SERVER_URL) {
       this.LoginForm.server = ENV_CONFIG.DEV_SERVER_URL
     }
 
