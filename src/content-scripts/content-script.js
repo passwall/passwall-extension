@@ -1,9 +1,10 @@
 import browser from 'webextension-polyfill'
 import { EVENT_TYPES } from '@/utils/constants'
-import { getHostName, getDomain, PFormParseError, sendPayload } from '@/utils/helpers'
+import { getHostName, getDomain, PFormParseError, sendPayload, generatePassword } from '@/utils/helpers'
 import { shouldIgnoreField, getPlatformInfo, getPlatformRules } from '@/utils/platform-rules'
 import { checkCurrentPageSecurity, SECURITY_WARNINGS } from '@/utils/security-checks'
 import { LoginAsPopup } from './LoginAsPopup'
+import { PasswordSuggestionPopup } from './PasswordSuggestionPopup'
 import { PasswallLogo } from './PasswallLogo'
 
 /**
@@ -42,6 +43,34 @@ const FIELD_TYPES = {
   EMAIL: 'email',
   PHONE: 'phone',
   TEXT: 'text'
+}
+
+const FORM_INTENTS = {
+  LOGIN: 'login',
+  SIGNUP: 'signup',
+  LOGOUT: 'logout',
+  UNKNOWN: 'unknown'
+}
+
+const FORM_INTENT_KEYWORDS = {
+  LOGIN: ['login', 'log in', 'sign in', 'signin', 'sign-in', 'enter', 'access', 'continue'],
+  SIGNUP: [
+    'sign up',
+    'signup',
+    'register',
+    'create account',
+    'create an account',
+    'create your account',
+    'new account',
+    'join',
+    'get started',
+    'start free',
+    'free trial'
+  ],
+  LOGOUT: ['logout', 'log out', 'sign out', 'signout', 'logoff', 'sign off'],
+  CONFIRM_PASSWORD: ['confirm', 'retype', 'repeat', 'verify', 'again', 'confirmation'],
+  NEW_PASSWORD: ['new password', 'create password', 'set password', 'choose password'],
+  CURRENT_PASSWORD: ['current password', 'old password', 'existing password', 'previous password']
 }
 
 // Development mode logging (from build-time env)
@@ -88,6 +117,8 @@ class ContentScriptInjector {
     this.lastSeenPassword = null // { password, at }
     this.recentlySavedCredentials = null // { username, url, passwordDigest, at }
     this.lastButtonClick = null // { element, text, timestamp }
+    this.passwordSuggestionPopup = null
+    this.passwordSuggestionRoute = null // { sourceWindow, nonce }
 
     this.initialize()
   }
@@ -602,6 +633,203 @@ class ContentScriptInjector {
     )
   }
 
+  normalizeText(value) {
+    return String(value || '').toLowerCase().trim()
+  }
+
+  getInputDescriptorText(input) {
+    const attributes = {
+      name: this.normalizeText(input?.name),
+      id: this.normalizeText(input?.id),
+      placeholder: this.normalizeText(input?.placeholder),
+      ariaLabel: this.normalizeText(input?.getAttribute?.('aria-label')),
+      autocomplete: this.normalizeText(input?.autocomplete)
+    }
+
+    const labelText = this.normalizeText(this.getLabelText(input))
+
+    return [
+      attributes.name,
+      attributes.id,
+      attributes.placeholder,
+      attributes.ariaLabel,
+      attributes.autocomplete,
+      labelText
+    ]
+      .filter(Boolean)
+      .join(' ')
+  }
+
+  getActionTextFromElement(element) {
+    if (!element) return ''
+    const parts = [
+      element.textContent,
+      typeof element.getAttribute === 'function' ? element.getAttribute('aria-label') : '',
+      typeof element.getAttribute === 'function' ? element.getAttribute('title') : '',
+      typeof element.value === 'string' ? element.value : ''
+    ]
+    return parts
+      .filter(Boolean)
+      .map((value) => this.normalizeText(value))
+      .join(' ')
+  }
+
+  collectActionTexts({ form, container, triggerElement }) {
+    const texts = []
+
+    if (triggerElement) {
+      const triggerText = this.getActionTextFromElement(triggerElement)
+      if (triggerText) texts.push(triggerText)
+    }
+
+    const root = form || container || document
+    const elements = root.querySelectorAll?.('button, input[type="submit"], [role="button"], a') || []
+
+    elements.forEach((el) => {
+      if (this.isFieldVisible && el instanceof HTMLElement && !this.isFieldVisible(el)) {
+        return
+      }
+      const text = this.getActionTextFromElement(el)
+      if (text) texts.push(text)
+    })
+
+    if (this.lastButtonClick?.text && Date.now() - this.lastButtonClick.timestamp < 5000) {
+      texts.push(this.normalizeText(this.lastButtonClick.text))
+    }
+
+    return texts
+  }
+
+  isConfirmPasswordField(input) {
+    if (!input) return false
+    const text = this.getInputDescriptorText(input)
+    return FORM_INTENT_KEYWORDS.CONFIRM_PASSWORD.some((keyword) => text.includes(keyword))
+  }
+
+  isNewPasswordField(input) {
+    if (!input) return false
+    const autocomplete = this.normalizeText(input.autocomplete)
+    if (autocomplete === 'new-password') return true
+    const text = this.getInputDescriptorText(input)
+    return FORM_INTENT_KEYWORDS.NEW_PASSWORD.some((keyword) => text.includes(keyword))
+  }
+
+  isCurrentPasswordField(input) {
+    if (!input) return false
+    const autocomplete = this.normalizeText(input.autocomplete)
+    if (autocomplete === 'current-password') return true
+    const text = this.getInputDescriptorText(input)
+    return FORM_INTENT_KEYWORDS.CURRENT_PASSWORD.some((keyword) => text.includes(keyword))
+  }
+
+  getPasswordFieldInfo(inputs) {
+    const passwordFields = (inputs || []).filter(
+      (input) =>
+        input?.type === INPUT_TYPES.PASSWORD &&
+        this.isFieldVisible(input) &&
+        !this.shouldIgnoreFieldForCapture(input)
+    )
+
+    const hasConfirmPasswordField = passwordFields.some((input) => this.isConfirmPasswordField(input))
+    const hasNewPasswordField = passwordFields.some((input) => this.isNewPasswordField(input))
+    const hasCurrentPasswordField = passwordFields.some((input) => this.isCurrentPasswordField(input))
+
+    return {
+      passwordFields,
+      hasConfirmPasswordField,
+      hasNewPasswordField,
+      hasCurrentPasswordField
+    }
+  }
+
+  detectFormIntent({ form, inputs, container, triggerElement }) {
+    const scores = { login: 0, signup: 0, logout: 0 }
+    const urlPath = this.normalizeText(window.location.pathname || '')
+    const formAction = this.normalizeText(form?.action || '')
+    const formMeta = this.normalizeText(`${form?.id || ''} ${form?.name || ''}`)
+
+    const inputTexts = (inputs || [])
+      .map((input) => this.getInputDescriptorText(input))
+      .filter(Boolean)
+      .join(' ')
+
+    const actionTexts = this.collectActionTexts({ form, container, triggerElement }).join(' ')
+
+    const haystack = [urlPath, formAction, formMeta, inputTexts, actionTexts].join(' ')
+
+    const addScore = (intent, keywords, weight) => {
+      keywords.forEach((keyword) => {
+        if (haystack.includes(keyword)) {
+          scores[intent] += weight
+        }
+      })
+    }
+
+    addScore('logout', FORM_INTENT_KEYWORDS.LOGOUT, 4)
+    if (this.lastButtonClick?.isLogoutRelated && Date.now() - this.lastButtonClick.timestamp < 5000) {
+      scores.logout += 6
+    }
+
+    addScore('signup', FORM_INTENT_KEYWORDS.SIGNUP, 3)
+    addScore('login', FORM_INTENT_KEYWORDS.LOGIN, 2)
+
+    if (urlPath.includes('signup') || urlPath.includes('register')) {
+      scores.signup += 2
+    }
+    if (urlPath.includes('login') || urlPath.includes('signin')) {
+      scores.login += 2
+    }
+    if (urlPath.includes('logout') || urlPath.includes('signout')) {
+      scores.logout += 3
+    }
+
+    const passwordInfo = this.getPasswordFieldInfo(inputs)
+    const passwordCount = passwordInfo.passwordFields.length
+
+    if (passwordCount >= 2) {
+      scores.signup += 3
+    }
+    if (passwordInfo.hasConfirmPasswordField) {
+      scores.signup += 3
+    }
+    if (passwordInfo.hasNewPasswordField) {
+      scores.signup += 4
+    }
+    if (passwordInfo.hasCurrentPasswordField && (passwordInfo.hasNewPasswordField || passwordCount >= 2)) {
+      scores.signup -= 2
+    }
+
+    const usernameFields = (inputs || []).filter((input) => {
+      const fieldType = this.identifyFieldType(input)
+      const autocomplete = this.normalizeText(input?.autocomplete)
+      return fieldType === FIELD_TYPES.USERNAME || fieldType === FIELD_TYPES.EMAIL || autocomplete === 'username'
+    })
+
+    if (passwordCount === 1 && usernameFields.length > 0) {
+      scores.login += 2
+    }
+    if (passwordCount === 1 && passwordInfo.hasCurrentPasswordField) {
+      scores.login += 1
+    }
+
+    if (scores.logout >= 4 && scores.logout >= scores.signup + 2 && scores.logout >= scores.login + 2) {
+      return FORM_INTENTS.LOGOUT
+    }
+    if (scores.signup >= 4 && scores.signup >= scores.login + 1) {
+      return FORM_INTENTS.SIGNUP
+    }
+    if (scores.login >= 2) {
+      return FORM_INTENTS.LOGIN
+    }
+    if (scores.signup > scores.login && scores.signup > 0) {
+      return FORM_INTENTS.SIGNUP
+    }
+    if (scores.logout > scores.login && scores.logout > 0) {
+      return FORM_INTENTS.LOGOUT
+    }
+    return FORM_INTENTS.LOGIN
+  }
+
   /**
    * Check if an input is likely credential-related
    * @param {HTMLInputElement} input
@@ -973,6 +1201,17 @@ class ContentScriptInjector {
       // Skip if already processed
       if (this.processedFields.has(passwordField)) return
 
+      const container =
+        passwordField.closest('form, div, section, main, article, aside') || document.body
+      const contextInputs = Array.from(container.querySelectorAll('input')).filter((el) =>
+        this.isFieldVisible(el)
+      )
+      const intent = this.detectFormIntent({
+        form: passwordField.closest('form'),
+        inputs: contextInputs,
+        container
+      })
+
       const usernameField = this.findUsernameFieldNear(passwordField)
 
       if (usernameField) {
@@ -982,7 +1221,8 @@ class ContentScriptInjector {
           username: usernameField,
           password: passwordField,
           form: form,
-          detectMethod: 'formless'
+          detectMethod: 'formless',
+          intent
         })
 
         // Mark as processed
@@ -1004,7 +1244,8 @@ class ContentScriptInjector {
           username: passwordField, // Use password field as target for logo
           password: passwordField,
           form: passwordField.closest('form'),
-          detectMethod: 'formless-password-page'
+          detectMethod: 'formless-password-page',
+          intent
         })
 
         this.processedFields.add(passwordField)
@@ -1157,7 +1398,8 @@ class ContentScriptInjector {
       username: field,
       password: null, // No password yet (multi-step)
       form: field.closest('form'),
-      detectMethod: 'multi-step'
+      detectMethod: 'multi-step',
+      intent: FORM_INTENTS.LOGIN
     }))
 
     // Update forms for backward compatibility
@@ -1270,6 +1512,7 @@ class ContentScriptInjector {
 
     forms.forEach((form) => {
       const inputs = this.getFormInputs(form)
+      const intent = this.detectFormIntent({ form, inputs, container: form })
 
       // Valid login form must have at least one password field
       const passwordField = inputs.find(
@@ -1325,11 +1568,12 @@ class ContentScriptInjector {
           isPasswordPage = true
 
           // Inject logo on password field for password-only pages
-          loginFields.push({
+        loginFields.push({
             username: passwordField, // Use password field as target for logo
             password: passwordField,
             form: form,
-            detectMethod: 'form-based-password-page'
+          detectMethod: 'form-based-password-page',
+          intent
           })
 
           this.processedFields.add(passwordField)
@@ -1342,7 +1586,8 @@ class ContentScriptInjector {
           username: usernameField,
           password: passwordField,
           form: form,
-          detectMethod: 'form-based'
+          detectMethod: 'form-based',
+          intent
         })
 
         // Mark as processed
@@ -1381,6 +1626,225 @@ class ContentScriptInjector {
     )
   }
 
+  getLoginContext(loginField) {
+    const baseField = loginField?.password || loginField?.username
+    const form = loginField?.form || baseField?.closest('form') || null
+    const container =
+      form || baseField?.closest('div, section, main, article, aside') || document.body
+    const inputs = Array.from(container.querySelectorAll('input')).filter((el) =>
+      this.isFieldVisible(el)
+    )
+
+    return { form, container, inputs }
+  }
+
+  getSignupPasswordTargets({ inputs, fallbackField }) {
+    const passwordInputs = (inputs || []).filter(
+      (input) =>
+        input?.type === INPUT_TYPES.PASSWORD &&
+        this.isFieldVisible(input) &&
+        !this.shouldIgnoreFieldForCapture(input)
+    )
+
+    const confirmFields = passwordInputs.filter((input) => this.isConfirmPasswordField(input))
+    const primaryCandidates = passwordInputs.filter(
+      (input) => !this.isConfirmPasswordField(input) && !this.isCurrentPasswordField(input)
+    )
+
+    const primary =
+      primaryCandidates.find((input) => this.isNewPasswordField(input)) ||
+      primaryCandidates[0] ||
+      passwordInputs[0] ||
+      fallbackField ||
+      null
+
+    return {
+      primary,
+      confirmFields: confirmFields.filter((field) => field !== primary)
+    }
+  }
+
+  sanitizeValue(value) {
+    if (typeof value !== 'string') return ''
+    return value
+      .replace(/<script[^>]*>.*?<\/script>/gi, '')
+      .replace(/javascript:/gi, '')
+      .replace(/on\w+\s*=/gi, '')
+      .trim()
+  }
+
+  fillInputWithEvents(input, value) {
+    if (!input) return
+    const sanitizedValue = this.sanitizeValue(value)
+
+    const focusEvent = new FocusEvent('focus', { bubbles: true })
+    input.dispatchEvent(focusEvent)
+    input.focus()
+
+    const clickEvent = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    })
+    input.dispatchEvent(clickEvent)
+
+    input.value = ''
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value'
+    )?.set
+
+    if (nativeInputValueSetter) {
+      nativeInputValueSetter.call(input, sanitizedValue)
+    } else {
+      input.value = sanitizedValue
+    }
+
+    const inputEventBefore = new Event('beforeinput', { bubbles: true, cancelable: true })
+    input.dispatchEvent(inputEventBefore)
+
+    const inputEvent = new InputEvent('input', {
+      bubbles: true,
+      cancelable: false,
+      composed: true,
+      data: value,
+      inputType: 'insertText',
+      isComposing: false
+    })
+    input.dispatchEvent(inputEvent)
+
+    const changeEvent = new Event('change', { bubbles: true, cancelable: false })
+    input.dispatchEvent(changeEvent)
+
+    setTimeout(() => {
+      input.blur()
+      const blurEvent = new FocusEvent('blur', { bubbles: true })
+      input.dispatchEvent(blurEvent)
+    }, 50)
+  }
+
+  async handleSignupLogoClick(loginField, clickEvent) {
+    if (!clickEvent?.isTrusted) {
+      return
+    }
+
+    let generatedPassword = ''
+    try {
+      generatedPassword = await generatePassword()
+    } catch (error) {
+      log.error('Failed to generate password:', error)
+      return
+    }
+    this.openPasswordSuggestionPopup(loginField, generatedPassword)
+  }
+
+  closePasswordSuggestionPopup() {
+    if (this.passwordSuggestionPopup) {
+      this.passwordSuggestionPopup.destroy()
+    }
+    this.cleanupPasswordSuggestionRoute()
+  }
+
+  cleanupPasswordSuggestionRoute() {
+    if (this.passwordSuggestionRoute?.sourceWindow) {
+      const sw = this.passwordSuggestionRoute.sourceWindow
+      this.messageRoutes = this.messageRoutes.filter((r) => r.sourceWindow !== sw)
+    }
+    this.passwordSuggestionRoute = null
+    this.passwordSuggestionPopup = null
+  }
+
+  applySignupPassword(loginField, password) {
+    const { inputs } = this.getLoginContext(loginField)
+    const targets = this.getSignupPasswordTargets({
+      inputs,
+      fallbackField: loginField?.password || loginField?.username
+    })
+
+    if (!targets.primary) {
+      log.warn('No password field found for signup apply')
+      return
+    }
+
+    this.fillInputWithEvents(targets.primary, password)
+    targets.confirmFields.forEach((field) => {
+      this.fillInputWithEvents(field, password)
+    })
+
+    this.setLastSeenPassword(password)
+    const usernameValue = loginField?.username?.value || ''
+    this.cachedCredentials = {
+      username: usernameValue,
+      password: password,
+      url: window.location.href
+    }
+    this.cacheTimestamp = Date.now()
+  }
+
+  openPasswordSuggestionPopup(loginField, generatedPassword) {
+    const { inputs } = this.getLoginContext(loginField)
+    const targets = this.getSignupPasswordTargets({
+      inputs,
+      fallbackField: loginField?.password || loginField?.username
+    })
+    const targetField = targets.primary || loginField?.password || loginField?.username
+
+    if (!targetField) {
+      log.warn('No password field found for signup popup')
+      return
+    }
+
+    this.closePasswordSuggestionPopup()
+
+    const popup = new PasswordSuggestionPopup(targetField, generatedPassword, {
+      onApply: (password) => {
+        this.applySignupPassword(loginField, password)
+        this.closePasswordSuggestionPopup()
+      },
+      onRefresh: async () => {
+        try {
+          const newPassword = await generatePassword()
+          popup.setPassword(newPassword)
+        } catch (error) {
+          log.error('Failed to refresh generated password:', error)
+        }
+      },
+      onDestroy: () => {
+        if (this.passwordSuggestionPopup === popup) {
+          this.cleanupPasswordSuggestionRoute()
+        }
+      }
+    })
+
+    popup.render()
+    this.passwordSuggestionPopup = popup
+
+    const sourceWindow = popup.getIframeWindow()
+    const nonce = popup.getNonce()
+    const origin = popup.getExtensionOrigin()
+
+    if (sourceWindow && nonce && origin) {
+      this.passwordSuggestionRoute = { sourceWindow, nonce }
+      this.messageRoutes.push({
+        sourceWindow,
+        origin,
+        nonce,
+        handler: (message) => {
+          popup.messageHandler(message)
+        }
+      })
+    }
+  }
+
+  handleLogoClick(loginField, targetField, clickEvent) {
+    const intent = loginField?.intent || FORM_INTENTS.LOGIN
+    if (intent === FORM_INTENTS.SIGNUP) {
+      this.handleSignupLogoClick(loginField, clickEvent)
+      return
+    }
+    this.showLoginSelector(targetField, clickEvent)
+  }
+
   /**
    * Inject Passwall logo next to username input fields (Enhanced)
    * Supports form-based, formless, and multi-step logins
@@ -1392,7 +1856,11 @@ class ContentScriptInjector {
     // Inject logo for each detected login field set
     this.loginFields.forEach((loginField, index) => {
       // For multi-step, username might be the only field
-      const targetField = loginField.username
+      const intent = loginField.intent || FORM_INTENTS.LOGIN
+      const targetField =
+        intent === FORM_INTENTS.SIGNUP
+          ? loginField.password || loginField.username
+          : loginField.username
 
       if (!targetField || !this.isFieldVisible(targetField)) {
         log.warn(`Skipping logo injection for login #${index + 1} - field not visible`)
@@ -1408,14 +1876,14 @@ class ContentScriptInjector {
       }
 
       const logo = new PasswallLogo(targetField, (event) =>
-        this.showLoginSelector(targetField, event)
+        this.handleLogoClick(loginField, targetField, event)
       )
 
       logo.render()
       this.logos.push(logo)
 
       const methodLabel = loginField.detectMethod || 'unknown'
-      log.success(`🎨 Logo injected for ${methodLabel} login #${index + 1}`)
+      log.success(`🎨 Logo injected for ${methodLabel} ${intent} #${index + 1}`)
     })
   }
 
@@ -1548,6 +2016,7 @@ class ContentScriptInjector {
     this.processedFields = new WeakSet()
     this.submittedFormData = null
     this.saveNotificationShown = false
+    this.closePasswordSuggestionPopup()
   }
 
   /**
@@ -1727,6 +2196,19 @@ class ContentScriptInjector {
 
     log.info('🔍 Form submitted, analyzing...')
 
+    const formInputs = Array.from(form.elements).filter((el) => el.tagName === 'INPUT')
+    const intent = this.detectFormIntent({
+      form,
+      inputs: formInputs,
+      container: form,
+      triggerElement: this.getSubmitButtonFromEvent(event)
+    })
+
+    if (intent === FORM_INTENTS.LOGOUT) {
+      log.info('🚫 Logout intent detected, skipping credential capture')
+      return
+    }
+
     // Try to use cached credentials first (from submit button click)
     let credentials = null
     const CACHE_VALID_MS = 2000 // Cache valid for 2 seconds
@@ -1747,12 +2229,17 @@ class ContentScriptInjector {
       if (activeContainer && activeContainer !== form) {
         credentials = this.extractCredentialsFromContainer(activeContainer, {
           fallbackUsername,
-          fallbackPassword
+          fallbackPassword,
+          allowMissingUsername: intent === FORM_INTENTS.SIGNUP
         })
       }
 
       if (!credentials) {
-        credentials = this.extractCredentialsFromForm(form, { fallbackUsername, fallbackPassword })
+        credentials = this.extractCredentialsFromForm(form, {
+          fallbackUsername,
+          fallbackPassword,
+          allowMissingUsername: intent === FORM_INTENTS.SIGNUP
+        })
       }
     }
 
@@ -1795,6 +2282,8 @@ class ContentScriptInjector {
 
       // Store credentials immediately in background memory (survives redirect)
       try {
+        const missingUsername = !credentials.username || !credentials.username.trim()
+        const manual = intent === FORM_INTENTS.SIGNUP && missingUsername
         await sendPayload({
           type: EVENT_TYPES.SET_PENDING_SAVE,
           payload: {
@@ -1802,7 +2291,8 @@ class ContentScriptInjector {
             password: credentials.password,
             url: credentials.url,
             domain: this.domain,
-            action: 'add'
+            action: 'add',
+            manual
           }
         })
       } catch (error) {
@@ -1819,7 +2309,7 @@ class ContentScriptInjector {
         setTimeout(() => {
           // Check if save notification is already shown before offering
           if (!this.saveNotificationShown) {
-            this.checkIfShouldOfferSave(credentials)
+            this.checkIfShouldOfferSave(credentials, { intent })
           }
         }, 1000)
       }
@@ -1850,12 +2340,28 @@ class ContentScriptInjector {
       element.closest('form, div, section, main') ||
       document.body
 
+    const contextInputs = Array.from(container.querySelectorAll('input')).filter((el) =>
+      this.isFieldVisible(el)
+    )
+    const intent = this.detectFormIntent({
+      form: element.closest('form'),
+      inputs: contextInputs,
+      container,
+      triggerElement: element
+    })
+
+    if (intent === FORM_INTENTS.LOGOUT) {
+      log.info('🚫 Logout intent detected, skipping credential capture')
+      return
+    }
+
     // Extract credentials from container BEFORE form manipulates fields
     const fallbackUsername = await this.getLastSeenUsername()
     const fallbackPassword = this.getLastSeenPassword()
     const credentials = this.extractCredentialsFromContainer(container, {
       fallbackUsername,
-      fallbackPassword
+      fallbackPassword,
+      allowMissingUsername: intent === FORM_INTENTS.SIGNUP
     })
 
     if (credentials) {
@@ -1874,7 +2380,7 @@ class ContentScriptInjector {
         setTimeout(() => {
           // Check if save notification is already shown before offering
           if (!this.saveNotificationShown) {
-            this.checkIfShouldOfferSave(credentials)
+            this.checkIfShouldOfferSave(credentials, { intent })
           }
         }, 1000)
       }
@@ -1914,11 +2420,26 @@ class ContentScriptInjector {
       input.closest('form, div, section, main') ||
       document.body
 
+    const contextInputs = Array.from(container.querySelectorAll('input')).filter((el) =>
+      this.isFieldVisible(el)
+    )
+    const intent = this.detectFormIntent({
+      form: input.closest('form'),
+      inputs: contextInputs,
+      container,
+      triggerElement: input
+    })
+
+    if (intent === FORM_INTENTS.LOGOUT) {
+      return
+    }
+
     const fallbackUsername = await this.getLastSeenUsername()
     const fallbackPassword = this.getLastSeenPassword()
     const credentials = this.extractCredentialsFromContainer(container, {
       fallbackUsername,
-      fallbackPassword
+      fallbackPassword,
+      allowMissingUsername: intent === FORM_INTENTS.SIGNUP
     })
 
     if (!credentials) {
@@ -1933,7 +2454,7 @@ class ContentScriptInjector {
       setTimeout(() => {
         // Check if save notification is already shown before offering
         if (!this.saveNotificationShown) {
-          this.checkIfShouldOfferSave(credentials)
+          this.checkIfShouldOfferSave(credentials, { intent })
         }
       }, 1000)
     }
@@ -2055,6 +2576,7 @@ class ContentScriptInjector {
   extractCredentialsFromInputs(inputs, options = {}) {
     const fallbackUsername = String(options.fallbackUsername || '').trim()
     const fallbackPassword = String(options.fallbackPassword || '')
+    const allowMissingUsername = !!options.allowMissingUsername
     const visibleInputs = inputs.filter((input) => this.isFieldVisible(input))
 
     // Find password field (including common name variations)
@@ -2126,6 +2648,13 @@ class ContentScriptInjector {
       if (fallbackUsername) {
         return {
           username: fallbackUsername,
+          password: resolvedPassword,
+          url: window.location.href
+        }
+      }
+      if (allowMissingUsername) {
+        return {
+          username: '',
           password: resolvedPassword,
           url: window.location.href
         }
@@ -2302,8 +2831,9 @@ class ContentScriptInjector {
    * @param {Object} credentials - {username, password, url}
    * @private
    */
-  async checkIfShouldOfferSave(credentials) {
+  async checkIfShouldOfferSave(credentials, options = {}) {
     log.info('🔍 Checking if should offer save...')
+    const intent = options.intent || FORM_INTENTS.LOGIN
 
     // Don't show notification multiple times
     if (this.saveNotificationShown) {
@@ -2363,8 +2893,45 @@ class ContentScriptInjector {
     log.info('🔐 Security check passed, proceeding...')
 
     // Check if this looks like a login form (not logout, registration, etc.)
-    if (!this.isLikelyLoginForm(credentials)) {
+    if (intent === FORM_INTENTS.LOGOUT) {
+      log.info('🚫 Logout intent detected, skipping save offer')
+      return
+    }
+
+    if (intent === FORM_INTENTS.LOGIN && !this.isLikelyLoginForm(credentials)) {
       log.info('🚫 Form does not appear to be a login form, skipping save offer')
+      return
+    }
+
+    if (intent === FORM_INTENTS.SIGNUP && !credentials?.password) {
+      log.info('🚫 Signup intent but password missing, skipping save offer')
+      return
+    }
+
+    if (
+      intent === FORM_INTENTS.SIGNUP &&
+      (!credentials?.username || String(credentials.username).trim().length === 0)
+    ) {
+      log.info('🆕 Signup detected without username - offering SAVE with password only')
+      await sendPayload({
+        type: EVENT_TYPES.SET_PENDING_SAVE,
+        payload: {
+          username: '',
+          password: credentials.password,
+          url: credentials.url,
+          domain: this.domain,
+          action: 'add',
+          title: this.domain,
+          manual: true
+        }
+      })
+      this.showSaveNotification(
+        { username: '', password: credentials.password, url: credentials.url },
+        'add',
+        null,
+        null,
+        'offer_add_signup_no_username'
+      )
       return
     }
 

@@ -51,7 +51,7 @@
             </option>
           </select>
         </div>
-        <div class="form-row">
+        <div class="form-row pw-checkbox-group">
           <div class="d-flex flex-column" style="gap: 8px;">
             <label class="pw-checkbox">
               <input type="checkbox" v-model="form.auto_fill" />
@@ -302,6 +302,7 @@ export default {
 .window {
   overflow: hidden;
   overscroll-behavior: contain;
+  padding-bottom: 16px;
 }
 
 .content {
@@ -310,6 +311,7 @@ export default {
 
 .pw-select {
   width: 100%;
+  max-width: 330px;
   padding: 8px 12px;
   border-radius: 8px;
   background: transparent;
@@ -327,5 +329,9 @@ export default {
 
 .pw-checkbox input {
   accent-color: $color-primary;
+}
+
+.pw-checkbox-group {
+  margin-bottom: 24px;
 }
 </style>

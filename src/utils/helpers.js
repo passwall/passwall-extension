@@ -35,10 +35,37 @@ export async function generatePassword() {
       return acc + current.value
     }, '')
 
-  let generatedPassword = ''
-  for (let i = 0; i < passwordLength; i++) {
-    generatedPassword += charSet.charAt(Math.floor(Math.random() * charSet.length))
+  const minLength = 12
+  const finalLength = Math.max(passwordLength, minLength)
+  const lowerSet = chars.alphabet
+  const upperSet = chars.alphabet.toUpperCase()
+  const numberSet = chars.numeric
+  const specialSet = chars.special
+
+  const getRandomChar = (set) => set.charAt(Math.floor(Math.random() * set.length))
+  const shuffle = (arr) => {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[arr[i], arr[j]] = [arr[j], arr[i]]
+    }
+    return arr
   }
+
+  const requiredChars = [
+    getRandomChar(lowerSet),
+    getRandomChar(upperSet),
+    getRandomChar(numberSet),
+    getRandomChar(specialSet)
+  ]
+
+  const remainingLength = Math.max(finalLength - requiredChars.length, 0)
+  const passwordChars = [...requiredChars]
+
+  for (let i = 0; i < remainingLength; i++) {
+    passwordChars.push(getRandomChar(charSet || lowerSet + upperSet + numberSet + specialSet))
+  }
+
+  const generatedPassword = shuffle(passwordChars).join('')
 
   return generatedPassword
 }

@@ -26,6 +26,7 @@ import Generator from '@p/views/Generator/index.vue'
 import About from '@p/views/About/index.vue'
 import SavePassword from '@p/views/Inject/SavePassword/index.vue'
 import LoginAsPopup from '@p/views/Inject/LoginAs/index.vue'
+import PasswordSuggestion from '@p/views/Inject/PasswordSuggestion/index.vue'
 
 const routes = [
   {
@@ -142,6 +143,12 @@ const routes = [
     name: 'LoginAsPopup',
     component: LoginAsPopup,
     meta: { auth: true } // Bypass auth check for iframe injection
+  },
+  {
+    path: '/Inject/passwordSuggestion',
+    name: 'PasswordSuggestion',
+    component: PasswordSuggestion,
+    meta: { auth: true }
   },
   // Vue Router 4: wildcard route updated syntax
   {
