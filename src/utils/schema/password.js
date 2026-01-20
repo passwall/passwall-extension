@@ -5,6 +5,13 @@
  */
 
 /**
+ * @typedef {Object} PasswordItemField
+ * @property {number} type
+ * @property {string} name
+ * @property {string} value
+ */
+
+/**
  * @typedef {Object} PasswordItemData
  * @property {string} name
  * @property {string} username
@@ -12,7 +19,7 @@
  * @property {string} [totp_secret]
  * @property {string} [notes]
  * @property {PasswordItemUri[]} [uris]
- * @property {Array<{ type: number, name: string, value: string }>} [fields]
+ * @property {PasswordItemField[]} [fields]
  */
 
 /**

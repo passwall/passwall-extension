@@ -146,7 +146,7 @@ import { useItemsStore, ItemType } from '@/stores/items'
 import Storage from '@/utils/storage'
 import { getHostName } from '@/utils/helpers'
 import totpCaptureService from '@/utils/totp-capture'
-import { buildPasswordItemDataFromForm } from '@/utils/password-schema'
+import { buildPasswordItemDataFromForm } from '@/utils/schema'
 import TOTPCounter from '@/components/TOTPCounter.vue'
 
 export default {

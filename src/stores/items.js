@@ -18,7 +18,7 @@ import HTTPClient from '@/api/HTTPClient'
 import {
   buildPasswordItemDataFromForm,
   normalizePasswordItemData
-} from '@/utils/password-schema'
+} from '@/utils/schema'
 
 // ============================================================
 // Types & Constants
