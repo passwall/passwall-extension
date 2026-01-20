@@ -119,6 +119,8 @@ class ContentScriptInjector {
     this.lastButtonClick = null // { element, text, timestamp }
     this.passwordSuggestionPopup = null
     this.passwordSuggestionRoute = null // { sourceWindow, nonce }
+    this.loginAsPopup = null
+    this.loginAsPopupTarget = null
 
     this.initialize()
   }
@@ -1745,6 +1747,20 @@ class ContentScriptInjector {
     this.cleanupPasswordSuggestionRoute()
   }
 
+  closeLoginPopup() {
+    if (this.loginAsPopup) {
+      const sourceWindow = this.loginAsPopup.getIframeWindow?.()
+      this.loginAsPopup.destroy()
+      if (sourceWindow) {
+        this.messageRoutes = this.messageRoutes.filter(
+          (route) => route.sourceWindow !== sourceWindow
+        )
+      }
+    }
+    this.loginAsPopup = null
+    this.loginAsPopupTarget = null
+  }
+
   cleanupPasswordSuggestionRoute() {
     if (this.passwordSuggestionRoute?.sourceWindow) {
       const sw = this.passwordSuggestionRoute.sourceWindow
@@ -1898,6 +1914,14 @@ class ContentScriptInjector {
       return
     }
 
+    if (this.loginAsPopup) {
+      if (this.loginAsPopupTarget === targetInput) {
+        this.closeLoginPopup()
+        return
+      }
+      this.closeLoginPopup()
+    }
+
     const logins = this.logins || []
     let popupLogins = logins
     const lastAutofill = this.lastAutofill
@@ -1923,6 +1947,7 @@ class ContentScriptInjector {
 
     log.info(`🚀 Logo clicked! Creating popup with ${popupLogins.length} logins`)
 
+    this.closeLoginPopup()
     const popup = new LoginAsPopup(
       targetInput,
       popupLogins,
@@ -1934,6 +1959,8 @@ class ContentScriptInjector {
     )
 
     popup.render()
+    this.loginAsPopup = popup
+    this.loginAsPopupTarget = targetInput
     const sourceWindow = popup.getIframeWindow()
     const nonce = popup.getNonce()
     const origin = popup.getExtensionOrigin()
@@ -1948,11 +1975,17 @@ class ContentScriptInjector {
           if (message?.type === 'LOGIN_AS_POPUP_CLOSE') {
             popup.destroy()
             this.messageRoutes = this.messageRoutes.filter((r) => r.sourceWindow !== sourceWindow)
+            if (this.loginAsPopup === popup) {
+              this.loginAsPopup = null
+            }
             return
           }
           if (message?.type === 'LOGIN_AS_POPUP_OPEN_SAVE') {
             popup.destroy()
             this.messageRoutes = this.messageRoutes.filter((r) => r.sourceWindow !== sourceWindow)
+            if (this.loginAsPopup === popup) {
+              this.loginAsPopup = null
+            }
 
             const pageUrl = window.location.href
             const baseDomain = getDomain(pageUrl) || this.domain
@@ -2017,6 +2050,7 @@ class ContentScriptInjector {
     this.submittedFormData = null
     this.saveNotificationShown = false
     this.closePasswordSuggestionPopup()
+    this.closeLoginPopup()
   }
 
   /**
@@ -2076,6 +2110,8 @@ class ContentScriptInjector {
 
     // NEW: Listen for Enter key submits (keyboard-only flows)
     document.addEventListener('keydown', this.handleKeydownEnter.bind(this), true)
+    // NEW: Listen for ESC to close in-page popups
+    document.addEventListener('keydown', this.handleKeydownEscape.bind(this), true)
 
     log.success('Form submission detection initialized')
   }
@@ -2386,6 +2422,29 @@ class ContentScriptInjector {
       }
       // If there's a form, let form submit handler use cached credentials
     }
+  }
+
+  /**
+   * Close in-page popups on Escape for quick dismissal
+   * @param {KeyboardEvent} event
+   * @private
+   */
+  handleKeydownEscape(event) {
+    if (event.key !== 'Escape') return
+
+    const hasPopup =
+      this.saveNotificationShown ||
+      this.passwordSuggestionPopup ||
+      this.loginAsPopup
+
+    if (!hasPopup) return
+
+    this.removeSaveNotification()
+    this.closePasswordSuggestionPopup()
+    this.closeLoginPopup()
+
+    event.preventDefault()
+    event.stopPropagation()
   }
 
   /**
