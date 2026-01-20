@@ -15,6 +15,7 @@ const log = {
   warn: (...args) => DEV_MODE && console.warn('[Background]', ...args),
   error: (...args) => console.error('[Background]', ...args)
 }
+const LOGIN_USAGE_STORAGE_KEY = 'login_usage_v1'
 
 function generateItemKey() {
   const randomBytes = crypto.getRandomValues(new Uint8Array(64))
@@ -41,6 +42,7 @@ class BackgroundAgent {
     this.userKey = null // Modern encryption user key
     this.initPromise = null // Track initialization state
     this.pendingSaveByTab = new Map() // tabId -> { username, password, url, domain, title, action, loginId, expiresAt }
+    this.pendingTotpByTab = new Map() // tabId -> { itemId, totpSecret, domain, expiresAt }
     this.lastSecretFetchByTab = new Map() // tabId -> timestamp (rate limiting)
     this.lastSeenUsernameByTab = new Map() // tabId -> { domain, username, expiresAt }
     this.lastLoginUiOpenAt = 0 // Rate-limit opening login UI
@@ -130,6 +132,15 @@ class BackgroundAgent {
       log.error('Failed to restore auth state', toSafeError(error))
       this.isAuthenticated = false
     }
+  }
+
+  async getLoginUsageMap() {
+    const usage = await Storage.getItem(LOGIN_USAGE_STORAGE_KEY)
+    return usage && typeof usage === 'object' ? usage : {}
+  }
+
+  async setLoginUsageMap(map) {
+    await Storage.setItem(LOGIN_USAGE_STORAGE_KEY, map || {})
   }
 
   /**
@@ -255,6 +266,9 @@ class BackgroundAgent {
       case EVENT_TYPES.GET_FILL_SECRET:
         return await this.getFillSecret(request.payload, sender)
 
+      case EVENT_TYPES.GET_AUTOFILL_SECRET:
+        return await this.getAutofillSecret(request.payload, sender)
+
       case EVENT_TYPES.SAVE_CREDENTIALS:
         return await this.saveCredentials(request.payload)
 
@@ -275,6 +289,18 @@ class BackgroundAgent {
 
       case EVENT_TYPES.GET_LAST_SEEN_USERNAME:
         return await this.getLastSeenUsername(request.payload, sender)
+
+      case EVENT_TYPES.UPDATE_LOGIN_USAGE:
+        return await this.updateLoginUsage(request.payload, sender)
+
+      case EVENT_TYPES.SET_PENDING_TOTP:
+        return await this.setPendingTotp(request.payload, sender)
+
+      case EVENT_TYPES.GET_PENDING_TOTP:
+        return await this.getPendingTotp(request.payload, sender)
+
+      case EVENT_TYPES.CLEAR_PENDING_TOTP:
+        return await this.clearPendingTotp(sender)
 
       // Legacy/custom message type used by content scripts to open the popup UI
       // (e.g. "Authentication Required" in-page notification).
@@ -338,6 +364,7 @@ class BackgroundAgent {
       CryptoUtils.encryptKey = null
       HTTPClient.setHeader('Authorization', '')
       this.pendingSaveByTab.clear()
+      this.pendingTotpByTab.clear()
       this.lastSecretFetchByTab.clear()
       this.lastSeenUsernameByTab.clear()
 
@@ -437,6 +464,8 @@ class BackgroundAgent {
         return allowedHints.some((hint) => host === hint || host.endsWith(`.${hint}`))
       })
 
+      const usageMap = await this.getLoginUsageMap()
+
       // Decrypt only candidate items to produce display candidates (NO password returned)
       const decryptedCandidates = await Promise.all(
         candidateItems.map(async (item) => {
@@ -460,6 +489,11 @@ class BackgroundAgent {
               )
               const decryptedDataStr = new TextDecoder().decode(decryptedDataBytes)
               const decryptedData = JSON.parse(decryptedDataStr)
+              const usageEntry = usageMap?.[item.id] || {}
+              const autoFill =
+                typeof item.auto_fill === 'boolean' ? item.auto_fill : true
+              const autoLogin =
+                typeof item.auto_login === 'boolean' ? item.auto_login : false
 
               // Return candidate-only (never return password to content script)
               return {
@@ -467,17 +501,34 @@ class BackgroundAgent {
                 title: item.metadata?.name || item.title || 'Untitled',
                 username: decryptedData.username || '',
                 url: item.metadata?.uri_hint || decryptedData.uris?.[0]?.uri || '',
-                item_type: item.item_type
+                item_type: item.item_type,
+                auto_fill: autoFill,
+                auto_login: autoLogin,
+                last_used_at:
+                  typeof usageEntry?.lastUsedAt === 'number' ? usageEntry.lastUsedAt : null,
+                last_launched_at:
+                  typeof usageEntry?.lastLaunchedAt === 'number' ? usageEntry.lastLaunchedAt : null
               }
             } else if (!this.userKey) {
               // Legacy encryption fallback
               CryptoUtils.decryptFields(item, ['username'])
+              const usageEntry = usageMap?.[item.id] || {}
+              const autoFill =
+                typeof item.auto_fill === 'boolean' ? item.auto_fill : true
+              const autoLogin =
+                typeof item.auto_login === 'boolean' ? item.auto_login : false
               return {
                 id: item.id,
                 title: item.title || 'Untitled',
                 username: item.username || '',
                 url: item.url || item.URL || '',
-                item_type: item.item_type
+                item_type: item.item_type,
+                auto_fill: autoFill,
+                auto_login: autoLogin,
+                last_used_at:
+                  typeof usageEntry?.lastUsedAt === 'number' ? usageEntry.lastUsedAt : null,
+                last_launched_at:
+                  typeof usageEntry?.lastLaunchedAt === 'number' ? usageEntry.lastLaunchedAt : null
               }
             }
             return null
@@ -821,8 +872,132 @@ class BackgroundAgent {
 
     return {
       username: decryptedData.username || '',
+      password: decryptedData.password || '',
+      totp_secret: decryptedData.totp_secret || ''
+    }
+  }
+
+  isItemAllowedForDomain(item, domain) {
+    const host = String(domain || '').trim()
+    if (!host) {
+      return false
+    }
+
+    const currentDomain = getDomain(`https://${host}`)
+    if (!currentDomain) {
+      return false
+    }
+
+    const rawHint = item?.metadata?.uri_hint || ''
+    const hintUrl = rawHint.includes('://') ? rawHint : `https://${rawHint}`
+    const savedDomain = getDomain(hintUrl)
+    if (!savedDomain) {
+      return false
+    }
+
+    const currentEquivalents = getEquivalentDomains(currentDomain)
+    const savedEquivalents = getEquivalentDomains(savedDomain)
+    const hasEquivalentMatch = [...currentEquivalents].some((d) => savedEquivalents.has(d))
+    if (!hasEquivalentMatch) {
+      return false
+    }
+
+    if (isHostnameBlacklisted(host, currentDomain)) {
+      return false
+    }
+
+    return true
+  }
+
+  async getAutofillSecret(payload, sender) {
+    if (!this.isAuthenticated) {
+      throw new RequestError('Please login to Passwall extension to continue', 'NO_AUTH')
+    }
+    if (!this.userKey) {
+      throw new RequestError('User key not found. Please login again.', 'NO_USER_KEY')
+    }
+
+    const tabId = sender?.tab?.id
+    if (tabId == null) {
+      throw new RequestError('Tab context missing', 'NO_TAB')
+    }
+
+    const itemId = payload?.itemId
+    const domain = payload?.domain
+    if (!itemId || !domain) {
+      throw new RequestError('Item id and domain are required', 'VALIDATION_ERROR')
+    }
+
+    const now = Date.now()
+    const last = this.lastSecretFetchByTab.get(tabId) || 0
+    if (now - last < 300) {
+      throw new RequestError('Too many requests', 'RATE_LIMITED')
+    }
+    this.lastSecretFetchByTab.set(tabId, now)
+
+    const { data: item } = await HTTPClient.get(`/api/items/${itemId}`)
+    if (!item?.data) {
+      throw new RequestError('Item data missing', 'NOT_FOUND')
+    }
+
+    const autoFill = typeof item.auto_fill === 'boolean' ? item.auto_fill : true
+    if (!autoFill) {
+      throw new RequestError('Autofill disabled for this item', 'AUTOFILL_DISABLED')
+    }
+
+    if (!this.isItemAllowedForDomain(item, domain)) {
+      throw new RequestError('Item does not match domain', 'DOMAIN_MISMATCH')
+    }
+
+    let decryptionKey = this.userKey
+
+    if (item.item_key_enc) {
+      const itemKeyBytes = await cryptoService.decryptAesCbcHmac(
+        item.item_key_enc,
+        this.userKey
+      )
+      decryptionKey = SymmetricKey.fromBytes(itemKeyBytes)
+    }
+
+    const decryptedDataBytes = await cryptoService.decryptAesCbcHmac(
+      item.data,
+      decryptionKey
+    )
+    const decryptedDataStr = new TextDecoder().decode(decryptedDataBytes)
+    const decryptedData = JSON.parse(decryptedDataStr)
+
+    return {
+      username: decryptedData.username || '',
       password: decryptedData.password || ''
     }
+  }
+
+  async updateLoginUsage(payload) {
+    const itemId = payload?.itemId
+    if (!itemId) {
+      return { ok: false }
+    }
+
+    const usageMap = await this.getLoginUsageMap()
+    const key = String(itemId)
+    const entry = usageMap[key] || {}
+    const now = Date.now()
+    const action = payload?.action
+
+    if (action === 'launch') {
+      entry.lastLaunchedAt = now
+    } else {
+      entry.lastUsedAt = now
+    }
+
+    if (payload?.domain) {
+      entry.domain = payload.domain
+    }
+
+    usageMap[key] = entry
+    await this.setLoginUsageMap(usageMap)
+
+    return { ok: true }
   }
 
   purgeExpiredPendingSaves() {
@@ -1017,6 +1192,66 @@ class BackgroundAgent {
       this.pendingSaveByTab.delete(tabId)
     }
     return { pending: false }
+  }
+
+  async setPendingTotp(payload, sender) {
+    const tabId = sender?.tab?.id
+    if (tabId == null) {
+      throw new RequestError('Tab context missing', 'NO_TAB')
+    }
+
+    const totpSecret = payload?.totp_secret || payload?.totpSecret || payload?.totp || ''
+    const itemId = payload?.itemId || null
+    const domain = payload?.domain || ''
+    if (!totpSecret || !itemId) {
+      return { ok: false }
+    }
+
+    this.pendingTotpByTab.set(tabId, {
+      itemId,
+      totpSecret,
+      domain,
+      expiresAt: Date.now() + 5 * 60_000
+    })
+
+    return { ok: true }
+  }
+
+  async getPendingTotp(payload, sender) {
+    const tabId = sender?.tab?.id
+    if (tabId == null) {
+      return null
+    }
+
+    const entry = this.pendingTotpByTab.get(tabId)
+    if (!entry) {
+      return null
+    }
+
+    const now = Date.now()
+    if (entry.expiresAt <= now) {
+      this.pendingTotpByTab.delete(tabId)
+      return null
+    }
+
+    const requestedDomain = payload?.domain || ''
+    if (requestedDomain && entry.domain && requestedDomain !== entry.domain) {
+      this.pendingTotpByTab.delete(tabId)
+      return null
+    }
+
+    return {
+      itemId: entry.itemId,
+      totp_secret: entry.totpSecret
+    }
+  }
+
+  async clearPendingTotp(sender) {
+    const tabId = sender?.tab?.id
+    if (tabId != null) {
+      this.pendingTotpByTab.delete(tabId)
+    }
+    return { ok: true }
   }
 
   async setLastSeenUsername(payload, sender) {

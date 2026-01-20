@@ -1,6 +1,7 @@
 import browser from 'webextension-polyfill'
 import { getOffset, sendPayload, getHostName } from '@/utils/helpers'
 import { shouldIgnoreField } from '@/utils/platform-rules'
+import totpService from '@/utils/totp'
 
 const INPUT_TYPES = {
   PASSWORD: 'password',
@@ -9,6 +10,30 @@ const INPUT_TYPES = {
   NUMBER: 'number',
   TEL: 'tel'
 }
+
+const TOTP_FIELD_NAMES = [
+  'totp',
+  'totpcode',
+  '2facode',
+  'approvals_code',
+  'mfacode',
+  'otc-code',
+  'onetimecode',
+  'otp-code',
+  'otpcode',
+  'onetimepassword',
+  'security_code',
+  'second-factor',
+  'twofactor',
+  'twofa',
+  'twofactorcode',
+  'verificationcode',
+  'verification code'
+]
+
+const AMBIGUOUS_TOTP_FIELD_NAMES = ['code', 'pin', 'otc', 'otp', '2fa', 'mfa']
+const RECOVERY_CODE_FIELD_NAMES = ['backup', 'recovery']
+const TOTP_AUTOCOMPLETE_VALUES = ['one-time-code', 'otp', 'totp', 'one-time-password']
 
 const POPUP_CONFIG = {
   ID: 'passwall-login-as-popup',
@@ -239,8 +264,11 @@ export class LoginAsPopup {
    * @param {string} credentials.itemId
    */
   async handleFillForm({ itemId }) {
-    if (!this.forms[0]) {
-      log.error('No form available to fill')
+    const inputs = this.getFillInputs()
+    const fallbackInputs = this.forms?.[0]?.inputs || []
+    const fillInputs = inputs.length > 0 ? inputs : fallbackInputs
+    if (fillInputs.length === 0) {
+      log.error('No inputs available to fill')
       return
     }
 
@@ -262,6 +290,7 @@ export class LoginAsPopup {
 
     const username = secret?.username || ''
     const password = secret?.password || ''
+    const totpSecret = secret?.totp_secret || secret?.totpSecret || secret?.totp || ''
     if (!username || !password) {
       log.error('Fill secret missing username or password')
       return
@@ -275,15 +304,16 @@ export class LoginAsPopup {
     }
 
     let usernameFilled = false
+    const filledInputs = []
 
-    this.forms[0].inputs.forEach((input) => {
+    fillInputs.forEach((input) => {
       // Skip captcha fields
       if (this.isCaptchaField(input)) {
         return
       }
 
       // Skip platform-specific excluded fields (AWS account ID, Azure tenant ID, etc.)
-      if (shouldIgnoreField(input, this.domain)) {
+      if (shouldIgnoreField(input, this.domain, { respectAutocompleteOff: false })) {
         log.info(`Skipping excluded field (platform rule): ${input.name || input.id}`)
         return
       }
@@ -291,6 +321,7 @@ export class LoginAsPopup {
       // Fill password fields
       if (input.type === INPUT_TYPES.PASSWORD) {
         this.fillInputWithEvents(input, password)
+        filledInputs.push(input)
       }
       // Fill first username field only
       else if (
@@ -300,14 +331,33 @@ export class LoginAsPopup {
         )
       ) {
         this.fillInputWithEvents(input, username)
+        filledInputs.push(input)
         usernameFilled = true
       }
     })
 
+    const totpInputs = totpSecret ? this.getTotpInputs(fillInputs) : []
+    if (totpSecret && totpInputs.length > 0) {
+      const totpCode = totpService.generateCode(totpSecret)
+      if (totpCode) {
+        const totpFilledInputs = this.fillTotpInputs(totpInputs, totpCode)
+        if (totpFilledInputs.length > 0) {
+          filledInputs.push(...totpFilledInputs)
+        }
+      }
+    }
+
     log.success(`Form auto-filled for: ${username}`)
 
     try {
-      this.onAutofill?.({ at: Date.now(), username, passwordDigest, itemId })
+      this.onAutofill?.({
+        at: Date.now(),
+        username,
+        passwordDigest,
+        itemId,
+        filledInputs,
+        totpSecret
+      })
     } catch {
       // ignore
     }
@@ -316,10 +366,206 @@ export class LoginAsPopup {
     try {
       secret.username = null
       secret.password = null
+      secret.totp_secret = null
     } catch {
       // ignore
     }
     this.destroy()
+  }
+
+  /**
+   * Resolve the best input list to fill
+   * @returns {HTMLInputElement[]}
+   * @private
+   */
+  getFillInputs() {
+    const base = this.targetInput
+    if (!base) return []
+
+    const form = base.closest?.('form')
+    const container =
+      form ||
+      base.closest?.('div, section, main, article, aside') ||
+      base.closest?.('body') ||
+      document.body
+
+    const inputs = Array.from(container?.querySelectorAll?.('input') || [])
+    return inputs.filter((input) => {
+      if (!input || input.tagName !== 'INPUT') return false
+      if (!this.isInputVisible(input)) return false
+      if (shouldIgnoreField(input, this.domain, { respectAutocompleteOff: false })) return false
+      return true
+    })
+  }
+
+  getTotpInputs(inputs) {
+    const candidates = Array.isArray(inputs) ? inputs : this.getFillInputs()
+    return candidates.filter((input) => this.isTotpInput(input))
+  }
+
+  isTotpInput(input) {
+    if (!input || input.tagName !== 'INPUT') return false
+    if (!this.isInputVisible(input)) return false
+    if (input.hasAttribute?.('data-passwall-ignore')) return false
+
+    const type = (input.type || '').toLowerCase()
+    if (['hidden', 'file', 'checkbox', 'radio', 'submit', 'button', 'image', 'reset'].includes(type)) {
+      return false
+    }
+
+    const descriptor = this.normalizeFieldText(this.getInputDescriptorText(input))
+    if (!descriptor) return false
+
+    const hasLpIgnore =
+      input.hasAttribute?.('data-lpignore') ||
+      input.hasAttribute?.('data-lp-ignore') ||
+      input.hasAttribute?.('lpignore')
+    if (shouldIgnoreField(input, this.domain, { respectAutocompleteOff: false }) && !hasLpIgnore) {
+      return false
+    }
+
+    if (RECOVERY_CODE_FIELD_NAMES.some((keyword) => descriptor.includes(this.normalizeFieldText(keyword)))) {
+      return false
+    }
+
+    if (TOTP_FIELD_NAMES.some((keyword) => descriptor.includes(this.normalizeFieldText(keyword)))) {
+      return true
+    }
+
+    const hasAmbiguousKeyword = AMBIGUOUS_TOTP_FIELD_NAMES.some((keyword) =>
+      descriptor.includes(this.normalizeFieldText(keyword))
+    )
+    if (!hasAmbiguousKeyword) {
+      return this.hasTotpAutocomplete(input)
+    }
+
+    return this.hasTotpAutocomplete(input) || this.isLikelyTotpNumericField(input)
+  }
+
+  hasTotpAutocomplete(input) {
+    const autocomplete = this.normalizeFieldText(input?.getAttribute?.('autocomplete'))
+    if (!autocomplete) return false
+    return TOTP_AUTOCOMPLETE_VALUES.some((keyword) => autocomplete.includes(this.normalizeFieldText(keyword)))
+  }
+
+  isLikelyTotpNumericField(input) {
+    const inputMode = this.normalizeFieldText(input?.getAttribute?.('inputmode'))
+    const type = this.normalizeFieldText(input?.type)
+    const pattern = this.normalizeFieldText(input?.getAttribute?.('pattern'))
+    const maxLength = Number(input?.maxLength) || 0
+
+    const numericHint =
+      inputMode === 'numeric' ||
+      type === 'number' ||
+      /\d/.test(pattern) ||
+      (maxLength > 0 && maxLength <= 10)
+
+    return numericHint
+  }
+
+  normalizeFieldText(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/[\s_-]/g, '')
+      .trim()
+  }
+
+  getInputDescriptorText(input) {
+    const attributes = [
+      input?.name,
+      input?.id,
+      input?.placeholder,
+      input?.getAttribute?.('aria-label'),
+      input?.getAttribute?.('autocomplete'),
+      input?.getAttribute?.('title'),
+      this.getLabelText(input)
+    ]
+
+    return attributes
+      .filter(Boolean)
+      .map((value) => String(value).toLowerCase())
+      .join(' ')
+  }
+
+  getLabelText(input) {
+    const ariaLabelledbyText = this.getAriaLabelledbyText(input)
+    if (ariaLabelledbyText) {
+      return ariaLabelledbyText
+    }
+
+    const label = input?.labels?.[0]
+    return label ? label.textContent || '' : ''
+  }
+
+  getAriaLabelledbyText(input) {
+    const labelledBy = input?.getAttribute?.('aria-labelledby')
+    if (!labelledBy) return ''
+    return labelledBy
+      .split(/\s+/)
+      .map((id) => document.getElementById(id)?.textContent || '')
+      .filter(Boolean)
+      .join(' ')
+  }
+
+  fillTotpInputs(inputs, totpCode) {
+    if (!Array.isArray(inputs) || inputs.length === 0 || !totpCode) {
+      return []
+    }
+
+    const visibleInputs = inputs.filter((input) => this.isInputVisible(input))
+    if (visibleInputs.length === 0) {
+      return []
+    }
+
+    const sortedInputs = this.sortInputsByPosition(visibleInputs)
+    const isSegmented =
+      sortedInputs.length > 1 &&
+      sortedInputs.every((input) => {
+        const maxLength = Number(input?.maxLength) || 0
+        return maxLength === 1 || this.isLikelyTotpNumericField(input)
+      })
+
+    if (!isSegmented) {
+      this.fillInputWithEvents(sortedInputs[0], totpCode)
+      return [sortedInputs[0]]
+    }
+
+    const digits = String(totpCode).split('')
+    const filled = []
+    for (let i = 0; i < sortedInputs.length && i < digits.length; i += 1) {
+      this.fillInputWithEvents(sortedInputs[i], digits[i])
+      filled.push(sortedInputs[i])
+    }
+    return filled
+  }
+
+  sortInputsByPosition(inputs) {
+    return [...inputs].sort((a, b) => {
+      const rectA = a.getBoundingClientRect()
+      const rectB = b.getBoundingClientRect()
+      if (rectA.top === rectB.top) {
+        return rectA.left - rectB.left
+      }
+      return rectA.top - rectB.top
+    })
+  }
+
+  /**
+   * Lightweight visibility check for inputs
+   * @param {HTMLInputElement} input
+   * @returns {boolean}
+   * @private
+   */
+  isInputVisible(input) {
+    if (!input) return false
+    if (input.hidden) return false
+    const rect = input.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return false
+    const style = window.getComputedStyle(input)
+    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) {
+      return false
+    }
+    return true
   }
 
   /**

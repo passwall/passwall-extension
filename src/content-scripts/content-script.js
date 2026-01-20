@@ -1,8 +1,10 @@
+import '@/polyfills'
 import browser from 'webextension-polyfill'
 import { EVENT_TYPES } from '@/utils/constants'
 import { getHostName, getDomain, PFormParseError, sendPayload, generatePassword } from '@/utils/helpers'
 import { shouldIgnoreField, getPlatformInfo, getPlatformRules } from '@/utils/platform-rules'
 import { checkCurrentPageSecurity, SECURITY_WARNINGS } from '@/utils/security-checks'
+import totpService from '@/utils/totp'
 import { LoginAsPopup } from './LoginAsPopup'
 import { PasswordSuggestionPopup } from './PasswordSuggestionPopup'
 import { PasswallLogo } from './PasswallLogo'
@@ -73,6 +75,30 @@ const FORM_INTENT_KEYWORDS = {
   CURRENT_PASSWORD: ['current password', 'old password', 'existing password', 'previous password']
 }
 
+const TOTP_FIELD_NAMES = [
+  'totp',
+  'totpcode',
+  '2facode',
+  'approvals_code',
+  'mfacode',
+  'otc-code',
+  'onetimecode',
+  'otp-code',
+  'otpcode',
+  'onetimepassword',
+  'security_code',
+  'second-factor',
+  'twofactor',
+  'twofa',
+  'twofactorcode',
+  'verificationcode',
+  'verification code'
+]
+const AMBIGUOUS_TOTP_FIELD_NAMES = ['code', 'pin', 'otc', 'otp', '2fa', 'mfa']
+const RECOVERY_CODE_FIELD_NAMES = ['backup', 'recovery']
+const TOTP_AUTOCOMPLETE_VALUES = ['one-time-code', 'otp', 'totp', 'one-time-password']
+const PENDING_TOTP_TTL_MS = 5 * 60_000
+
 // Development mode logging (from build-time env)
 const DEV_MODE = __DEV_MODE__ // Injected at build time
 const log = {
@@ -121,6 +147,22 @@ class ContentScriptInjector {
     this.passwordSuggestionRoute = null // { sourceWindow, nonce }
     this.loginAsPopup = null
     this.loginAsPopupTarget = null
+    this.autofillIgnoreFocusInputs = new WeakSet()
+    this.saveOfferHistory = new Set()
+    this.saveOfferInFlight = new Set()
+    this.blockSaveOffer = false
+    this.saveOfferDomain = null
+    this.pendingInlineFocusInput = null
+    this.inlineFocusFetchInFlight = false
+    this.autoPopupHosts = new Set(['vault.passwall.io'])
+    this.loginById = new Map()
+    this.autoFillInFlight = false
+    this.lastAutoFillAttemptUrl = ''
+    this.lastAutoFillAttemptAt = 0
+    this.lastAutoSubmitAt = 0
+    this.pendingTotp = null // { itemId, secret, domain, at }
+    this.pendingTotpFillTimeout = null
+    this.pendingTotpFillInFlight = false
 
     this.initialize()
   }
@@ -152,6 +194,7 @@ class ContentScriptInjector {
   initialize() {
     // Set domain first
     this.domain = getHostName(window.location.href)
+    this.resetSaveOfferStateIfDomainChanged(this.domain)
 
     // Track button clicks to detect logout intent
     this.setupButtonClickTracking()
@@ -177,8 +220,14 @@ class ContentScriptInjector {
     // NEW: Setup form submission detection
     this.setupFormSubmissionDetection()
 
+    // NEW: Setup inline menu triggers
+    this.setupInlineMenuTriggers()
+
     // NEW: Check for pending save from background (after redirect)
     this.checkPendingSave()
+
+    // NEW: Restore pending TOTP (multi-step auth flows)
+    this.loadPendingTotp()
 
     // Scan page for login forms on initialization
     this.detectAndInjectLogos()
@@ -213,6 +262,7 @@ class ContentScriptInjector {
    */
   async handleBackgroundMessage(request, sender, sendResponse) {
     this.domain = getHostName(window.location.href)
+    this.resetSaveOfferStateIfDomainChanged(this.domain)
 
     switch (request.type) {
       case EVENT_TYPES.REFRESH_TOKENS:
@@ -284,6 +334,10 @@ class ContentScriptInjector {
       this.logos = []
     }
 
+    if (this.pendingTotp) {
+      this.schedulePendingTotpFill()
+    }
+
     // Check if injection is disabled for this platform (future-proof for special cases)
     const platformInfo = getPlatformInfo(this.domain)
     if (platformInfo.hasPlatformRules) {
@@ -318,6 +372,8 @@ class ContentScriptInjector {
         this.logins = []
         this.authError = securityCheck.warningType
         this.injectLogo()
+        this.maybeOpenInlinePopupFromPending()
+        this.maybeAutoOpenInlinePopup()
         log.warn(`Logo injected with security warning: ${securityCheck.warningType}`)
         return
       }
@@ -330,8 +386,12 @@ class ContentScriptInjector {
         })
 
         this.logins = logins
+        this.buildLoginIndex(logins)
         this.authError = null
         this.injectLogo()
+        this.maybeOpenInlinePopupFromPending()
+        this.maybeAutoOpenInlinePopup()
+        this.maybeAutoFillLogins()
 
         log.success(`Passwall ready: ${logins.length} login(s) for ${this.domain}`)
       } catch (error) {
@@ -340,16 +400,22 @@ class ContentScriptInjector {
           // User not logged in - still show logo but with empty logins
           // Popup will show authentication message
           this.logins = []
+          this.buildLoginIndex([])
           this.authError = 'NO_AUTH'
           this.injectLogo()
+          this.maybeOpenInlinePopupFromPending()
+          this.maybeAutoOpenInlinePopup()
           // Also surface an in-page notification; background will open login UI best-effort.
           this.showAuthRequiredNotification(error?.message)
           log.warn('User not authenticated - logo will prompt login')
         } else if (error.type === 'NO_LOGINS') {
           // No logins for this domain - still show logo
           this.logins = []
+          this.buildLoginIndex([])
           this.authError = 'NO_LOGINS'
           this.injectLogo()
+          this.maybeOpenInlinePopupFromPending()
+          this.maybeAutoOpenInlinePopup()
           log.info('No logins found for this domain')
         } else if (!error.message?.includes('Receiving end does not exist')) {
           log.error('Failed to fetch logins:', error)
@@ -366,6 +432,294 @@ class ContentScriptInjector {
     }
   }
 
+  buildLoginIndex(logins) {
+    if (this.loginById?.clear) {
+      this.loginById.clear()
+    } else {
+      this.loginById = new Map()
+    }
+
+    const list = Array.isArray(logins) ? logins : []
+    list.forEach((login) => {
+      if (login?.id != null) {
+        this.loginById.set(String(login.id), login)
+      }
+    })
+  }
+
+  getLoginById(itemId) {
+    if (!itemId || !this.loginById) return null
+    return this.loginById.get(String(itemId)) || null
+  }
+
+  getAutoFillCandidates(logins) {
+    const list = Array.isArray(logins) ? logins : []
+    return list.filter((login) => login?.auto_fill !== false)
+  }
+
+  selectAutoFillLogin(candidates) {
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      return null
+    }
+
+    const now = Date.now()
+    const recentLaunched = candidates
+      .filter(
+        (login) =>
+          typeof login?.last_launched_at === 'number' &&
+          login.last_launched_at > 0 &&
+          now - login.last_launched_at < 30_000
+      )
+      .sort((a, b) => (b.last_launched_at || 0) - (a.last_launched_at || 0))
+
+    if (recentLaunched.length > 0) {
+      return recentLaunched[0]
+    }
+
+    const sortedByLastUsed = [...candidates].sort(
+      (a, b) => (b.last_used_at || 0) - (a.last_used_at || 0)
+    )
+
+    return sortedByLastUsed[0] || null
+  }
+
+  pickLoginFieldForAutofill() {
+    if (!Array.isArray(this.loginFields) || this.loginFields.length === 0) {
+      return null
+    }
+
+    const loginFields = this.loginFields.filter(
+      (field) => field?.intent !== FORM_INTENTS.SIGNUP
+    )
+
+    const withPassword = loginFields.find(
+      (field) =>
+        field?.password && field.password.type === INPUT_TYPES.PASSWORD && this.isFieldVisible(field.password)
+    )
+
+    return withPassword || loginFields[0] || null
+  }
+
+  inputHasValue(input) {
+    return !!(input && typeof input.value === 'string' && input.value.trim() !== '')
+  }
+
+  async computePasswordDigest(password) {
+    if (!password) {
+      return ''
+    }
+
+    try {
+      const data = new TextEncoder().encode(String(password))
+      const digest = await crypto.subtle.digest('SHA-256', data)
+      const bytes = new Uint8Array(digest)
+      let binary = ''
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i])
+      }
+      return btoa(binary)
+    } catch {
+      return ''
+    }
+  }
+
+  async recordLoginUsage(itemId, action) {
+    if (!itemId) return
+    try {
+      await sendPayload({
+        type: EVENT_TYPES.UPDATE_LOGIN_USAGE,
+        payload: { itemId, action, domain: this.domain }
+      })
+    } catch {
+      // ignore
+    }
+  }
+
+  shouldSkipAutofillForField(loginField) {
+    if (!loginField) return true
+    const usernameField = loginField.username
+    const passwordField = loginField.password
+    const usernameDistinct = usernameField && usernameField !== passwordField
+
+    if (usernameDistinct && this.inputHasValue(usernameField)) {
+      return true
+    }
+    if (passwordField && this.inputHasValue(passwordField)) {
+      return true
+    }
+
+    return false
+  }
+
+  async maybeAutoFillLogins() {
+    if (this.autoFillInFlight || this.authError || this.loginAsPopup) {
+      return
+    }
+
+    if (!Array.isArray(this.logins) || this.logins.length === 0) {
+      return
+    }
+
+    const loginField = this.pickLoginFieldForAutofill()
+    if (!loginField) {
+      return
+    }
+
+    if (this.shouldSkipAutofillForField(loginField)) {
+      return
+    }
+
+    const currentUrl = window.location.href
+    const recentlyAttempted =
+      this.lastAutoFillAttemptUrl === currentUrl &&
+      Date.now() - this.lastAutoFillAttemptAt < 2500
+    if (recentlyAttempted) {
+      return
+    }
+
+    const candidates = this.getAutoFillCandidates(this.logins)
+    const selectedLogin = this.selectAutoFillLogin(candidates)
+    if (!selectedLogin) {
+      return
+    }
+
+    this.lastAutoFillAttemptUrl = currentUrl
+    this.lastAutoFillAttemptAt = Date.now()
+    this.autoFillInFlight = true
+
+    try {
+      await this.performAutofill(selectedLogin, loginField)
+    } finally {
+      this.autoFillInFlight = false
+    }
+  }
+
+  async performAutofill(login, loginField) {
+    let secret
+    try {
+      secret = await sendPayload({
+        type: EVENT_TYPES.GET_AUTOFILL_SECRET,
+        payload: { itemId: login?.id, domain: this.domain }
+      })
+    } catch (error) {
+      log.warn('Auto-fill failed to fetch secret:', error)
+      return
+    }
+
+    const username = secret?.username || ''
+    const password = secret?.password || ''
+    const filledInputs = []
+
+    const usernameField = loginField?.username
+    const passwordField = loginField?.password
+    const usernameDistinct = usernameField && usernameField !== passwordField
+
+    if (usernameDistinct && username) {
+      this.fillInputWithEvents(usernameField, username)
+      filledInputs.push(usernameField)
+    }
+
+    if (passwordField && password) {
+      this.fillInputWithEvents(passwordField, password)
+      filledInputs.push(passwordField)
+    }
+
+    if (filledInputs.length === 0) {
+      return
+    }
+
+    const passwordDigest = await this.computePasswordDigest(password)
+    this.lastAutofill = { at: Date.now(), username, passwordDigest, itemId: login?.id }
+    this.suppressNextFocusForInputs(filledInputs)
+    await this.recordLoginUsage(login?.id, 'autofill')
+
+    if (login?.auto_login && password) {
+      this.scheduleAutoSubmit(loginField, filledInputs)
+    }
+  }
+
+  isLogoutElement(element) {
+    if (!element) return false
+    const textParts = [
+      element.textContent,
+      typeof element.getAttribute === 'function' ? element.getAttribute('aria-label') : '',
+      typeof element.getAttribute === 'function' ? element.getAttribute('title') : '',
+      typeof element.value === 'string' ? element.value : ''
+    ]
+      .filter(Boolean)
+      .map((value) => String(value).toLowerCase())
+      .join(' ')
+
+    return FORM_INTENT_KEYWORDS.LOGOUT.some((keyword) => textParts.includes(keyword))
+  }
+
+  findSubmitElement(loginField, filledInputs) {
+    const form = loginField?.form || filledInputs?.find((input) => input?.form)?.form || null
+    const root =
+      form ||
+      filledInputs?.[0]?.closest?.('form, div, section, main, article, aside') ||
+      document.body
+
+    if (!root) {
+      return null
+    }
+
+    const elements =
+      root.querySelectorAll?.('button, input[type="submit"], [role="button"], a') || []
+    for (const element of elements) {
+      if (!element) continue
+      if (!this.isFieldVisible(element)) continue
+      if (this.isLogoutElement(element)) continue
+      if (this.isSubmitButton(element) || this.isActionElement(element)) {
+        return element
+      }
+    }
+
+    return null
+  }
+
+  scheduleAutoSubmit(loginField, filledInputs) {
+    const now = Date.now()
+    if (now - this.lastAutoSubmitAt < 1500) {
+      return
+    }
+
+    setTimeout(() => {
+      this.tryAutoSubmit(loginField, filledInputs)
+    }, 150)
+  }
+
+  tryAutoSubmit(loginField, filledInputs) {
+    const now = Date.now()
+    if (now - this.lastAutoSubmitAt < 1500) {
+      return
+    }
+
+    const passwordFilled = (filledInputs || []).some((input) =>
+      this.isPasswordLikeInput(input)
+    )
+    if (!passwordFilled) {
+      return
+    }
+
+    const submitElement = this.findSubmitElement(loginField, filledInputs)
+    if (submitElement) {
+      this.lastAutoSubmitAt = now
+      submitElement.click()
+      return
+    }
+
+    const form = loginField?.form || filledInputs?.find((input) => input?.form)?.form || null
+    if (form) {
+      this.lastAutoSubmitAt = now
+      if (typeof form.requestSubmit === 'function') {
+        form.requestSubmit()
+      } else {
+        form.submit()
+      }
+    }
+  }
+
   /**
    * Setup MutationObserver to detect dynamically added forms/fields
    * Supports SPA and AJAX-loaded content
@@ -377,6 +731,7 @@ class ContentScriptInjector {
     this.mutationObserver = new MutationObserver((mutations) => {
       let shouldRescan = false
       let shouldCleanup = false
+      let shouldCheckTotp = false
 
       for (const mutation of mutations) {
         // Check for added nodes
@@ -393,6 +748,12 @@ class ContentScriptInjector {
                 shouldRescan = true
                 break
               }
+              if (
+                this.pendingTotp &&
+                (node.matches('input') || node.querySelector('input'))
+              ) {
+                shouldCheckTotp = true
+              }
             }
           }
         }
@@ -407,6 +768,9 @@ class ContentScriptInjector {
               target.querySelector?.('input[type="password"]')
             ) {
               shouldRescan = true
+            }
+            if (this.pendingTotp && target.matches?.('input')) {
+              shouldCheckTotp = true
             }
           }
         }
@@ -461,6 +825,10 @@ class ContentScriptInjector {
           log.info('🔄 DOM changed, rescanning for login forms...')
           this.detectAndInjectLogos()
         }, 300) // 300ms debounce
+      }
+
+      if (shouldCheckTotp) {
+        this.schedulePendingTotpFill()
       }
     })
 
@@ -637,6 +1005,234 @@ class ContentScriptInjector {
 
   normalizeText(value) {
     return String(value || '').toLowerCase().trim()
+  }
+
+  normalizeKeyword(value) {
+    return this.normalizeText(value).replace(/[\s_-]/g, '')
+  }
+
+  isTotpInput(input) {
+    if (!input || input.tagName !== 'INPUT') return false
+    if (!this.isFieldVisible(input)) return false
+    if (this.isSearchField(input)) return false
+    if (input.hasAttribute?.('data-passwall-ignore')) return false
+
+    const type = this.normalizeText(input.type)
+    if (['hidden', 'file', 'checkbox', 'radio', 'submit', 'button', 'image', 'reset', 'search'].includes(type)) {
+      return false
+    }
+
+    const descriptor = this.normalizeKeyword(this.getInputDescriptorText(input))
+    if (!descriptor) return false
+
+    const hasLpIgnore = this.hasLpIgnore(input)
+    if (this.shouldIgnoreFieldForCapture(input) && !hasLpIgnore) {
+      return false
+    }
+
+    if (RECOVERY_CODE_FIELD_NAMES.some((keyword) => descriptor.includes(this.normalizeKeyword(keyword)))) {
+      return false
+    }
+
+    if (TOTP_FIELD_NAMES.some((keyword) => descriptor.includes(this.normalizeKeyword(keyword)))) {
+      return true
+    }
+
+    const hasAmbiguousKeyword = AMBIGUOUS_TOTP_FIELD_NAMES.some((keyword) =>
+      descriptor.includes(this.normalizeKeyword(keyword))
+    )
+    if (!hasAmbiguousKeyword) {
+      return this.hasTotpAutocomplete(input)
+    }
+
+    return this.hasTotpAutocomplete(input) || this.isLikelyTotpNumericField(input)
+  }
+
+  hasTotpAutocomplete(input) {
+    const autocomplete = this.normalizeKeyword(input?.getAttribute?.('autocomplete'))
+    if (!autocomplete) return false
+    return TOTP_AUTOCOMPLETE_VALUES.some((keyword) => autocomplete.includes(this.normalizeKeyword(keyword)))
+  }
+
+  isLikelyTotpNumericField(input) {
+    const inputMode = this.normalizeText(input?.getAttribute?.('inputmode'))
+    const type = this.normalizeText(input?.type)
+    const pattern = this.normalizeText(input?.getAttribute?.('pattern'))
+    const maxLength = Number(input?.maxLength) || 0
+
+    return (
+      inputMode === 'numeric' ||
+      type === 'number' ||
+      /\d/.test(pattern) ||
+      (maxLength > 0 && maxLength <= 10)
+    )
+  }
+
+  hasLpIgnore(input) {
+    if (!input) return false
+    return (
+      input.hasAttribute?.('data-lpignore') ||
+      input.hasAttribute?.('data-lp-ignore') ||
+      input.hasAttribute?.('lpignore')
+    )
+  }
+
+  getTotpInputs(root) {
+    const scope = root || document
+    const inputs = Array.from(scope.querySelectorAll?.('input') || [])
+    return inputs.filter((input) => this.isTotpInput(input))
+  }
+
+  sortInputsByPosition(inputs) {
+    return [...inputs].sort((a, b) => {
+      const rectA = a.getBoundingClientRect()
+      const rectB = b.getBoundingClientRect()
+      if (rectA.top === rectB.top) {
+        return rectA.left - rectB.left
+      }
+      return rectA.top - rectB.top
+    })
+  }
+
+  fillTotpInputs(inputs, totpCode) {
+    if (!Array.isArray(inputs) || inputs.length === 0 || !totpCode) {
+      return []
+    }
+
+    const visibleInputs = inputs.filter((input) => this.isFieldVisible(input))
+    if (visibleInputs.length === 0) {
+      return []
+    }
+
+    const sortedInputs = this.sortInputsByPosition(visibleInputs)
+    const isSegmented =
+      sortedInputs.length > 1 &&
+      sortedInputs.every((input) => {
+        const maxLength = Number(input?.maxLength) || 0
+        return maxLength === 1 || this.isLikelyTotpNumericField(input)
+      })
+
+    if (!isSegmented) {
+      this.fillInputWithEvents(sortedInputs[0], totpCode)
+      return [sortedInputs[0]]
+    }
+
+    const digits = String(totpCode).split('')
+    const filled = []
+    for (let i = 0; i < sortedInputs.length && i < digits.length; i += 1) {
+      this.fillInputWithEvents(sortedInputs[i], digits[i])
+      filled.push(sortedInputs[i])
+    }
+    return filled
+  }
+
+  setPendingTotp({ itemId, secret }) {
+    if (!itemId || !secret) return
+
+    this.pendingTotp = {
+      itemId,
+      secret,
+      domain: this.domain,
+      at: Date.now()
+    }
+
+    sendPayload({
+      type: EVENT_TYPES.SET_PENDING_TOTP,
+      payload: {
+        itemId,
+        totp_secret: secret,
+        domain: this.domain
+      }
+    }).catch(() => {})
+  }
+
+  clearPendingTotp() {
+    this.pendingTotp = null
+    sendPayload({ type: EVENT_TYPES.CLEAR_PENDING_TOTP }).catch(() => {})
+  }
+
+  isPendingTotpValid() {
+    if (!this.pendingTotp) return false
+    if (this.pendingTotp.domain !== this.domain) {
+      this.clearPendingTotp()
+      return false
+    }
+    if (Date.now() - this.pendingTotp.at > PENDING_TOTP_TTL_MS) {
+      this.clearPendingTotp()
+      return false
+    }
+    return true
+  }
+
+  schedulePendingTotpFill() {
+    if (this.pendingTotpFillTimeout) {
+      clearTimeout(this.pendingTotpFillTimeout)
+    }
+    this.pendingTotpFillTimeout = setTimeout(() => {
+      this.maybeFillPendingTotp()
+    }, 250)
+  }
+
+  maybeFillPendingTotp(targetInput) {
+    if (this.pendingTotpFillInFlight) {
+      return false
+    }
+    if (!this.isPendingTotpValid()) {
+      return false
+    }
+
+    if ([SECURITY_WARNINGS.INSECURE_HTTP, SECURITY_WARNINGS.SUSPICIOUS_URL].includes(this.authError)) {
+      return false
+    }
+
+    this.pendingTotpFillInFlight = true
+    try {
+      const container =
+        targetInput?.closest?.('form') ||
+        targetInput?.closest?.('div, section, main, article, aside') ||
+        document.body
+      const inputs = this.getTotpInputs(container)
+      if (inputs.length === 0) {
+        return false
+      }
+
+      const totpCode = totpService.generateCode(this.pendingTotp.secret)
+      if (!totpCode) {
+        this.clearPendingTotp()
+        return false
+      }
+
+      const filledInputs = this.fillTotpInputs(inputs, totpCode)
+      if (filledInputs.length === 0) {
+        return false
+      }
+
+      this.suppressNextFocusForInputs(filledInputs)
+      this.clearPendingTotp()
+      return true
+    } finally {
+      this.pendingTotpFillInFlight = false
+    }
+  }
+
+  async loadPendingTotp() {
+    try {
+      const pending = await sendPayload({
+        type: EVENT_TYPES.GET_PENDING_TOTP,
+        payload: { domain: this.domain }
+      })
+      if (pending?.totp_secret && pending?.itemId) {
+        this.pendingTotp = {
+          itemId: pending.itemId,
+          secret: pending.totp_secret,
+          domain: this.domain,
+          at: Date.now()
+        }
+        this.schedulePendingTotpFill()
+      }
+    } catch {
+      // ignore
+    }
   }
 
   getInputDescriptorText(input) {
@@ -905,6 +1501,20 @@ class ContentScriptInjector {
     return local.password || ''
   }
 
+  isVaultDomain() {
+    const hostname = this.domain || getHostName(window.location.href) || ''
+    return hostname === 'vault.passwall.io'
+  }
+
+  isDomainInList(domains) {
+    const hostname = this.domain || getHostName(window.location.href) || ''
+    return domains.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`))
+  }
+
+  isEdevletDomain() {
+    return this.isDomainInList(['turkiye.gov.tr'])
+  }
+
   /**
    * Resolve the best container for credential extraction
    * @param {HTMLElement} startElement
@@ -1139,7 +1749,7 @@ class ContentScriptInjector {
     for (const field of candidateFields) {
       // Skip if same field or not visible
       if (field === passwordField || !this.isFieldVisible(field)) continue
-      if (shouldIgnoreField(field, this.domain)) continue
+      if (this.shouldIgnoreFieldForCapture(field)) continue
       if (this.isSearchField(field)) continue
 
       // Username field should come before password field in DOM
@@ -1193,7 +1803,7 @@ class ContentScriptInjector {
       (input) =>
         input.type === 'password' &&
         this.isFieldVisible(input) &&
-        !shouldIgnoreField(input, this.domain)
+        !this.shouldIgnoreFieldForCapture(input)
     )
 
     log.info(`Found ${passwordFields.length} password field(s)`)
@@ -1418,6 +2028,8 @@ class ContentScriptInjector {
       this.logins = []
       this.authError = securityCheck.warningType
       this.injectLogo()
+      this.maybeOpenInlinePopupFromPending()
+      this.maybeAutoOpenInlinePopup()
       log.warn(`Multi-step logo injected with security warning: ${securityCheck.warningType}`)
       return
     }
@@ -1432,15 +2044,21 @@ class ContentScriptInjector {
       this.logins = logins
       this.authError = null
       log.success(`Passwall ready (multi-step): ${logins.length} login(s) for ${this.domain}`)
+      this.maybeOpenInlinePopupFromPending()
+      this.maybeAutoOpenInlinePopup()
     } catch (error) {
       if (error.type === 'NO_AUTH' || error.type === 'AUTH_EXPIRED') {
         this.logins = []
         this.authError = 'NO_AUTH'
         this.showAuthRequiredNotification(error?.message)
+        this.maybeOpenInlinePopupFromPending()
+        this.maybeAutoOpenInlinePopup()
         log.warn('User not authenticated - logo will prompt login (multi-step)')
       } else if (error.type === 'NO_LOGINS') {
         this.logins = []
         this.authError = 'NO_LOGINS'
+        this.maybeOpenInlinePopupFromPending()
+        this.maybeAutoOpenInlinePopup()
         log.info('No logins found for this domain (multi-step)')
       }
     }
@@ -1462,7 +2080,7 @@ class ContentScriptInjector {
       (input) =>
         input.type === 'password' &&
         this.isFieldVisible(input) &&
-        !shouldIgnoreField(input, this.domain)
+        !this.shouldIgnoreFieldForCapture(input)
     )
 
     if (!passwordInputExists) {
@@ -1518,7 +2136,8 @@ class ContentScriptInjector {
 
       // Valid login form must have at least one password field
       const passwordField = inputs.find(
-        (input) => input.type === INPUT_TYPES.PASSWORD && !shouldIgnoreField(input, this.domain)
+        (input) =>
+          input.type === INPUT_TYPES.PASSWORD && !this.shouldIgnoreFieldForCapture(input)
       )
       if (!passwordField) return
 
@@ -1536,7 +2155,7 @@ class ContentScriptInjector {
         }
 
         // Check platform-specific exclusions (AWS account ID, Azure tenant ID, etc.)
-        if (shouldIgnoreField(input, this.domain)) {
+        if (this.shouldIgnoreFieldForCapture(input)) {
           log.info(`Skipping platform-excluded field: ${input.name || input.id}`)
           return false
         }
@@ -1624,7 +2243,7 @@ class ContentScriptInjector {
       (input) =>
         relevantTypes.includes(input.type) &&
         this.isFieldVisible(input) &&
-        !shouldIgnoreField(input, this.domain)
+        !this.shouldIgnoreFieldForCapture(input)
     )
   }
 
@@ -1908,14 +2527,19 @@ class ContentScriptInjector {
    * @param {HTMLElement} targetInput - Input element to position popup near
    * @private
    */
-  showLoginSelector(targetInput, clickEvent) {
+  showLoginSelector(targetInput, clickEvent, options = {}) {
     // Require a trusted user gesture to open the autofill UI
-    if (!clickEvent?.isTrusted) {
+    if (!clickEvent?.isTrusted && !options?.allowUntrusted) {
       return
+    }
+    if (options?.allowUntrusted && !clickEvent?.isTrusted) {
     }
 
     if (this.loginAsPopup) {
       if (this.loginAsPopupTarget === targetInput) {
+        if (options?.skipToggleClose) {
+          return
+        }
         this.closeLoginPopup()
         return
       }
@@ -1948,13 +2572,24 @@ class ContentScriptInjector {
     log.info(`🚀 Logo clicked! Creating popup with ${popupLogins.length} logins`)
 
     this.closeLoginPopup()
+    const popupLoginField = this.findLoginFieldForInput(targetInput)
     const popup = new LoginAsPopup(
       targetInput,
       popupLogins,
       this.forms,
       this.authError,
-      ({ at, username, passwordDigest, itemId }) => {
+      ({ at, username, passwordDigest, itemId, filledInputs, totpSecret }) => {
         this.lastAutofill = { at, username, passwordDigest, itemId }
+        this.suppressNextFocusForInputs(filledInputs)
+        this.recordLoginUsage(itemId, 'manual')
+        if (totpSecret) {
+          this.setPendingTotp({ itemId, secret: totpSecret })
+          this.maybeFillPendingTotp()
+        }
+        const selectedLogin = this.getLoginById(itemId)
+        if (selectedLogin?.auto_login) {
+          this.scheduleAutoSubmit(popupLoginField, filledInputs)
+        }
       }
     )
 
@@ -2020,6 +2655,189 @@ class ContentScriptInjector {
   }
 
   /**
+   * Setup inline menu triggers for focus events
+   * @private
+   */
+  setupInlineMenuTriggers() {
+    document.addEventListener('focusin', this.handleInlineMenuFocus.bind(this), true)
+  }
+
+  /**
+   * Handle inline menu display on input focus
+   * @param {FocusEvent} event
+   * @private
+   */
+  handleInlineMenuFocus(event) {
+    const input = event?.target
+    if (!input || input.tagName !== 'INPUT') {
+      return
+    }
+
+    if (this.autofillIgnoreFocusInputs?.has(input)) {
+      this.autofillIgnoreFocusInputs.delete(input)
+      return
+    }
+
+    if (!this.isFieldVisible(input)) {
+      return
+    }
+
+    if (this.pendingTotp && this.isTotpInput(input)) {
+      if (this.maybeFillPendingTotp(input)) {
+        return
+      }
+    }
+
+    if (this.isSearchField(input) || this.shouldIgnoreFieldForCapture(input)) {
+      return
+    }
+
+    if (this.loginAsPopup && this.loginAsPopupTarget && this.loginAsPopupTarget !== input) {
+      return
+    }
+
+    let loginField = this.findLoginFieldForInput(input)
+    if (!loginField) {
+      if (!this.isLikelyCredentialInput(input)) {
+        return
+      }
+      loginField = { intent: FORM_INTENTS.LOGIN }
+    }
+
+    if (loginField.intent === FORM_INTENTS.SIGNUP) {
+      return
+    }
+
+    if (!this.authError && (!this.logins || this.logins.length === 0)) {
+      this.pendingInlineFocusInput = input
+      if (!this.inlineFocusFetchInFlight) {
+        this.inlineFocusFetchInFlight = true
+        Promise.resolve(this.detectAndInjectLogos())
+          .catch(() => {})
+          .finally(() => {
+            this.inlineFocusFetchInFlight = false
+          })
+      }
+      return
+    }
+
+    this.showLoginSelector(input, event, { skipToggleClose: true })
+  }
+
+  /**
+   * Attempt to open popup for a pending focus input
+   * @private
+   */
+  maybeOpenInlinePopupFromPending() {
+    const input = this.pendingInlineFocusInput
+    if (!input) return
+
+    if (document.activeElement !== input) {
+      this.pendingInlineFocusInput = null
+      return
+    }
+
+    if (!this.isFieldVisible(input)) {
+      this.pendingInlineFocusInput = null
+      return
+    }
+
+    if (this.isSearchField(input) || this.shouldIgnoreFieldForCapture(input)) {
+      this.pendingInlineFocusInput = null
+      return
+    }
+
+    let loginField = this.findLoginFieldForInput(input)
+    if (!loginField) {
+      if (!this.isLikelyCredentialInput(input)) {
+        this.pendingInlineFocusInput = null
+        return
+      }
+      loginField = { intent: FORM_INTENTS.LOGIN }
+    }
+
+    if (loginField.intent === FORM_INTENTS.SIGNUP) {
+      this.pendingInlineFocusInput = null
+      return
+    }
+
+    if (!this.authError && (!this.logins || this.logins.length === 0)) {
+      return
+    }
+
+    this.pendingInlineFocusInput = null
+    this.showLoginSelector(input, { isTrusted: true }, { skipToggleClose: true })
+  }
+
+  /**
+   * Auto-open inline popup on trusted hosts after refresh
+   * @private
+   */
+  maybeAutoOpenInlinePopup() {
+    const domain = this.domain || ''
+    if (!this.autoPopupHosts?.has?.(domain)) {
+      return
+    }
+
+    if (this.loginAsPopup || this.pendingInlineFocusInput) {
+      return
+    }
+
+    const activeTag = document.activeElement?.tagName
+    if (activeTag && activeTag !== 'BODY' && activeTag !== 'HTML') {
+      return
+    }
+
+    if (!this.authError && (!this.logins || this.logins.length === 0)) {
+      return
+    }
+
+    const loginField =
+      this.loginFields?.find((field) => field?.username) ||
+      this.loginFields?.[0] ||
+      null
+    const targetInput = loginField?.username || loginField?.password || null
+    if (!targetInput) {
+      return
+    }
+
+    this.showLoginSelector(targetInput, { isTrusted: false }, { skipToggleClose: true, allowUntrusted: true })
+  }
+
+  /**
+   * Suppress focus-triggered popup for autofilled inputs
+   * @param {HTMLInputElement[]} inputs
+   * @private
+   */
+  suppressNextFocusForInputs(inputs) {
+    if (!Array.isArray(inputs) || inputs.length === 0) {
+      return
+    }
+
+    inputs.forEach((input) => {
+      if (input && typeof this.autofillIgnoreFocusInputs?.add === 'function') {
+        this.autofillIgnoreFocusInputs.add(input)
+      }
+    })
+  }
+
+  /**
+   * Find matching loginField for input
+   * @param {HTMLInputElement} input
+   * @returns {LoginField|null}
+   * @private
+   */
+  findLoginFieldForInput(input) {
+    if (!input || !this.loginFields?.length) return null
+
+    return (
+      this.loginFields.find(
+        (field) => field?.username === input || field?.password === input
+      ) || null
+    )
+  }
+
+  /**
    * Clean up all injected elements and listeners
    * @private
    */
@@ -2040,6 +2858,13 @@ class ContentScriptInjector {
       this.rescanTimeout = null
     }
 
+    if (this.pendingTotpFillTimeout) {
+      clearTimeout(this.pendingTotpFillTimeout)
+      this.pendingTotpFillTimeout = null
+    }
+
+    this.clearPendingTotp()
+
     // Clear data
     this.logins = []
     this.authError = null
@@ -2047,6 +2872,7 @@ class ContentScriptInjector {
     this.loginFields = []
     this.popupMessageListeners = []
     this.processedFields = new WeakSet()
+    this.pendingTotp = null
     this.submittedFormData = null
     this.saveNotificationShown = false
     this.closePasswordSuggestionPopup()
@@ -2193,6 +3019,10 @@ class ContentScriptInjector {
     }
 
     if (isPassword || isUsername) {
+      this.blockSaveOffer = false
+    }
+
+    if (isPassword || isUsername) {
       // Find form or container
       const form = input.closest('form')
       const container = form || input.closest('div, section, main') || document.body
@@ -2242,6 +3072,12 @@ class ContentScriptInjector {
 
     if (intent === FORM_INTENTS.LOGOUT) {
       log.info('🚫 Logout intent detected, skipping credential capture')
+      this.blockSaveOffer = true
+      return
+    }
+
+    if (!this.hasVisiblePasswordInput(formInputs)) {
+      log.info('🚫 No visible password fields in submitted form, skipping save offer')
       return
     }
 
@@ -2388,6 +3224,12 @@ class ContentScriptInjector {
 
     if (intent === FORM_INTENTS.LOGOUT) {
       log.info('🚫 Logout intent detected, skipping credential capture')
+      this.blockSaveOffer = true
+      return
+    }
+
+    if (!this.hasVisiblePasswordInput(contextInputs)) {
+      log.info('🚫 No visible password fields in submit context, skipping save offer')
       return
     }
 
@@ -2670,7 +3512,8 @@ class ContentScriptInjector {
         ['email', 'text', 'tel'].includes(input.type) &&
         input.value &&
         input !== passwordField &&
-        !this.shouldIgnoreFieldForCapture(input)
+        !this.shouldIgnoreFieldForCapture(input) &&
+        !this.isCaptchaFieldForCapture(input)
     )
 
     if (usernameFields.length === 0) {
@@ -2680,6 +3523,7 @@ class ContentScriptInjector {
         if (!input.value) return false
         if (input === passwordField) return false
         if (this.shouldIgnoreFieldForCapture(input)) return false
+        if (this.isCaptchaFieldForCapture(input)) return false
 
         const fieldType = this.identifyFieldType(input)
         const autocomplete = (input.getAttribute('autocomplete') || '').toLowerCase()
@@ -2705,6 +3549,10 @@ class ContentScriptInjector {
       }
 
       if (fallbackUsername) {
+        if (this.isEdevletDomain()) {
+          log.info('⏭️ e-Devlet detected, skipping fallback username')
+          return null
+        }
         return {
           username: fallbackUsername,
           password: resolvedPassword,
@@ -2885,6 +3733,130 @@ class ContentScriptInjector {
   }
 
   /**
+   * Check if inputs contain a visible password field
+   * @param {HTMLInputElement[]} inputs
+   * @returns {boolean}
+   * @private
+   */
+  hasVisiblePasswordInput(inputs) {
+    if (!Array.isArray(inputs)) return false
+    const result = inputs.some((input) => {
+      if (!input || input.tagName !== 'INPUT') return false
+      if (!this.isFieldVisible(input)) return false
+      if (this.shouldIgnoreFieldForCapture(input)) return false
+      return this.isPasswordLikeInput(input)
+    })
+    return result
+  }
+
+  /**
+   * Treat password reveal inputs as password-like
+   * @param {HTMLInputElement} input
+   * @returns {boolean}
+   * @private
+   */
+  isPasswordLikeInput(input) {
+    const inputType = (input?.type || '').toLowerCase()
+    const inputName = (input?.name || '').toLowerCase()
+    const inputId = (input?.id || '').toLowerCase()
+    const autocomplete = this.normalizeText(input?.autocomplete)
+
+    return (
+      inputType === INPUT_TYPES.PASSWORD ||
+      autocomplete === 'current-password' ||
+      autocomplete === 'new-password' ||
+      inputName.includes('password') ||
+      inputName.includes('passwd') ||
+      inputName.includes('pwd') ||
+      inputId.includes('password') ||
+      inputId.includes('passwd') ||
+      inputId.includes('pwd')
+    )
+  }
+
+  isCaptchaFieldForCapture(input) {
+    if (!input) return false
+    const type = (input.type || '').toLowerCase()
+    const name = (input.name || '').toLowerCase()
+    const id = (input.id || '').toLowerCase()
+    const placeholder = (input.placeholder || '').toLowerCase()
+    const ariaLabel = (input.getAttribute?.('aria-label') || '').toLowerCase()
+    const labelText = (input.getAttribute?.('title') || '').toLowerCase()
+    const combined = [name, id, placeholder, ariaLabel, labelText].join(' ')
+
+    const keywordMatch =
+      combined.includes('captcha') ||
+      combined.includes('güvenlik') ||
+      combined.includes('guvenlik') ||
+      combined.includes('doğrulama') ||
+      combined.includes('dogrulama') ||
+      combined.includes('verification') ||
+      combined.includes('security code') ||
+      combined.includes('güvenlik kodu') ||
+      combined.includes('guvenlik kodu')
+
+    if (keywordMatch) return true
+
+    if (type === 'text') {
+      const maxLength = Number(input.maxLength || 0)
+      if (maxLength > 0 && maxLength <= 6) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  /**
+   * Reset save-offer state when domain changes
+   * @param {string} nextDomain
+   * @private
+   */
+  resetSaveOfferStateIfDomainChanged(nextDomain) {
+    const normalized = String(nextDomain || '').trim()
+    if (!normalized) return
+    if (this.saveOfferDomain && this.saveOfferDomain === normalized) {
+      return
+    }
+
+    this.saveOfferDomain = normalized
+    this.saveOfferHistory?.clear?.()
+    this.saveOfferInFlight?.clear?.()
+    this.blockSaveOffer = false
+  }
+
+  /**
+   * Build a stable key for save offer dedupe
+   * @param {Object} credentials
+   * @param {string} intent
+   * @returns {Promise<string>}
+   * @private
+   */
+  async buildSaveOfferKey(credentials, intent) {
+    const username = String(credentials?.username || '').trim().toLowerCase()
+    const domain = getDomain(credentials?.url || '') || this.domain || ''
+    const password = credentials?.password || ''
+    let passwordDigest = ''
+
+    if (password) {
+      try {
+        const data = new TextEncoder().encode(String(password))
+        const digest = await crypto.subtle.digest('SHA-256', data)
+        const bytes = new Uint8Array(digest)
+        let binary = ''
+        for (let i = 0; i < bytes.length; i++) {
+          binary += String.fromCharCode(bytes[i])
+        }
+        passwordDigest = btoa(binary)
+      } catch {
+        passwordDigest = ''
+      }
+    }
+
+    return [domain, intent || '', username, passwordDigest].join('|')
+  }
+
+  /**
    * Check if we should offer to save these credentials.
    * Note: password is optional, but used to prefill the popup.
    * @param {Object} credentials - {username, password, url}
@@ -2894,9 +3866,37 @@ class ContentScriptInjector {
     log.info('🔍 Checking if should offer save...')
     const intent = options.intent || FORM_INTENTS.LOGIN
 
+    if (this.isVaultDomain()) {
+      log.info('⏭️ Vault domain detected, skipping save offer')
+      return
+    }
+
+    if (this.blockSaveOffer) {
+      log.info('⏭️ Save offer blocked (logout flow), skipping')
+      return
+    }
+
+    let offerKey = null
+    try {
+      offerKey = await this.buildSaveOfferKey(credentials, intent)
+    } catch {
+      offerKey = null
+    }
+
+    if (offerKey) {
+      if (this.saveOfferHistory?.has?.(offerKey) || this.saveOfferInFlight?.has?.(offerKey)) {
+        log.info('⏭️ Duplicate save offer detected, skipping')
+        return
+      }
+      this.saveOfferInFlight?.add?.(offerKey)
+    }
+
     // Don't show notification multiple times
     if (this.saveNotificationShown) {
       log.info('⏭️ Save notification already shown, skipping')
+      if (offerKey) {
+        this.saveOfferInFlight?.delete?.(offerKey)
+      }
       return
     }
 
@@ -2954,16 +3954,25 @@ class ContentScriptInjector {
     // Check if this looks like a login form (not logout, registration, etc.)
     if (intent === FORM_INTENTS.LOGOUT) {
       log.info('🚫 Logout intent detected, skipping save offer')
+      if (offerKey) {
+        this.saveOfferInFlight?.delete?.(offerKey)
+      }
       return
     }
 
     if (intent === FORM_INTENTS.LOGIN && !this.isLikelyLoginForm(credentials)) {
       log.info('🚫 Form does not appear to be a login form, skipping save offer')
+      if (offerKey) {
+        this.saveOfferInFlight?.delete?.(offerKey)
+      }
       return
     }
 
     if (intent === FORM_INTENTS.SIGNUP && !credentials?.password) {
       log.info('🚫 Signup intent but password missing, skipping save offer')
+      if (offerKey) {
+        this.saveOfferInFlight?.delete?.(offerKey)
+      }
       return
     }
 
@@ -2991,6 +4000,10 @@ class ContentScriptInjector {
         null,
         'offer_add_signup_no_username'
       )
+      if (offerKey) {
+        this.saveOfferInFlight?.delete?.(offerKey)
+        this.saveOfferHistory?.add?.(offerKey)
+      }
       return
     }
 
@@ -3046,6 +4059,10 @@ class ContentScriptInjector {
           match,
           'offer_update'
         )
+        if (offerKey) {
+          this.saveOfferInFlight?.delete?.(offerKey)
+          this.saveOfferHistory?.add?.(offerKey)
+        }
         return
       }
 
@@ -3067,8 +4084,15 @@ class ContentScriptInjector {
         null,
         'offer_add'
       )
+      if (offerKey) {
+        this.saveOfferInFlight?.delete?.(offerKey)
+        this.saveOfferHistory?.add?.(offerKey)
+      }
     } catch (error) {
       log.error('❌ Error checking existing logins:', error)
+      if (offerKey) {
+        this.saveOfferInFlight?.delete?.(offerKey)
+      }
 
       // Handle authentication errors
       if (error.type === 'NO_AUTH' || error.type === 'AUTH_EXPIRED') {

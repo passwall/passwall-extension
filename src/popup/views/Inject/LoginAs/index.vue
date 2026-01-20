@@ -132,19 +132,19 @@ export default {
      * Searches in: title, url, username
      */
     filteredLogins() {
-      if (!this.searchQuery || this.searchQuery.trim() === '') {
-        return this.logins
-      }
+      const list = Array.isArray(this.logins) ? this.logins : []
+      const query = this.searchQuery ? this.searchQuery.toLowerCase().trim() : ''
+      const filtered = query
+        ? list.filter((login) => {
+            const title = (login.title || '').toLowerCase()
+            const url = (login.url || '').toLowerCase()
+            const username = (login.username || '').toLowerCase()
 
-      const query = this.searchQuery.toLowerCase().trim()
+            return title.includes(query) || url.includes(query) || username.includes(query)
+          })
+        : list
 
-      return this.logins.filter((login) => {
-        const title = (login.title || '').toLowerCase()
-        const url = (login.url || '').toLowerCase()
-        const username = (login.username || '').toLowerCase()
-
-        return title.includes(query) || url.includes(query) || username.includes(query)
-      })
+      return this.sortLoginsByRecent(filtered)
     },
     displayDomain() {
       return this.currentDomain || 'This site'
@@ -185,6 +185,22 @@ export default {
     })
   },
   methods: {
+    sortLoginsByRecent(logins) {
+      if (!Array.isArray(logins)) {
+        return []
+      }
+
+      return [...logins].sort((a, b) => {
+        const aRecent = Math.max(a?.last_launched_at || 0, a?.last_used_at || 0)
+        const bRecent = Math.max(b?.last_launched_at || 0, b?.last_used_at || 0)
+        if (aRecent === bRecent) {
+          const aTitle = (a?.title || '').toLowerCase()
+          const bTitle = (b?.title || '').toLowerCase()
+          return aTitle.localeCompare(bTitle)
+        }
+        return bRecent - aRecent
+      })
+    },
     closePopup() {
       this.messageToContentScript({ type: 'LOGIN_AS_POPUP_CLOSE' })
     },
