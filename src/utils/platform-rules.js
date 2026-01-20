@@ -154,6 +154,18 @@ export const PLATFORM_RULES = [
       labels: ['company id', 'domain'],
       patterns: [/company.?id/i, /workspace.?domain/i]
     }
+  },
+  {
+    name: 'Passwall Vault',
+    domains: ['vault.passwall.io'],
+    description: 'Vault UI fields should not trigger credential capture',
+    loginSteps: 1,
+    excludeFields: {
+      names: ['pin'],
+      ids: ['pin'],
+      labels: ['pin'],
+      patterns: [/pin/i]
+    }
   }
 ]
 

@@ -11,6 +11,7 @@ import Storage from '@/utils/storage'
 import SessionStorage, { SESSION_KEYS } from '@/utils/session-storage'
 import * as Helpers from '@/utils/helpers'
 import { EVENT_TYPES } from '@/utils/constants'
+import { PIN_STORAGE_KEYS, clearPinData, hasPinProtection } from '@/utils/pin-storage'
 
 // Build-time injected dev flag (guarded for tests)
 const DEV_MODE = typeof __DEV_MODE__ !== 'undefined' ? __DEV_MODE__ : false
@@ -44,6 +45,40 @@ async function getOrCreateExtensionDeviceId(email) {
       : createUUIDv4()
   await Storage.setItem(key, newId)
   return newId
+}
+
+const PIN_KDF_ITERATIONS = 300000
+const PIN_MIN_LENGTH = 4
+const PIN_MAX_LENGTH = 12
+const PIN_LOCK_THRESHOLD = 5
+
+const normalizePin = (pin) => String(pin || '').trim()
+
+const isValidPin = (pin) => /^\d+$/.test(pin) && pin.length >= PIN_MIN_LENGTH && pin.length <= PIN_MAX_LENGTH
+
+async function persistSessionKeys(userKey, masterKey) {
+  const userKeyB64 = userKey ? cryptoService.arrayToBase64(userKey.toBytes()) : null
+  const masterKeyB64 = masterKey ? cryptoService.arrayToBase64(masterKey) : null
+
+  if (SessionStorage.isSupported()) {
+    try {
+      await SessionStorage.setAccessLevelTrustedContexts()
+      const items = []
+      if (userKeyB64) items.push(SessionStorage.setItem(SESSION_KEYS.userKey, userKeyB64))
+      if (masterKeyB64) items.push(SessionStorage.setItem(SESSION_KEYS.masterKey, masterKeyB64))
+      await Promise.all(items)
+      return
+    } catch {
+      // Fallback
+    }
+  }
+
+  if (userKeyB64) {
+    window?.sessionStorage?.setItem?.('userKey', userKeyB64)
+  }
+  if (masterKeyB64) {
+    window?.sessionStorage?.setItem?.('masterKey', masterKeyB64)
+  }
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -122,13 +157,16 @@ export const useAuthStore = defineStore('auth', {
         }
       }
 
-      // Security check: If user is logged in but userKey is missing, force logout
+      // Security check: If user is logged in but userKey is missing, allow PIN unlock if configured
       if (access_token && !this.userKey) {
-        if (DEV_MODE) {
-          console.warn('User key missing but access token exists. Forcing logout for security...')
+        const hasPin = await hasPinProtection()
+        if (!hasPin) {
+          if (DEV_MODE) {
+            console.warn('User key missing and no PIN. Forcing logout for security...')
+          }
+          await this.logout()
+          return
         }
-        await this.logout()
-        return
       }
 
       // Configure HTTP client
@@ -210,26 +248,7 @@ export const useAuthStore = defineStore('auth', {
       ])
 
       // 9. Store keys in session storage (cleared on browser close)
-      const userKeyB64 = cryptoService.arrayToBase64(this.userKey.toBytes())
-      const masterKeyB64 = cryptoService.arrayToBase64(this.masterKey)
-
-      if (SessionStorage.isSupported()) {
-        try {
-          await SessionStorage.setAccessLevelTrustedContexts()
-          await Promise.all([
-            SessionStorage.setItem(SESSION_KEYS.userKey, userKeyB64),
-            SessionStorage.setItem(SESSION_KEYS.masterKey, masterKeyB64)
-          ])
-        } catch {
-          // Fallback
-          window?.sessionStorage?.setItem?.('userKey', userKeyB64)
-          window?.sessionStorage?.setItem?.('masterKey', masterKeyB64)
-        }
-      } else {
-        // Fallback for environments without storage.session
-        window?.sessionStorage?.setItem?.('userKey', userKeyB64)
-        window?.sessionStorage?.setItem?.('masterKey', masterKeyB64)
-      }
+      await persistSessionKeys(this.userKey, this.masterKey)
 
       // 10. Notify background script
       Helpers.messageToBackground({ type: EVENT_TYPES.LOGIN })
@@ -298,26 +317,7 @@ export const useAuthStore = defineStore('auth', {
       ])
 
       // 12. Store keys in session storage
-      const userKeyB64 = cryptoService.arrayToBase64(this.userKey.toBytes())
-      const masterKeyB64 = cryptoService.arrayToBase64(this.masterKey)
-
-      if (SessionStorage.isSupported()) {
-        try {
-          await SessionStorage.setAccessLevelTrustedContexts()
-          await Promise.all([
-            SessionStorage.setItem(SESSION_KEYS.userKey, userKeyB64),
-            SessionStorage.setItem(SESSION_KEYS.masterKey, masterKeyB64)
-          ])
-        } catch {
-          // Fallback
-          window?.sessionStorage?.setItem?.('userKey', userKeyB64)
-          window?.sessionStorage?.setItem?.('masterKey', masterKeyB64)
-        }
-      } else {
-        // Fallback for environments without storage.session
-        window?.sessionStorage?.setItem?.('userKey', userKeyB64)
-        window?.sessionStorage?.setItem?.('masterKey', masterKeyB64)
-      }
+      await persistSessionKeys(this.userKey, this.masterKey)
 
       // 13. Notify background script
       Helpers.messageToBackground({ type: EVENT_TYPES.LOGIN })
@@ -385,6 +385,8 @@ export const useAuthStore = defineStore('auth', {
         window?.sessionStorage?.removeItem?.('masterKey')
       }
 
+      await clearPinData()
+
       // Preserve email and server for convenience
       const email = await Storage.getItem('email')
       const server = await Storage.getItem('server')
@@ -394,6 +396,113 @@ export const useAuthStore = defineStore('auth', {
       await Promise.all([Storage.setItem('email', email), Storage.setItem('server', server)])
 
       Helpers.messageToBackground({ type: EVENT_TYPES.LOGOUT })
+    },
+
+    /**
+     * Protect user key with a PIN (stored locally, encrypted)
+     */
+    async setPin(pin) {
+      if (!this.userKey) {
+        throw new Error('User key not available')
+      }
+
+      const normalizedPin = normalizePin(pin)
+      if (!isValidPin(normalizedPin)) {
+        throw new Error('PIN must be 4-12 digits')
+      }
+
+      const saltBytes = crypto.getRandomValues(new Uint8Array(16))
+      const pinKeyBytes = await cryptoService.pbkdf2(
+        normalizedPin,
+        saltBytes,
+        PIN_KDF_ITERATIONS,
+        64,
+        'SHA-256'
+      )
+      const pinKey = SymmetricKey.fromBytes(pinKeyBytes)
+      const protectedUserKey = await cryptoService.encryptAesCbcHmac(
+        this.userKey.toBytes(),
+        pinKey
+      )
+
+      await Promise.all([
+        Storage.setItem(PIN_STORAGE_KEYS.protectedUserKey, protectedUserKey),
+        Storage.setItem(PIN_STORAGE_KEYS.kdfSalt, cryptoService.arrayToBase64(saltBytes)),
+        Storage.setItem(PIN_STORAGE_KEYS.kdfIterations, PIN_KDF_ITERATIONS),
+        Storage.setItem(PIN_STORAGE_KEYS.failedAttempts, 0),
+        Storage.setItem(PIN_STORAGE_KEYS.lockUntil, null)
+      ])
+    },
+
+    /**
+     * Unlock with PIN and restore user key into session storage
+     */
+    async unlockWithPin(pin) {
+      const [protectedUserKey, saltBase64, iterations] = await Promise.all([
+        Storage.getItem(PIN_STORAGE_KEYS.protectedUserKey),
+        Storage.getItem(PIN_STORAGE_KEYS.kdfSalt),
+        Storage.getItem(PIN_STORAGE_KEYS.kdfIterations)
+      ])
+
+      if (!protectedUserKey || !saltBase64 || !iterations) {
+        throw new Error('PIN unlock not configured')
+      }
+
+      const lockUntil = Number(await Storage.getItem(PIN_STORAGE_KEYS.lockUntil)) || 0
+      if (lockUntil && Date.now() < lockUntil) {
+        const err = new Error('PIN temporarily locked')
+        err.type = 'PIN_LOCKED'
+        err.lockUntil = lockUntil
+        throw err
+      }
+
+      const normalizedPin = normalizePin(pin)
+      if (!isValidPin(normalizedPin)) {
+        throw new Error('PIN must be 4-12 digits')
+      }
+
+      const saltBytes = cryptoService.base64ToArray(saltBase64)
+      try {
+        const pinKeyBytes = await cryptoService.pbkdf2(
+          normalizedPin,
+          saltBytes,
+          Number(iterations),
+          64,
+          'SHA-256'
+        )
+        const pinKey = SymmetricKey.fromBytes(pinKeyBytes)
+        const userKeyBytes = await cryptoService.decryptAesCbcHmac(protectedUserKey, pinKey)
+
+        this.userKey = SymmetricKey.fromBytes(userKeyBytes)
+        this.masterKey = null
+        await persistSessionKeys(this.userKey, null)
+        await Promise.all([
+          Storage.setItem(PIN_STORAGE_KEYS.failedAttempts, 0),
+          Storage.setItem(PIN_STORAGE_KEYS.lockUntil, null)
+        ])
+
+        Helpers.messageToBackground({ type: EVENT_TYPES.LOGIN })
+        return true
+      } catch (error) {
+        const currentAttempts = Number(await Storage.getItem(PIN_STORAGE_KEYS.failedAttempts)) || 0
+        const attempts = currentAttempts + 1
+        let lockUntilValue = null
+
+        if (attempts >= PIN_LOCK_THRESHOLD) {
+          const lockSeconds = Math.min(900, 30 * 2 ** (attempts - PIN_LOCK_THRESHOLD))
+          lockUntilValue = Date.now() + lockSeconds * 1000
+        }
+
+        await Promise.all([
+          Storage.setItem(PIN_STORAGE_KEYS.failedAttempts, attempts),
+          Storage.setItem(PIN_STORAGE_KEYS.lockUntil, lockUntilValue)
+        ])
+
+        const err = new Error('Invalid PIN')
+        err.type = 'INVALID_PIN'
+        err.lockUntil = lockUntilValue
+        throw err
+      }
     },
 
     /**

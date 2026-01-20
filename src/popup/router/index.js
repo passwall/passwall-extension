@@ -5,6 +5,7 @@ import Storage from '@/utils/storage'
 
 // Static imports for browser extension (dynamic imports don't work well with CSP)
 import Login from '@p/views/Auth/Login.vue'
+import Unlock from '@p/views/Auth/Unlock.vue'
 import Home from '@p/views/Home/index.vue'
 import Passwords from '@p/views/Passwords/index.vue'
 import Notes from '@p/views/Notes/index.vue'
@@ -33,6 +34,11 @@ const routes = [
     path: '/login',
     name: 'Login',
     component: Login
+  },
+  {
+    path: '/unlock',
+    name: 'Unlock',
+    component: Unlock
   },
   {
     path: '/home',

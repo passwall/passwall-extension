@@ -1501,7 +1501,19 @@ class ContentScriptInjector {
 
   isVaultDomain() {
     const hostname = this.domain || getHostName(window.location.href) || ''
-    return hostname === 'vault.passwall.io'
+    if (hostname === 'vault.passwall.io') return true
+
+    // Allow dev/local vault builds to opt-in via title/meta
+    const title = (document?.title || '').toLowerCase()
+    if (title.includes('passwall vault')) return true
+
+    const metaTitle = document
+      ?.querySelector?.('meta[name="title"]')
+      ?.getAttribute?.('content')
+      ?.toLowerCase?.()
+    if (metaTitle && metaTitle.includes('passwall vault')) return true
+
+    return false
   }
 
   isDomainInList(domains) {

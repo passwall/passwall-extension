@@ -40,6 +40,26 @@
           data-testid="password"
         />
 
+        <div class="pin-toggle mt-4">
+          <label class="pin-toggle-label" for="remember-pin">
+            <input id="remember-pin" v-model="rememberWithPin" type="checkbox" class="pin-toggle-input" />
+            <span class="pin-toggle-box" aria-hidden="true"></span>
+            <span>Remember with PIN</span>
+          </label>
+        </div>
+
+        <template v-if="rememberWithPin">
+          <label class="mb-2 mt-3">PIN</label>
+          <VFormText
+            v-model="pin"
+            size="medium"
+            type="password"
+            name="pin"
+            placeholder="4-12 digits"
+            autocomplete="new-password"
+          />
+        </template>
+
         <!-- Login Btn -->
         <VButton
           class="mt-5"
@@ -79,7 +99,8 @@ export default {
     const authStore = useAuthStore()
 
     return {
-      loginAction: authStore.login
+      loginAction: authStore.login,
+      setPinAction: authStore.setPin
     }
   },
   data() {
@@ -93,7 +114,9 @@ export default {
           : 'https://api.passwall.io',
         email: '',
         master_password: ''
-      }
+      },
+      rememberWithPin: false,
+      pin: ''
     }
   },
   async mounted() {
@@ -157,6 +180,13 @@ export default {
         this.$notifyError('Please enter server URL')
         return
       }
+      if (this.rememberWithPin) {
+        const normalizedPin = String(this.pin || '').trim()
+        if (!/^\d{4,12}$/.test(normalizedPin)) {
+          this.$notifyError('PIN must be 4-12 digits')
+          return
+        }
+      }
 
       // Security: Validate and set API endpoint
       try {
@@ -206,6 +236,13 @@ export default {
 
       const onSuccess = async () => {
         await this.loginAction({ ...this.LoginForm })
+        if (this.rememberWithPin) {
+          try {
+            await this.setPinAction(this.pin)
+          } catch {
+            this.$notifyError('PIN could not be saved. You can set it again later.')
+          }
+        }
         this.$router.replace({ name: 'Passwords' })
       }
       this.$request(onSuccess, this.$waiters.Auth.Login, onError)
@@ -230,6 +267,55 @@ export default {
 .header {
   height: 95px;
   border-bottom: 2px solid $color-black;
+}
+
+.pin-toggle {
+  font-size: 13px;
+  color: $color-gray-300;
+}
+
+.pin-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pin-toggle-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pin-toggle-box {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid $color-gray-300;
+  background: $color-gray-500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pin-toggle-input:focus-visible + .pin-toggle-box {
+  box-shadow: 0 0 0 3px rgba(0, 255, 209, 0.2);
+  border-color: $color-secondary;
+}
+
+.pin-toggle-input:checked + .pin-toggle-box {
+  background: $color-secondary;
+  border-color: $color-secondary;
+}
+
+.pin-toggle-input:checked + .pin-toggle-box::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: $color-gray-500;
 }
 
 .pw-login-version {
