@@ -405,8 +405,6 @@ class ContentScriptInjector {
           this.injectLogo()
           this.maybeOpenInlinePopupFromPending()
           this.maybeAutoOpenInlinePopup()
-          // Also surface an in-page notification; background will open login UI best-effort.
-          this.showAuthRequiredNotification(error?.message)
           log.warn('User not authenticated - logo will prompt login')
         } else if (error.type === 'NO_LOGINS') {
           // No logins for this domain - still show logo
@@ -2050,7 +2048,6 @@ class ContentScriptInjector {
       if (error.type === 'NO_AUTH' || error.type === 'AUTH_EXPIRED') {
         this.logins = []
         this.authError = 'NO_AUTH'
-        this.showAuthRequiredNotification(error?.message)
         this.maybeOpenInlinePopupFromPending()
         this.maybeAutoOpenInlinePopup()
         log.warn('User not authenticated - logo will prompt login (multi-step)')
@@ -4097,7 +4094,6 @@ class ContentScriptInjector {
       // Handle authentication errors
       if (error.type === 'NO_AUTH' || error.type === 'AUTH_EXPIRED') {
         log.warn('⚠️ Authentication required:', error.message)
-        this.showAuthRequiredNotification(error.message)
         return
       }
 
@@ -4450,124 +4446,6 @@ class ContentScriptInjector {
     }, 3000)
   }
 
-  /**
-   * Show authentication required notification
-   * @param {string} message - Custom error message
-   * @private
-   */
-  showAuthRequiredNotification(message = 'Please login to Passwall extension') {
-    // Remove any existing auth notification
-    const existing = document.getElementById('passwall-auth-notification')
-    if (existing) {
-      existing.remove()
-    }
-
-    const notification = document.createElement('div')
-    notification.id = 'passwall-auth-notification'
-    notification.style.cssText = `
-      position: fixed !important;
-      top: 20px !important;
-      right: 20px !important;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-      color: white !important;
-      padding: 16px 20px !important;
-      border-radius: 12px !important;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.2) !important;
-      z-index: 2147483647 !important;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-      font-size: 14px !important;
-      font-weight: 500 !important;
-      opacity: 0 !important;
-      transform: translateY(-20px) !important;
-      transition: opacity 0.3s ease, transform 0.3s ease !important;
-      cursor: pointer !important;
-      max-width: 320px !important;
-    `
-
-    const wrapper = document.createElement('div')
-    wrapper.style.display = 'flex'
-    wrapper.style.alignItems = 'center'
-    wrapper.style.gap = '12px'
-
-    const svgNS = 'http://www.w3.org/2000/svg'
-    const svg = document.createElementNS(svgNS, 'svg')
-    svg.setAttribute('width', '24')
-    svg.setAttribute('height', '24')
-    svg.setAttribute('viewBox', '0 0 24 24')
-    svg.setAttribute('fill', 'none')
-    svg.setAttribute('stroke', 'currentColor')
-    svg.setAttribute('stroke-width', '2')
-
-    const rect = document.createElementNS(svgNS, 'rect')
-    rect.setAttribute('x', '3')
-    rect.setAttribute('y', '11')
-    rect.setAttribute('width', '18')
-    rect.setAttribute('height', '11')
-    rect.setAttribute('rx', '2')
-    rect.setAttribute('ry', '2')
-
-    const path = document.createElementNS(svgNS, 'path')
-    path.setAttribute('d', 'M7 11V7a5 5 0 0 1 10 0v4')
-
-    svg.appendChild(rect)
-    svg.appendChild(path)
-
-    const textBox = document.createElement('div')
-
-    const titleEl = document.createElement('div')
-    titleEl.style.fontWeight = '600'
-    titleEl.style.marginBottom = '4px'
-    titleEl.textContent = 'Authentication Required'
-
-    const messageEl = document.createElement('div')
-    messageEl.style.fontSize = '13px'
-    messageEl.style.opacity = '0.9'
-    messageEl.textContent = String(message || 'Please login to Passwall extension')
-
-    const hintEl = document.createElement('div')
-    hintEl.style.fontSize = '12px'
-    hintEl.style.marginTop = '6px'
-    hintEl.style.opacity = '0.8'
-    hintEl.textContent = 'Click to open Passwall extension'
-
-    textBox.appendChild(titleEl)
-    textBox.appendChild(messageEl)
-    textBox.appendChild(hintEl)
-
-    wrapper.appendChild(svg)
-    wrapper.appendChild(textBox)
-    notification.appendChild(wrapper)
-
-    // Open extension popup when clicked
-    notification.addEventListener('click', async () => {
-      try {
-        const res = await browser.runtime.sendMessage({ type: 'OPEN_POPUP', who: 'content-script' })
-        // If we could open the popup, close the notification; otherwise keep it so user can click the icon.
-        if (res?.ok === true) {
-          notification.remove()
-        } else {
-          hintEl.textContent = 'Please click the Passwall extension icon to sign in'
-        }
-      } catch {
-        hintEl.textContent = 'Please click the Passwall extension icon to sign in'
-      }
-    })
-
-    document.body.appendChild(notification)
-
-    // Fade in animation
-    setTimeout(() => {
-      notification.style.opacity = '1'
-      notification.style.transform = 'translateY(0)'
-    }, 100)
-
-    // Auto remove after 8 seconds
-    setTimeout(() => {
-      notification.style.opacity = '0'
-      notification.style.transform = 'translateY(-20px)'
-      setTimeout(() => notification.remove(), 300)
-    }, 8000)
-  }
 
   /**
    * Show error message after failed save
