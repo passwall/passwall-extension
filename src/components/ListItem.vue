@@ -90,7 +90,7 @@ export default {
   computed: {
     totpSecret() {
       const item = this.itemData || {}
-      return item.totp_secret || item.totp || item.totpSecret || item.totpSecretKey || ''
+      return item.totp_secret || ''
     }
   },
 

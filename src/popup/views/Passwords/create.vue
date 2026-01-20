@@ -146,6 +146,7 @@ import { useItemsStore, ItemType } from '@/stores/items'
 import Storage from '@/utils/storage'
 import { getHostName } from '@/utils/helpers'
 import totpCaptureService from '@/utils/totp-capture'
+import { buildPasswordItemDataFromForm } from '@/utils/password-schema'
 import TOTPCounter from '@/components/TOTPCounter.vue'
 
 export default {
@@ -199,17 +200,7 @@ export default {
         const url = this.form.url || ''
         const uriHint = getHostName(url) || ''
 
-        const passwordData = {
-          name: this.form.title,
-          username: this.form.username || '',
-          password: this.form.password || '',
-          // Keep bitwarden-like field name for compatibility with background and autofill
-          uris: url ? [{ uri: url, match: null }] : [],
-          // Preserve "extra" field across UI variants
-          notes: this.form.extra || '',
-          // Preserve TOTP secret if provided
-          totp_secret: this.form.totp_secret || ''
-        }
+        const passwordData = buildPasswordItemDataFromForm(this.form, url)
 
         const metadata = {
           name: this.form.title,

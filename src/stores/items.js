@@ -15,6 +15,10 @@ import { defineStore } from 'pinia'
 import { cryptoService, SymmetricKey } from '@/utils/crypto'
 import { useAuthStore } from './auth'
 import HTTPClient from '@/api/HTTPClient'
+import {
+  buildPasswordItemDataFromForm,
+  normalizePasswordItemData
+} from '@/utils/password-schema'
 
 // ============================================================
 // Types & Constants
@@ -69,12 +73,16 @@ function safeHostName(url) {
 }
 
 function mergeDecryptedItem(item, decryptedData) {
+  const normalizedData =
+    item.item_type === ItemType.Password
+      ? normalizePasswordItemData(decryptedData || {})
+      : decryptedData
   return {
     ...item,
-    ...decryptedData,
+    ...normalizedData,
     // Flatten for component compatibility
-    title: item.metadata?.name || decryptedData?.name || '',
-    url: item.metadata?.uri_hint || decryptedData?.uris?.[0]?.uri || ''
+    title: item.metadata?.name || normalizedData?.name || '',
+    url: item.metadata?.uri_hint || normalizedData?.uris?.[0]?.uri || ''
   }
 }
 
@@ -206,14 +214,7 @@ export const useItemsStore = defineStore('items', {
       const url = form.url || ''
       const uriHint = safeHostName(url)
 
-      const passwordData = {
-        name: title,
-        username: form.username || '',
-        password: form.password || '',
-        uris: url ? [{ uri: url, match: null }] : [],
-        notes: form.extra || form.notes || '',
-        totp_secret: form.totp_secret || form.totp || ''
-      }
+      const passwordData = buildPasswordItemDataFromForm(form, url)
 
       const metadata = {
         name: title,
@@ -243,14 +244,7 @@ export const useItemsStore = defineStore('items', {
       const url = form.url || ''
       const uriHint = safeHostName(url)
 
-      const passwordData = {
-        name: title,
-        username: form.username || '',
-        password: form.password || '',
-        uris: url ? [{ uri: url, match: null }] : [],
-        notes: form.extra || form.notes || '',
-        totp_secret: form.totp_secret || form.totp || ''
-      }
+      const passwordData = buildPasswordItemDataFromForm(form, url)
 
       return await this.updateItem(id, {
         data: passwordData,

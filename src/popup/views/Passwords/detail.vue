@@ -210,7 +210,7 @@ export default {
       password: item.password || '',
       url: item.url || item.metadata?.uri_hint || '',
       extra: item.notes || item.extra || '',
-      totp_secret: item.totp || item.totp_secret || ''
+      totp_secret: item.totp_secret || ''
     }
   },
 
