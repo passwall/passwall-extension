@@ -1,5 +1,3 @@
-import { getOffset } from '@/utils/helpers'
-
 // Use extension's 48px icon for crisp appearance
 const PASSWALL_LOGO_URL = chrome.runtime.getURL('icons/48.png')
 
@@ -36,6 +34,8 @@ export class PasswallLogo {
     this.input = input
     this.onClick = onClick
     this.imageElement = null
+    this._raf = 0
+    this._onWinChange = null
   }
 
   /**
@@ -51,7 +51,8 @@ export class PasswallLogo {
    * @private
    */
   createLogoElement() {
-    const img = document.createElement('img')
+    const doc = this.input?.ownerDocument || document
+    const img = doc.createElement('img')
 
     img.setAttribute('id', LOGO_CONFIG.ID)
     img.alt = 'Passwall'
@@ -60,7 +61,8 @@ export class PasswallLogo {
     // Apply all styles directly to ensure they work
     Object.assign(img.style, {
       cursor: 'pointer',
-      position: 'absolute',
+      // Fixed positioning aligns with getBoundingClientRect() coords.
+      position: 'fixed',
       zIndex: LOGO_CONFIG.Z_INDEX.toString(),
       pointerEvents: 'auto',
       display: 'block',
@@ -95,6 +97,8 @@ export class PasswallLogo {
     const inputWidth = inputRect.width
     const rightZoneLeft = inputRight - Math.max(inputRect.height * 1.5, 36)
 
+    const doc = this.input?.ownerDocument || document
+
     // Common selectors for other password manager icons
     const iconSelectors = [
       'img[data-lastpass-icon-root]', // LastPass
@@ -116,7 +120,7 @@ export class PasswallLogo {
     // Check each selector
     iconSelectors.forEach((selector) => {
       try {
-        const icons = document.querySelectorAll(selector)
+        const icons = doc.querySelectorAll(selector)
 
         icons.forEach((icon) => {
           candidates.add(icon)
@@ -130,9 +134,9 @@ export class PasswallLogo {
     let container =
       this.input.closest('[data-slot], .relative, .input-wrapper, .form-control') ||
       this.input.parentElement ||
-      document.body
+      doc.body
     if (container === this.input) {
-      container = this.input.parentElement || document.body
+      container = this.input.parentElement || doc.body
     }
     const localIcons = container.querySelectorAll('button, [role="button"], svg, img')
     localIcons.forEach((icon) => candidates.add(icon))
@@ -191,30 +195,32 @@ export class PasswallLogo {
       return
     }
 
-    const { top, left, height, width } = getOffset(this.input)
+    const doc = this.input?.ownerDocument || document
+    const win = doc.defaultView || window
+
     const inputRect = this.input.getBoundingClientRect()
-    const computedStyle = window.getComputedStyle(this.input)
+    const computedStyle = win.getComputedStyle(this.input)
     const paddingRight = parseFloat(computedStyle.paddingRight || '0') || 0
 
     // Calculate logo size with fixed maximum and minimum
-    let size = height * LOGO_CONFIG.SIZE_RATIO
+    let size = inputRect.height * LOGO_CONFIG.SIZE_RATIO
 
     // Enforce size constraints for consistent appearance
     if (size > LOGO_CONFIG.MAX_SIZE) {
       size = LOGO_CONFIG.MAX_SIZE
       log.info(
-        `Logo size capped at MAX_SIZE: ${LOGO_CONFIG.MAX_SIZE}px (input height: ${height}px)`
+        `Logo size capped at MAX_SIZE: ${LOGO_CONFIG.MAX_SIZE}px (input height: ${inputRect.height}px)`
       )
     } else if (size < LOGO_CONFIG.MIN_SIZE) {
       size = LOGO_CONFIG.MIN_SIZE
       log.info(
-        `Logo size increased to MIN_SIZE: ${LOGO_CONFIG.MIN_SIZE}px (input height: ${height}px)`
+        `Logo size increased to MIN_SIZE: ${LOGO_CONFIG.MIN_SIZE}px (input height: ${inputRect.height}px)`
       )
     }
 
-    const topPosition = top + (height - size) / 2 // Center vertically
+    const topPosition = inputRect.top + (inputRect.height - size) / 2 // Center vertically
 
-    const defaultLeft = left + width - size - LOGO_CONFIG.OFFSET
+    const defaultLeft = inputRect.left + inputRect.width - size - LOGO_CONFIG.OFFSET
     const targetRect = {
       left: defaultLeft,
       right: defaultLeft + size,
@@ -242,7 +248,7 @@ export class PasswallLogo {
     })
 
     if (!this.imageElement.parentNode) {
-      document.body.appendChild(this.imageElement)
+      ;(doc.body || doc.documentElement).appendChild(this.imageElement)
     }
   }
 
@@ -252,12 +258,49 @@ export class PasswallLogo {
   render() {
     this.createLogoElement()
     this.updatePosition()
+
+    const doc = this.input?.ownerDocument || document
+    const win = doc.defaultView || window
+    if (!this._onWinChange) {
+      this._onWinChange = () => {
+        if (this._raf) return
+        this._raf = win.requestAnimationFrame(() => {
+          this._raf = 0
+          try {
+            this.updatePosition()
+          } catch {
+            // ignore
+          }
+        })
+      }
+      win.addEventListener('scroll', this._onWinChange, true)
+      win.addEventListener('resize', this._onWinChange, true)
+    }
   }
 
   /**
    * Remove logo from DOM and cleanup
    */
   destroy() {
+    const doc = this.input?.ownerDocument || document
+    const win = doc.defaultView || window
+    if (this._onWinChange) {
+      try {
+        win.removeEventListener('scroll', this._onWinChange, true)
+        win.removeEventListener('resize', this._onWinChange, true)
+      } catch {
+        // ignore
+      }
+      this._onWinChange = null
+    }
+    if (this._raf) {
+      try {
+        win.cancelAnimationFrame(this._raf)
+      } catch {
+        // ignore
+      }
+      this._raf = 0
+    }
     if (this.imageElement) {
       this.imageElement.remove()
       this.imageElement = null

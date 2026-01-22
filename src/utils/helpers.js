@@ -197,10 +197,11 @@ export function messageToBackground(data = {}) {
  */
 export function getOffset(el) {
   const rect = el.getBoundingClientRect()
+  const win = el?.ownerDocument?.defaultView || window
 
   return {
-    left: rect.left + window.scrollX,
-    top: rect.top + window.scrollY,
+    left: rect.left + (win.scrollX || 0),
+    top: rect.top + (win.scrollY || 0),
     width: rect.width,
     height: rect.height
   }

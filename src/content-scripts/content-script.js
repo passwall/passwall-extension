@@ -9,6 +9,14 @@ import { LoginAsPopup } from './LoginAsPopup'
 import { PasswordSuggestionPopup } from './PasswordSuggestionPopup'
 import { PasswallLogo } from './PasswallLogo'
 
+// #region agent log
+fetch('http://127.0.0.1:7245/ingest/301a298b-8a35-4d16-b773-217101081ca2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'apple-pre',hypothesisId:'A',location:'content-script.js:module',message:'Content script loaded',data:{host:globalThis?.location?.hostname||'',path:globalThis?.location?.pathname||'',readyState:globalThis?.document?.readyState||'',isTop:globalThis?.window?.top===globalThis?.window},timestamp:Date.now()})}).catch(()=>{});
+// #endregion
+
+// #region agent log
+try{browser?.runtime?.sendMessage?.({type:'AGENT_LOG',payload:{sessionId:'debug-session',runId:'apple-pre',hypothesisId:'A',location:'content-script.js:module:bg',message:'Content script loaded (via bg)',data:{host:globalThis?.location?.hostname||'',path:globalThis?.location?.pathname||'',readyState:globalThis?.document?.readyState||'',isTop:globalThis?.window?.top===globalThis?.window},timestamp:Date.now()}}).catch(()=>{});}catch{}
+// #endregion
+
 /**
  * @typedef {Object} LoginForm
  * @property {HTMLFormElement} form - The form element
@@ -196,6 +204,10 @@ class ContentScriptInjector {
     this.domain = getHostName(window.location.href)
     this.resetSaveOfferStateIfDomainChanged(this.domain)
 
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/301a298b-8a35-4d16-b773-217101081ca2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'apple-pre',hypothesisId:'A',location:'content-script.js:initialize',message:'Initialize content script injector',data:{domain:this.domain||'',path:window.location?.pathname||'',isTop:window.top===window,iframeCount:document.querySelectorAll('iframe').length,titleLen:(document?.title||'').length},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
     // Track button clicks to detect logout intent
     this.setupButtonClickTracking()
 
@@ -351,6 +363,14 @@ class ContentScriptInjector {
     // Security check first (Bitwarden-style)
     const securityCheck = checkCurrentPageSecurity()
 
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/301a298b-8a35-4d16-b773-217101081ca2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'apple-pre',hypothesisId:'B',location:'content-script.js:detectAndInjectLogos:security',message:'Security check result',data:{domain:this.domain||'',path:window.location?.pathname||'',allowed:!!securityCheck?.allowed,reason:securityCheck?.reason||null,warningType:securityCheck?.warningType||null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
+    // #region agent log
+    try{browser?.runtime?.sendMessage?.({type:'AGENT_LOG',payload:{sessionId:'debug-session',runId:'apple-pre',hypothesisId:'B',location:'content-script.js:detectAndInjectLogos:security:bg',message:'Security check result (via bg)',data:{domain:this.domain||'',path:window.location?.pathname||'',allowed:!!securityCheck?.allowed,reason:securityCheck?.reason||null,warningType:securityCheck?.warningType||null},timestamp:Date.now()}}).catch(()=>{});}catch{}
+    // #endregion
+
     if (!securityCheck.allowed) {
       log.warn(`🔒 Security check failed: ${securityCheck.reason}`)
       // Still detect forms but show security warning in popup
@@ -361,6 +381,40 @@ class ContentScriptInjector {
       this.forms = this.findLoginForms()
 
       if (!this.hasLoginForms) {
+        // #region agent log
+        try {
+          const allInputs = this.findAllInputs()
+          const inputs = Array.isArray(allInputs) ? allInputs : []
+          const visible = inputs.filter((i) => this.isFieldVisible(i))
+          const sample = visible.slice(0, 5).map((i) => ({
+            id: i?.id || '',
+            type: (i?.type || '').toLowerCase(),
+            tabIndex: typeof i?.tabIndex === 'number' ? i.tabIndex : null,
+            ariaHiddenSelf: i?.getAttribute?.('aria-hidden') === 'true',
+            rect: (() => {
+              try {
+                const r = i.getBoundingClientRect()
+                return { w: Math.round(r.width), h: Math.round(r.height) }
+              } catch {
+                return null
+              }
+            })()
+          }))
+          browser?.runtime?.sendMessage?.({
+            type: 'AGENT_LOG',
+            payload: {
+              sessionId: 'debug-session',
+              runId: 'apple-post',
+              hypothesisId: 'G',
+              location: 'content-script.js:detectAndInjectLogos:noForms',
+              message: 'No forms detected; multi-step fallback',
+              data: { domain: this.domain || '', visibleInputCount: visible.length, sample },
+              timestamp: Date.now()
+            }
+          }).catch(() => {})
+        } catch {}
+        // #endregion
+
         // Enhanced: Check for potential multi-step login fields
         // (email/username fields without password - like Google)
         this.checkForMultiStepLogin()
@@ -736,6 +790,26 @@ class ContentScriptInjector {
         if (mutation.addedNodes.length > 0) {
           for (const node of mutation.addedNodes) {
             if (node.nodeType === Node.ELEMENT_NODE) {
+              // Iframe logins (e.g. Apple ID) - rescan after iframe loads
+              if (node.tagName === 'IFRAME') {
+                shouldRescan = true
+                try {
+                  node.addEventListener(
+                    'load',
+                    () => {
+                      try {
+                        this.detectAndInjectLogos()
+                      } catch {
+                        // ignore
+                      }
+                    },
+                    { once: true }
+                  )
+                } catch {
+                  // ignore
+                }
+              }
+
               // Check if added node is or contains password input
               if (
                 node.matches &&
@@ -759,7 +833,7 @@ class ContentScriptInjector {
         // Check for attribute changes that reveal hidden password fields
         if (mutation.type === 'attributes' && mutation.target?.nodeType === Node.ELEMENT_NODE) {
           const attrName = mutation.attributeName || ''
-          if (['class', 'style', 'hidden', 'aria-hidden'].includes(attrName)) {
+          if (['class', 'style', 'hidden', 'aria-hidden', 'tabindex'].includes(attrName)) {
             const target = mutation.target
             if (
               target.matches?.('input[type="password"]') ||
@@ -817,6 +891,10 @@ class ContentScriptInjector {
       }
 
       if (shouldRescan) {
+        // #region agent log
+        fetch('http://127.0.0.1:7245/ingest/301a298b-8a35-4d16-b773-217101081ca2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'apple-pre',hypothesisId:'E',location:'content-script.js:mutationObserver',message:'MutationObserver triggered rescan',data:{domain:this.domain||'',path:window.location?.pathname||'',mutationCount:Array.isArray(mutations)?mutations.length:0,logoCount:Array.isArray(this.logos)?this.logos.length:0},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+
         // Debounce rescan to avoid too frequent scans
         clearTimeout(this.rescanTimeout)
         this.rescanTimeout = setTimeout(() => {
@@ -830,27 +908,65 @@ class ContentScriptInjector {
       }
     })
 
-    // Observe entire document for changes (with safety check)
-    if (document.body) {
-      this.mutationObserver.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['class', 'style', 'hidden', 'aria-hidden']
-      })
+    // Observe entire document (and same-origin iframes) for changes.
+    if (!this._observedMutationRoots) {
+      this._observedMutationRoots = new WeakSet()
+    }
+
+    const observeRoot = (root, label) => {
+      if (!root) return
+      try {
+        if (this._observedMutationRoots.has(root)) return
+        this._observedMutationRoots.add(root)
+      } catch {
+        // ignore
+      }
+
+      try {
+        this.mutationObserver.observe(root, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['class', 'style', 'hidden', 'aria-hidden', 'tabindex']
+        })
+        // #region agent log
+        try{browser?.runtime?.sendMessage?.({type:'AGENT_LOG',payload:{sessionId:'debug-session',runId:'apple-post',hypothesisId:'L',location:'content-script.js:setupMutationObserver',message:'Observing root',data:{label,host:window.location?.hostname||'',path:window.location?.pathname||''},timestamp:Date.now()}}).catch(()=>{});}catch{}
+        // #endregion
+      } catch {
+        // ignore
+      }
+    }
+
+    const observeDocumentAndIframes = () => {
+      const body = document.body || document.documentElement
+      observeRoot(body, 'top')
+
+      try {
+        const iframes = Array.from(document.querySelectorAll('iframe'))
+        for (const frame of iframes) {
+          try {
+            const doc = frame.contentDocument
+            const root = doc?.body || doc?.documentElement
+            if (root) observeRoot(root, 'iframe')
+          } catch {
+            // cross-origin iframe
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (document.body || document.documentElement) {
+      observeDocumentAndIframes()
       log.success('MutationObserver setup complete - watching for dynamic content')
     } else {
       log.warn('document.body not ready - MutationObserver will be set up later')
       // Retry when body is available
       const bodyCheck = setInterval(() => {
-        if (document.body) {
+        if (document.body || document.documentElement) {
           clearInterval(bodyCheck)
-          this.mutationObserver.observe(document.body, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ['class', 'style', 'hidden', 'aria-hidden']
-          })
+          observeDocumentAndIframes()
           log.success('MutationObserver setup complete (delayed)')
         }
       }, 100)
@@ -867,12 +983,14 @@ class ContentScriptInjector {
   isFieldVisible(element) {
     // Check if element exists
     if (!element) return false
+    const doc = element.ownerDocument || document
+    const win = doc.defaultView || window
 
     // Check for hidden attribute
     if (element.hidden) return false
 
     // Check computed styles
-    const style = window.getComputedStyle(element)
+    const style = win.getComputedStyle(element)
     if (
       style.display === 'none' ||
       style.visibility === 'hidden' ||
@@ -889,14 +1007,65 @@ class ContentScriptInjector {
 
     // Check parent visibility
     let parent = element.parentElement
-    while (parent && parent !== document.body) {
-      const parentStyle = window.getComputedStyle(parent)
+    // NOTE: stopAt is already computed above
+    const stopAt = doc.body || document.body
+    while (parent && parent !== stopAt) {
+      const parentStyle = win.getComputedStyle(parent)
       if (parentStyle.display === 'none' || parentStyle.visibility === 'hidden') {
         return false
       }
       parent = parent.parentElement
     }
 
+    return true
+  }
+
+  /**
+   * Check if an element is inside an aria-hidden subtree.
+   * Some sites (notably Apple) toggle steps by setting aria-hidden/tabIndex.
+   * We use this only to avoid targeting non-interactive fields.
+   * @param {HTMLElement} element
+   * @returns {boolean}
+   * @private
+   */
+  hasAriaHiddenAncestor(element) {
+    if (!element) return false
+    const doc = element.ownerDocument || document
+    const stopAt = doc.body || document.body
+    let cursor = element
+    while (cursor && cursor !== stopAt) {
+      const ariaHidden = cursor.getAttribute?.('aria-hidden')
+      if (ariaHidden === 'true') return true
+      cursor = cursor.parentElement
+    }
+    return false
+  }
+
+  /**
+   * Conservative filter for inputs we can interact with (focus/click/type).
+   * @param {HTMLInputElement} input
+   * @returns {boolean}
+   * @private
+   */
+  isAutofillInteractableInput(input) {
+    if (!input || input.tagName !== 'INPUT') return false
+    if (!this.isFieldVisible(input)) return false
+    if (input.disabled) return false
+    if (this.hasAriaHiddenAncestor(input)) return false
+    // Apple ID (idmsa.apple.com) keeps password input tabindex=-1 even when visible/active.
+    // Allow interacting with password inputs only when the "password step" is active.
+    if (typeof input.tabIndex === 'number' && input.tabIndex < 0) {
+      const hostname = this.domain || getHostName(window.location.href) || ''
+      const isAppleIdmsa = hostname === 'idmsa.apple.com' || hostname.endsWith('.idmsa.apple.com')
+      const isPassword = (input.type || '').toLowerCase() === 'password'
+      const isApplePasswordStep =
+        isPassword &&
+        (input.closest?.('.password-on, .password-second-step, .show-password') ||
+          input.ownerDocument?.querySelector?.('.password-on, .password-second-step, .show-password'))
+      if (!(isAppleIdmsa && isApplePasswordStep)) {
+        return false
+      }
+    }
     return true
   }
 
@@ -1600,16 +1769,44 @@ class ContentScriptInjector {
    */
   findAllInputs(root = document) {
     const inputs = []
+    const visited = arguments.length >= 2 ? arguments[1] : new WeakSet()
+
+    if (!root || typeof root.querySelectorAll !== 'function') {
+      return inputs
+    }
+
+    try {
+      if (visited.has(root)) return inputs
+      visited.add(root)
+    } catch {
+      // ignore WeakSet errors (shouldn't happen)
+    }
 
     // Get inputs from current root
     inputs.push(...root.querySelectorAll('input'))
+
+    // Same-origin iframes (Apple ID / embedded auth)
+    try {
+      const iframes = root.querySelectorAll('iframe')
+      iframes.forEach((frame) => {
+        try {
+          const doc = frame.contentDocument
+          if (!doc) return
+          inputs.push(...this.findAllInputs(doc, visited))
+        } catch {
+          // cross-origin iframe - ignore
+        }
+      })
+    } catch {
+      // ignore
+    }
 
     // Check for Shadow DOM
     const elementsWithShadow = root.querySelectorAll('*')
     elementsWithShadow.forEach((element) => {
       if (element.shadowRoot) {
         // Recursively search shadow roots
-        inputs.push(...this.findAllInputs(element.shadowRoot))
+        inputs.push(...this.findAllInputs(element.shadowRoot, visited))
       }
     })
 
@@ -1624,14 +1821,42 @@ class ContentScriptInjector {
    */
   findAllActionElements(root = document) {
     const actions = []
+    const visited = arguments.length >= 2 ? arguments[1] : new WeakSet()
     const selector = 'button, a, [role="button"]'
 
+    if (!root || typeof root.querySelectorAll !== 'function') {
+      return actions
+    }
+
+    try {
+      if (visited.has(root)) return actions
+      visited.add(root)
+    } catch {
+      // ignore
+    }
+
     actions.push(...root.querySelectorAll(selector))
+
+    // Same-origin iframes (Apple ID / embedded auth)
+    try {
+      const iframes = root.querySelectorAll('iframe')
+      iframes.forEach((frame) => {
+        try {
+          const doc = frame.contentDocument
+          if (!doc) return
+          actions.push(...this.findAllActionElements(doc, visited))
+        } catch {
+          // cross-origin iframe - ignore
+        }
+      })
+    } catch {
+      // ignore
+    }
 
     const elementsWithShadow = root.querySelectorAll('*')
     elementsWithShadow.forEach((element) => {
       if (element.shadowRoot) {
-        actions.push(...this.findAllActionElements(element.shadowRoot))
+        actions.push(...this.findAllActionElements(element.shadowRoot, visited))
       }
     })
 
@@ -1661,6 +1886,10 @@ class ContentScriptInjector {
       type: input.type || 'text'
     }
 
+    const autocompleteTokens = attributes.autocomplete.split(/\s+/).filter(Boolean)
+    const hasUsernameAutocomplete = autocompleteTokens.includes('username')
+    const hasEmailAutocomplete = autocompleteTokens.includes('email')
+
     // Get associated label text (label + aria-labelledby)
     const labelText = this.getLabelText(input)
 
@@ -1678,6 +1907,7 @@ class ContentScriptInjector {
     if (
       attributes.type === 'email' ||
       attributes.autocomplete === 'email' ||
+      hasEmailAutocomplete ||
       /email|e-mail|correo|mail|電子メール/.test(allText)
     ) {
       return FIELD_TYPES.EMAIL
@@ -1686,6 +1916,7 @@ class ContentScriptInjector {
     // Username detection
     if (
       attributes.autocomplete === 'username' ||
+      hasUsernameAutocomplete ||
       /iam.?user|user.?name|username|login|usuario|benutzername|gebruiker|utilisateur|ユーザー名/.test(
         allText
       )
@@ -1812,7 +2043,7 @@ class ContentScriptInjector {
     const passwordFields = allInputs.filter(
       (input) =>
         input.type === 'password' &&
-        this.isFieldVisible(input) &&
+        this.isAutofillInteractableInput(input) &&
         !this.shouldIgnoreFieldForCapture(input)
     )
 
@@ -1924,6 +2155,47 @@ class ContentScriptInjector {
 
     const allInputs = this.findAllInputs()
 
+    // #region agent log
+    try {
+      const inputs = Array.isArray(allInputs) ? allInputs : []
+      const visible = inputs.filter((i) => this.isFieldVisible(i))
+      const autocompleteOffVisible = visible.filter((i) => {
+        const ac = (i?.getAttribute?.('autocomplete') || i?.autocomplete || '').toLowerCase()
+        return ac === 'off' || ac === 'false'
+      })
+      const ignoredVisible = visible.filter((i) => shouldIgnoreField(i, this.domain))
+      fetch('http://127.0.0.1:7245/ingest/301a298b-8a35-4d16-b773-217101081ca2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'apple-pre',hypothesisId:'C',location:'content-script.js:checkForMultiStepLogin',message:'Multi-step candidate scan',data:{domain:this.domain||'',path:window.location?.pathname||'',allInputsCount:inputs.length,visibleInputsCount:visible.length,autocompleteOffVisibleCount:autocompleteOffVisible.length,ignoredVisibleCount:ignoredVisible.length},timestamp:Date.now()})}).catch(()=>{});
+    } catch {
+      // ignore
+    }
+    // #endregion
+
+    // #region agent log
+    try {
+      const inputs = Array.isArray(allInputs) ? allInputs : []
+      const visible = inputs.filter((i) => this.isFieldVisible(i))
+      const sample = visible.slice(0, 6).map((i) => ({
+        id: i?.id || '',
+        type: (i?.type || '').toLowerCase(),
+        tabIndex: typeof i?.tabIndex === 'number' ? i.tabIndex : null,
+        ac: (i?.getAttribute?.('autocomplete') || i?.autocomplete || '').toLowerCase(),
+        ariaHiddenSelf: i?.getAttribute?.('aria-hidden') === 'true'
+      }))
+      browser?.runtime?.sendMessage?.({
+        type: 'AGENT_LOG',
+        payload: {
+          sessionId: 'debug-session',
+          runId: 'apple-post',
+          hypothesisId: 'I',
+          location: 'content-script.js:checkForMultiStepLogin:visibleSample',
+          message: 'Visible inputs sample (multi-step)',
+          data: { domain: this.domain || '', visibleCount: visible.length, sample },
+          timestamp: Date.now()
+        }
+      }).catch(() => {})
+    } catch {}
+    // #endregion
+
     // Find potential username/email fields
     const potentialLoginFields = allInputs.filter((input) => {
       if (!this.isFieldVisible(input)) return false
@@ -1950,6 +2222,37 @@ class ContentScriptInjector {
       return
     }
 
+    // #region agent log
+    try {
+      const sample = potentialLoginFields.slice(0, 6).map((i) => ({
+        id: i?.id || '',
+        type: (i?.type || '').toLowerCase(),
+        tabIndex: typeof i?.tabIndex === 'number' ? i.tabIndex : null,
+        fieldType: (() => {
+          try {
+            return this.identifyFieldType(i)
+          } catch {
+            return ''
+          }
+        })(),
+        ac: (i?.getAttribute?.('autocomplete') || i?.autocomplete || '').toLowerCase(),
+        ariaLabelledBy: i?.getAttribute?.('aria-labelledby') || ''
+      }))
+      browser?.runtime?.sendMessage?.({
+        type: 'AGENT_LOG',
+        payload: {
+          sessionId: 'debug-session',
+          runId: 'apple-post',
+          hypothesisId: 'J',
+          location: 'content-script.js:checkForMultiStepLogin:potential',
+          message: 'Potential multi-step fields',
+          data: { domain: this.domain || '', count: potentialLoginFields.length, sample },
+          timestamp: Date.now()
+        }
+      }).catch(() => {})
+    } catch {}
+    // #endregion
+
     // Filter to most likely login fields using heuristics
     const likelyLoginFields = potentialLoginFields.filter((input) => {
       const attributes = {
@@ -1972,6 +2275,10 @@ class ContentScriptInjector {
         labelText
       ].join(' ')
 
+      const autocompleteTokens = attributes.autocomplete.split(/\s+/).filter(Boolean)
+      const hasUsernameAutocomplete = autocompleteTokens.includes('username')
+      const hasEmailAutocomplete = autocompleteTokens.includes('email')
+
       // EXCLUDE: Search boxes, search bars (Gmail, etc.)
       if (this.isSearchField(input)) {
         log.info(`Skipping search field: ${input.name || input.id || 'unnamed'}`)
@@ -1984,7 +2291,9 @@ class ContentScriptInjector {
         /iam.?user|user.?name|username|login|identifier|usuario/.test(allText) ||
         /phone|telefon|tel|mobile/.test(allText) ||
         attributes.autocomplete === 'username' ||
-        attributes.autocomplete === 'email'
+        attributes.autocomplete === 'email' ||
+        hasUsernameAutocomplete ||
+        hasEmailAutocomplete
       )
     })
 
@@ -1992,6 +2301,29 @@ class ContentScriptInjector {
       log.info('No likely login fields detected in multi-step form')
       return
     }
+
+    // #region agent log
+    try {
+      const sample = likelyLoginFields.slice(0, 6).map((i) => ({
+        id: i?.id || '',
+        type: (i?.type || '').toLowerCase(),
+        tabIndex: typeof i?.tabIndex === 'number' ? i.tabIndex : null,
+        ac: (i?.getAttribute?.('autocomplete') || i?.autocomplete || '').toLowerCase()
+      }))
+      browser?.runtime?.sendMessage?.({
+        type: 'AGENT_LOG',
+        payload: {
+          sessionId: 'debug-session',
+          runId: 'apple-post',
+          hypothesisId: 'K',
+          location: 'content-script.js:checkForMultiStepLogin:likely',
+          message: 'Likely multi-step fields',
+          data: { domain: this.domain || '', count: likelyLoginFields.length, sample },
+          timestamp: Date.now()
+        }
+      }).catch(() => {})
+    } catch {}
+    // #endregion
 
     const actionCandidates = this.findAllActionElements().filter(
       (element) => this.isFieldVisible(element) && this.isActionElement(element)
@@ -2085,12 +2417,43 @@ class ContentScriptInjector {
   findLoginForms() {
     // Check if any VISIBLE password fields exist (including Shadow DOM)
     const allInputs = this.findAllInputs()
-    const passwordInputExists = allInputs.some(
-      (input) =>
-        input.type === 'password' &&
-        this.isFieldVisible(input) &&
-        !this.shouldIgnoreFieldForCapture(input)
+    const passwordInputsAll = Array.isArray(allInputs)
+      ? allInputs.filter((input) => (input?.type || '').toLowerCase() === 'password')
+      : []
+    const passwordInputsVisible = passwordInputsAll.filter((input) => this.isAutofillInteractableInput(input))
+    const passwordInputsUsable = passwordInputsVisible.filter(
+      (input) => !this.shouldIgnoreFieldForCapture(input)
     )
+
+    let iframeCount = 0
+    let sameOriginIframeCount = 0
+    let passwordInSameOriginIframes = 0
+    try {
+      const iframes = Array.from(document.querySelectorAll('iframe'))
+      iframeCount = iframes.length
+      for (const frame of iframes) {
+        try {
+          const doc = frame.contentDocument
+          if (!doc) continue
+          sameOriginIframeCount++
+          passwordInSameOriginIframes += doc.querySelectorAll('input[type="password"]').length
+        } catch {
+          // cross-origin iframe
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/301a298b-8a35-4d16-b773-217101081ca2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'apple-pre',hypothesisId:'D',location:'content-script.js:findLoginForms',message:'Password input scan',data:{domain:this.domain||'',path:window.location?.pathname||'',allInputsCount:Array.isArray(allInputs)?allInputs.length:0,passwordInputsAll:passwordInputsAll.length,passwordInputsVisible:passwordInputsVisible.length,passwordInputsUsable:passwordInputsUsable.length,iframeCount,sameOriginIframeCount,passwordInSameOriginIframes},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
+    // #region agent log
+    try{browser?.runtime?.sendMessage?.({type:'AGENT_LOG',payload:{sessionId:'debug-session',runId:'apple-pre',hypothesisId:'D',location:'content-script.js:findLoginForms:bg',message:'Password input scan (via bg)',data:{domain:this.domain||'',path:window.location?.pathname||'',allInputsCount:Array.isArray(allInputs)?allInputs.length:0,passwordInputsAll:passwordInputsAll.length,passwordInputsVisible:passwordInputsVisible.length,passwordInputsUsable:passwordInputsUsable.length,iframeCount,sameOriginIframeCount,passwordInSameOriginIframes},timestamp:Date.now()}}).catch(()=>{});}catch{}
+    // #endregion
+
+    const passwordInputExists = passwordInputsUsable.length > 0
 
     if (!passwordInputExists) {
       throw new PFormParseError('No password field found', 'NO_PASSWORD_FIELD')
@@ -2251,7 +2614,7 @@ class ContentScriptInjector {
     return [...inputs].filter(
       (input) =>
         relevantTypes.includes(input.type) &&
-        this.isFieldVisible(input) &&
+        this.isAutofillInteractableInput(input) &&
         !this.shouldIgnoreFieldForCapture(input)
     )
   }
@@ -2306,21 +2669,48 @@ class ContentScriptInjector {
   fillInputWithEvents(input, value) {
     if (!input) return
     const sanitizedValue = this.sanitizeValue(value)
+    const doc = input.ownerDocument || document
+    const win = doc.defaultView || window
 
-    const focusEvent = new FocusEvent('focus', { bubbles: true })
-    input.dispatchEvent(focusEvent)
-    input.focus()
+    // #region agent log
+    let hiddenByAria = false
+    try {
+      let cursor = input
+      const stopAt = doc.body || document.body
+      while (cursor && cursor !== stopAt) {
+        if (cursor.getAttribute?.('aria-hidden') === 'true') {
+          hiddenByAria = true
+          break
+        }
+        cursor = cursor.parentElement
+      }
+    } catch {
+      hiddenByAria = false
+    }
+    try{browser?.runtime?.sendMessage?.({type:'AGENT_LOG',payload:{sessionId:'debug-session',runId:'apple-post',hypothesisId:'F',location:'content-script.js:fillInputWithEvents',message:'fillInputWithEvents invoked',data:{sameWindow:win===window,hiddenByAria,tabIndex:typeof input?.tabIndex==='number'?input.tabIndex:null,disabled:!!input.disabled,inputType:(input?.type||'').toLowerCase()},timestamp:Date.now()}}).catch(()=>{});}catch{}
+    // #endregion
 
-    const clickEvent = new MouseEvent('click', {
-      bubbles: true,
-      cancelable: true,
-      view: window
-    })
-    input.dispatchEvent(clickEvent)
+    // Avoid focusing/clicking fields hidden by aria-hidden or made unfocusable (tabIndex < 0).
+    // Apple uses aria-hidden + tabIndex=-1 during step transitions.
+    const shouldTryFocus = !hiddenByAria && !(typeof input?.tabIndex === 'number' && input.tabIndex < 0)
+    if (shouldTryFocus) {
+      const FocusEventCtor = win.FocusEvent || FocusEvent
+      const focusEvent = new FocusEventCtor('focus', { bubbles: true, view: win })
+      input.dispatchEvent(focusEvent)
+      input.focus?.()
+
+      const MouseEventCtor = win.MouseEvent || MouseEvent
+      const clickEvent = new MouseEventCtor('click', {
+        bubbles: true,
+        cancelable: true,
+        view: win
+      })
+      input.dispatchEvent(clickEvent)
+    }
 
     input.value = ''
     const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
+      win.HTMLInputElement?.prototype || window.HTMLInputElement?.prototype,
       'value'
     )?.set
 
@@ -2330,10 +2720,12 @@ class ContentScriptInjector {
       input.value = sanitizedValue
     }
 
-    const inputEventBefore = new Event('beforeinput', { bubbles: true, cancelable: true })
+    const EventCtor = win.Event || Event
+    const inputEventBefore = new EventCtor('beforeinput', { bubbles: true, cancelable: true })
     input.dispatchEvent(inputEventBefore)
 
-    const inputEvent = new InputEvent('input', {
+    const InputEventCtor = win.InputEvent || InputEvent
+    const inputEvent = new InputEventCtor('input', {
       bubbles: true,
       cancelable: false,
       composed: true,
@@ -2343,14 +2735,17 @@ class ContentScriptInjector {
     })
     input.dispatchEvent(inputEvent)
 
-    const changeEvent = new Event('change', { bubbles: true, cancelable: false })
+    const changeEvent = new EventCtor('change', { bubbles: true, cancelable: false })
     input.dispatchEvent(changeEvent)
 
-    setTimeout(() => {
-      input.blur()
-      const blurEvent = new FocusEvent('blur', { bubbles: true })
-      input.dispatchEvent(blurEvent)
-    }, 50)
+    if (shouldTryFocus) {
+      const FocusEventCtor = win.FocusEvent || FocusEvent
+      win.setTimeout(() => {
+        input.blur?.()
+        const blurEvent = new FocusEventCtor('blur', { bubbles: true, view: win })
+        input.dispatchEvent(blurEvent)
+      }, 50)
+    }
   }
 
   async handleSignupLogoClick(loginField, clickEvent) {
@@ -2501,15 +2896,64 @@ class ContentScriptInjector {
     this.loginFields.forEach((loginField, index) => {
       // For multi-step, username might be the only field
       const intent = loginField.intent || FORM_INTENTS.LOGIN
-      const targetField =
+      let targetField =
         intent === FORM_INTENTS.SIGNUP
           ? loginField.password || loginField.username
           : loginField.username
 
-      if (!targetField || !this.isFieldVisible(targetField)) {
+      // Apple ID: prefer password field in password step (even if tabindex is non-standard),
+      // so users can click near the password box on step 2.
+      if (intent === FORM_INTENTS.LOGIN && loginField?.password) {
+        const hostname = this.domain || getHostName(window.location.href) || ''
+        const isAppleIdmsa = hostname === 'idmsa.apple.com' || hostname.endsWith('.idmsa.apple.com')
+        const passwordField = loginField.password
+        const isApplePasswordStep =
+          isAppleIdmsa &&
+          (passwordField?.closest?.('.password-on, .password-second-step, .show-password') ||
+            passwordField?.ownerDocument?.querySelector?.('.password-on, .password-second-step, .show-password'))
+        if (isApplePasswordStep && this.isAutofillInteractableInput(passwordField)) {
+          targetField = passwordField
+        }
+      }
+
+      if (
+        !targetField ||
+        !this.isFieldVisible(targetField) ||
+        targetField?.disabled
+      ) {
         log.warn(`Skipping logo injection for login #${index + 1} - field not visible`)
         return
       }
+
+      // #region agent log
+      try {
+        const doc = targetField?.ownerDocument || document
+        const win = doc.defaultView || window
+        const rect = targetField?.getBoundingClientRect?.()
+        browser?.runtime?.sendMessage?.({
+          type: 'AGENT_LOG',
+          payload: {
+            sessionId: 'debug-session',
+            runId: 'apple-post',
+            hypothesisId: 'H',
+            location: 'content-script.js:injectLogo',
+            message: 'Injecting logo for target field',
+            data: {
+              domain: this.domain || '',
+              index: index + 1,
+              detectMethod: loginField?.detectMethod || '',
+              intent: loginField?.intent || '',
+              targetId: targetField?.id || '',
+              targetType: (targetField?.type || '').toLowerCase(),
+              tabIndex: typeof targetField?.tabIndex === 'number' ? targetField.tabIndex : null,
+              sameWindow: win === window,
+              rect: rect ? { w: Math.round(rect.width), h: Math.round(rect.height) } : null
+            },
+            timestamp: Date.now()
+          }
+        }).catch(() => {})
+      } catch {}
+      // #endregion
 
       // Check if we already have a logo for this field
       const alreadyHasLogo = this.logos.some((logo) => logo.targetElement === targetField)

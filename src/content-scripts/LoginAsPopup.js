@@ -597,22 +597,26 @@ export class LoginAsPopup {
   fillInputWithEvents(input, value) {
     // Security: Sanitize value before filling
     const sanitizedValue = this.sanitizeValue(value)
+    const doc = input?.ownerDocument || document
+    const win = doc.defaultView || window
 
     // Store initial state
     const initialValue = input.value
 
     // Trigger focus event FIRST (critical for React)
-    const focusEvent = new FocusEvent('focus', { bubbles: true })
+    const FocusEventCtor = win.FocusEvent || FocusEvent
+    const focusEvent = new FocusEventCtor('focus', { bubbles: true, view: win })
     input.dispatchEvent(focusEvent)
 
     // Focus the input (critical for many forms)
-    input.focus()
+    input.focus?.()
 
     // Click to ensure focus
-    const clickEvent = new MouseEvent('click', {
+    const MouseEventCtor = win.MouseEvent || MouseEvent
+    const clickEvent = new MouseEventCtor('click', {
       bubbles: true,
       cancelable: true,
-      view: window
+      view: win
     })
     input.dispatchEvent(clickEvent)
 
@@ -621,7 +625,7 @@ export class LoginAsPopup {
 
     // Use native property descriptor for React/Vue compatibility
     const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
+      win.HTMLInputElement?.prototype || window.HTMLInputElement?.prototype,
       'value'
     )?.set
 
@@ -643,14 +647,16 @@ export class LoginAsPopup {
     input.dispatchEvent(keydownEvent)
 
     // Trigger beforeinput event (CRITICAL for React 16+)
-    const inputEventBefore = new Event('beforeinput', {
+    const EventCtor = win.Event || Event
+    const inputEventBefore = new EventCtor('beforeinput', {
       bubbles: true,
       cancelable: true
     })
     input.dispatchEvent(inputEventBefore)
 
     // Trigger InputEvent for modern frameworks (with proper data)
-    const inputEvent = new InputEvent('input', {
+    const InputEventCtor = win.InputEvent || InputEvent
+    const inputEvent = new InputEventCtor('input', {
       bubbles: true,
       cancelable: false, // input event cannot be cancelled
       composed: true,
@@ -670,7 +676,7 @@ export class LoginAsPopup {
     input.dispatchEvent(keyupEvent)
 
     // Trigger change event (for form validation)
-    const changeEvent = new Event('change', {
+    const changeEvent = new EventCtor('change', {
       bubbles: true,
       cancelable: false
     })

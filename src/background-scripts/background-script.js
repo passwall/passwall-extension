@@ -149,6 +149,27 @@ class BackgroundAgent {
    */
   setupMessageListeners() {
     browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      // #region agent log
+      // Route debug logs from content scripts via background to avoid page CSP/CORS blocking.
+      if (request?.type === 'AGENT_LOG' && request?.payload) {
+        try {
+          fetch('http://127.0.0.1:7245/ingest/301a298b-8a35-4d16-b773-217101081ca2', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(request.payload)
+          }).catch(() => {})
+        } catch {
+          // ignore
+        }
+        try {
+          sendResponse({ ok: true })
+        } catch {
+          // ignore
+        }
+        return true
+      }
+      // #endregion
+
       // Best-effort: allow content scripts to request opening the extension UI.
       // This is used by in-page notifications (user click) and auth-expired flows.
       if (request?.type === 'OPEN_POPUP') {
