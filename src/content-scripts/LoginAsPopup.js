@@ -304,6 +304,7 @@ export class LoginAsPopup {
     }
 
     let usernameFilled = false
+    let passwordFilledCount = 0
     const filledInputs = []
 
     fillInputs.forEach((input) => {
@@ -322,6 +323,7 @@ export class LoginAsPopup {
       if (input.type === INPUT_TYPES.PASSWORD) {
         this.fillInputWithEvents(input, password)
         filledInputs.push(input)
+        passwordFilledCount += 1
       }
       // Fill first username field only
       else if (
@@ -635,6 +637,7 @@ export class LoginAsPopup {
     } else {
       input.value = sanitizedValue
     }
+    const valueSet = input.value === sanitizedValue
 
     // Trigger KeyboardEvent (more realistic than Event)
     const keydownEvent = new KeyboardEvent('keydown', {
@@ -682,6 +685,7 @@ export class LoginAsPopup {
     })
     input.dispatchEvent(changeEvent)
 
+
     // DON'T blur immediately - keep focus for React state updates
     // Wait a bit for React to process, then blur
     setTimeout(() => {
@@ -723,8 +727,10 @@ export class LoginAsPopup {
    */
   handleClickOutside(event) {
     const isClickInsidePopup = event.target.className?.includes(this.className)
+    // Don't close popup when clicking the Passwall logo - let the logo click handler manage the popup
+    const isClickOnLogo = event.target.id === 'passwall-input-icon' || event.target.closest?.('#passwall-input-icon')
 
-    if (!isClickInsidePopup && this.canDestroy) {
+    if (!isClickInsidePopup && !isClickOnLogo && this.canDestroy) {
       this.destroy()
     }
   }

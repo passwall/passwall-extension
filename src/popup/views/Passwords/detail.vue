@@ -62,11 +62,6 @@
           </template>
         </FormRowText>
 
-        <div>
-          <VTextArea v-model="form.extra" label="Extra" name="extra" :disabled="!isEditMode" />
-        </div>
-
-        <!-- TOTP Section -->
         <FormRowText
           v-model="form.totp_secret"
           title="Authenticator Key (TOTP)"
@@ -93,6 +88,16 @@
         <!-- TOTP Code Display -->
         <div v-if="form.totp_secret && !isEditMode" class="totp-display-section">
           <TOTPCounter :secret="form.totp_secret" />
+        </div>
+
+        <div>
+          <VTextArea
+            v-model="form.extra"
+            label="NOTE"
+            name="extra"
+            minheight="70"
+            :disabled="!isEditMode"
+          />
         </div>
 
         <!-- Save & Cancel -->
@@ -210,7 +215,11 @@ export default {
       password: item.password || '',
       url: item.url || item.metadata?.uri_hint || '',
       extra: item.notes || item.extra || '',
-      totp_secret: item.totp_secret || ''
+      totp_secret: item.totp || item.totp_secret || ''
+    }
+
+    if (this.$route.query?.edit === 'true') {
+      this.isEditMode = true
     }
   },
 

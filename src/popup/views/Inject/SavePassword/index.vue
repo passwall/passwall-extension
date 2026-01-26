@@ -9,7 +9,17 @@
       </div>
       <VIcon name="cross" size="20px" class="c-gray-300 mr-2 c-pointer" @click="onCancel" />
     </header>
-    <ul class="mt-2">
+    <div v-if="authChecked && !isSignedIn" class="auth-warning mt-3 bg-black p-4 radius">
+      <div class="d-flex flex-row flex-items-center" style="gap: 12px">
+        <VIcon name="passwall-logo" size="28px" />
+        <div class="d-flex flex-column">
+          <p class="fw-bold">Please log in to save new password</p>
+          <p class="c-gray-300 fs-small">Open the Passwall extension and sign in, then try again.</p>
+        </div>
+      </div>
+    </div>
+
+    <ul v-else class="mt-2">
       <li
         class="d-flex flex-row bg-black p-3 w-100 flex-items-center flex-justify-between radius c-pointer no-select"
         @click="showContent = !showContent"
@@ -78,7 +88,7 @@
         <VButton theme="text" @click="onCancel">
           <span class="fs-medium fw-bold c-gray-300">NOT NOW</span>
         </VButton>
-        <VButton @click="onSave" :disabled="saving">
+        <VButton @click="onSave" :disabled="saving || (authChecked && !isSignedIn)">
           <span class="fs-medium fw-bold">{{
             saving ? 'SAVING...' : action === 'update' ? 'UPDATE' : 'SAVE'
           }}</span>
@@ -105,6 +115,8 @@ export default {
   },
   data() {
     return {
+      authChecked: false,
+      isSignedIn: false,
       showContent: false,
       saving: false,
       folders: [],
@@ -135,7 +147,7 @@ export default {
   mounted() {
     // Setup ResizeObserver to adjust iframe height dynamically
     this.setupResizeObserver()
-    this.fetchFolders()
+    this.checkAuthAndMaybeLoad()
 
     // Notify content script that SavePassword iframe is ready (prevents race with SPA route mount)
     this.tellParent({
@@ -151,6 +163,21 @@ export default {
   },
 
   methods: {
+    async checkAuthAndMaybeLoad() {
+      try {
+        const accessToken = await Storage.getItem('access_token')
+        this.isSignedIn = Boolean(accessToken)
+      } catch {
+        this.isSignedIn = false
+      } finally {
+        this.authChecked = true
+      }
+
+      // Only call API endpoints when signed in. Otherwise HTTPClient may redirect the iframe to /login.
+      if (this.isSignedIn) {
+        this.fetchFolders()
+      }
+    },
     /**
      * Handle messages from content script
      */
@@ -197,6 +224,7 @@ export default {
      */
     async onSave() {
       if (this.saving) return
+      if (this.authChecked && !this.isSignedIn) return
 
       if (!this.form.username) {
         return
@@ -307,6 +335,10 @@ export default {
 
 .content {
   border-top: 1px solid $color-gray-500;
+}
+
+.auth-warning {
+  border: 1px solid $color-gray-500;
 }
 
 .pw-select {

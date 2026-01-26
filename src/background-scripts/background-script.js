@@ -46,6 +46,13 @@ class BackgroundAgent {
     this.lastSecretFetchByTab = new Map() // tabId -> timestamp (rate limiting)
     this.lastSeenUsernameByTab = new Map() // tabId -> { domain, username, expiresAt }
     this.lastLoginUiOpenAt = 0 // Rate-limit opening login UI
+
+    // Cache candidate logins per domain to avoid hammering the API when pages
+    // continuously mutate and trigger rescans (some SPAs do this).
+    this.loginsByDomainCache = new Map() // domain -> { at: number, data: Array }
+    this.loginsByDomainInFlight = new Map() // domain -> Promise<Array>
+    this.loginsByDomainCacheTtlMs = 10_000
+
     this.initPromise = this.init()
   }
 
@@ -149,27 +156,6 @@ class BackgroundAgent {
    */
   setupMessageListeners() {
     browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      // #region agent log
-      // Route debug logs from content scripts via background to avoid page CSP/CORS blocking.
-      if (request?.type === 'AGENT_LOG' && request?.payload) {
-        try {
-          fetch('http://127.0.0.1:7245/ingest/301a298b-8a35-4d16-b773-217101081ca2', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(request.payload)
-          }).catch(() => {})
-        } catch {
-          // ignore
-        }
-        try {
-          sendResponse({ ok: true })
-        } catch {
-          // ignore
-        }
-        return true
-      }
-      // #endregion
-
       // Best-effort: allow content scripts to request opening the extension UI.
       // This is used by in-page notifications (user click) and auth-expired flows.
       if (request?.type === 'OPEN_POPUP') {
@@ -388,6 +374,8 @@ class BackgroundAgent {
       this.pendingTotpByTab.clear()
       this.lastSecretFetchByTab.clear()
       this.lastSeenUsernameByTab.clear()
+      this.loginsByDomainCache.clear()
+      this.loginsByDomainInFlight.clear()
 
       // Ensure decrypted keys are cleared from extension session storage (defense in depth).
       try {
@@ -441,132 +429,159 @@ class BackgroundAgent {
         throw new RequestError(`No passwords found for ${domain}`, 'NO_LOGINS')
       }
 
-      // Use modern /api/items endpoint with server-side filtering by uri_hint.
-      const params = new URLSearchParams()
-      params.append('type', ItemType.Password)
-      params.append('per_page', '10000') // Server clamps; should still be small per-domain.
-
-      const currentEquivalents = getEquivalentDomains(currentDomain)
-      const uriHints =
-        currentEquivalents && currentEquivalents.size > 0
-          ? [...currentEquivalents]
-          : [currentDomain]
-      if (!uriHints.includes(currentDomain)) {
-        uriHints.push(currentDomain)
+      // Fast path: cached result (prevents repeated API calls on DOM churn)
+      const cacheKey = String(currentDomain).toLowerCase()
+      const cached = this.loginsByDomainCache.get(cacheKey)
+      if (cached && Date.now() - cached.at < this.loginsByDomainCacheTtlMs) {
+        return cached.data || []
       }
-      uriHints.forEach((hint) => params.append('uri_hint', hint))
+      const inFlight = this.loginsByDomainInFlight.get(cacheKey)
+      if (inFlight) {
+        return await inFlight
+      }
 
-      const { data } = await HTTPClient.get(`/api/items?${params}`)
-      const items = data.items || data
+      // Use modern /api/items endpoint with server-side filtering by uri_hint.
+      const promise = (async () => {
+        const params = new URLSearchParams()
+        params.append('type', ItemType.Password)
+        // We only need a per-domain subset. Keep it reasonable even if server clamp allows more.
+        params.append('per_page', '500')
 
-      // Defense-in-depth: if server-side filtering isn't available yet, apply local uri_hint filtering
-      // to avoid showing unrelated items in the popup.
-      const allowedHints = uriHints.map((h) => String(h || '').toLowerCase()).filter(Boolean)
-      const candidateItems = (items || []).filter((item) => {
-        const raw = item?.metadata?.uri_hint
-        if (!raw) return false
-        const s = String(raw).trim().toLowerCase()
-        if (!s) return false
+        const currentEquivalents = getEquivalentDomains(currentDomain)
+        const uriHints =
+          currentEquivalents && currentEquivalents.size > 0
+            ? [...currentEquivalents]
+            : [currentDomain]
+        if (!uriHints.includes(currentDomain)) {
+          uriHints.push(currentDomain)
+        }
+        uriHints.forEach((hint) => params.append('uri_hint', hint))
 
-        // Normalize: allow either "domain" or "https://domain/path" legacy shapes.
-        let host = s
-        try {
-          if (host.includes('://')) {
-            host = getHostName(host) || host
-          } else {
-            host = host.split('/')[0].split('?')[0].split('#')[0]
+        const { data } = await HTTPClient.get(`/api/items?${params}`)
+        const items = data.items || data
+
+        // Defense-in-depth: if server-side filtering isn't available yet, apply local uri_hint filtering
+        // to avoid showing unrelated items in the popup.
+        const allowedHints = uriHints
+          .map((h) => String(h || '').toLowerCase())
+          .filter(Boolean)
+        const candidateItems = (items || []).filter((item) => {
+          const raw = item?.metadata?.uri_hint
+          if (!raw) return false
+          const s = String(raw).trim().toLowerCase()
+          if (!s) return false
+
+          // Normalize: allow either "domain" or "https://domain/path" legacy shapes.
+          let host = s
+          try {
+            if (host.includes('://')) {
+              host = getHostName(host) || host
+            } else {
+              host = host.split('/')[0].split('?')[0].split('#')[0]
+            }
+            host = host.split(':')[0] // drop port if any
+          } catch {
+            // ignore
           }
-          host = host.split(':')[0] // drop port if any
-        } catch {
-          // ignore
+
+          // exact domain match OR subdomain match of any allowed hint
+          return allowedHints.some((hint) => host === hint || host.endsWith(`.${hint}`))
+        })
+
+        const usageMap = await this.getLoginUsageMap()
+
+        // Decrypt only candidate items to produce display candidates (NO password returned)
+        const decryptedCandidates = await Promise.all(
+          candidateItems.map(async (item) => {
+            try {
+              // Modern encryption: item has data and metadata
+              if (this.userKey && item.data) {
+                let decryptionKey = this.userKey
+
+                if (item.item_key_enc) {
+                  const itemKeyBytes = await cryptoService.decryptAesCbcHmac(
+                    item.item_key_enc,
+                    this.userKey
+                  )
+                  decryptionKey = SymmetricKey.fromBytes(itemKeyBytes)
+                }
+
+                // Decrypt the data object (contains username, password, url, etc)
+                const decryptedDataBytes = await cryptoService.decryptAesCbcHmac(
+                  item.data,
+                  decryptionKey
+                )
+                const decryptedDataStr = new TextDecoder().decode(decryptedDataBytes)
+                const decryptedData = JSON.parse(decryptedDataStr)
+                const usageEntry = usageMap?.[item.id] || {}
+                const autoFill = typeof item.auto_fill === 'boolean' ? item.auto_fill : true
+                const autoLogin = typeof item.auto_login === 'boolean' ? item.auto_login : false
+
+                // Return candidate-only (never return password to content script)
+                return {
+                  id: item.id,
+                  title: item.metadata?.name || item.title || 'Untitled',
+                  username: decryptedData.username || '',
+                  url: item.metadata?.uri_hint || decryptedData.uris?.[0]?.uri || '',
+                  item_type: item.item_type,
+                  auto_fill: autoFill,
+                  auto_login: autoLogin,
+                  last_used_at:
+                    typeof usageEntry?.lastUsedAt === 'number' ? usageEntry.lastUsedAt : null,
+                  last_launched_at:
+                    typeof usageEntry?.lastLaunchedAt === 'number'
+                      ? usageEntry.lastLaunchedAt
+                      : null
+                }
+              }
+
+              // Legacy encryption fallback
+              if (!this.userKey) {
+                CryptoUtils.decryptFields(item, ['username'])
+                const usageEntry = usageMap?.[item.id] || {}
+                const autoFill = typeof item.auto_fill === 'boolean' ? item.auto_fill : true
+                const autoLogin = typeof item.auto_login === 'boolean' ? item.auto_login : false
+                return {
+                  id: item.id,
+                  title: item.title || 'Untitled',
+                  username: item.username || '',
+                  url: item.url || item.URL || '',
+                  item_type: item.item_type,
+                  auto_fill: autoFill,
+                  auto_login: autoLogin,
+                  last_used_at:
+                    typeof usageEntry?.lastUsedAt === 'number' ? usageEntry.lastUsedAt : null,
+                  last_launched_at:
+                    typeof usageEntry?.lastLaunchedAt === 'number'
+                      ? usageEntry.lastLaunchedAt
+                      : null
+                }
+              }
+
+              return null
+            } catch (error) {
+              log.error(`Failed to decrypt item ${item.id}`, toSafeError(error))
+              return null
+            }
+          })
+        )
+
+        const validCandidates = decryptedCandidates.filter(Boolean)
+
+        if (validCandidates.length === 0) {
+          throw new RequestError(`No passwords found for ${domain}`, 'NO_LOGINS')
         }
 
-        // exact domain match OR subdomain match of any allowed hint
-        return allowedHints.some((hint) => host === hint || host.endsWith(`.${hint}`))
-      })
+        this.loginsByDomainCache.set(cacheKey, { at: Date.now(), data: validCandidates })
+        return validCandidates
+      })()
 
-      const usageMap = await this.getLoginUsageMap()
-
-      // Decrypt only candidate items to produce display candidates (NO password returned)
-      const decryptedCandidates = await Promise.all(
-        candidateItems.map(async (item) => {
-          try {
-            // Modern encryption: item has data and metadata
-            if (this.userKey && item.data) {
-              let decryptionKey = this.userKey
-
-              if (item.item_key_enc) {
-                const itemKeyBytes = await cryptoService.decryptAesCbcHmac(
-                  item.item_key_enc,
-                  this.userKey
-                )
-                decryptionKey = SymmetricKey.fromBytes(itemKeyBytes)
-              }
-
-              // Decrypt the data object (contains username, password, url, etc)
-              const decryptedDataBytes = await cryptoService.decryptAesCbcHmac(
-                item.data,
-                decryptionKey
-              )
-              const decryptedDataStr = new TextDecoder().decode(decryptedDataBytes)
-              const decryptedData = JSON.parse(decryptedDataStr)
-              const usageEntry = usageMap?.[item.id] || {}
-              const autoFill =
-                typeof item.auto_fill === 'boolean' ? item.auto_fill : true
-              const autoLogin =
-                typeof item.auto_login === 'boolean' ? item.auto_login : false
-
-              // Return candidate-only (never return password to content script)
-              return {
-                id: item.id,
-                title: item.metadata?.name || item.title || 'Untitled',
-                username: decryptedData.username || '',
-                url: item.metadata?.uri_hint || decryptedData.uris?.[0]?.uri || '',
-                item_type: item.item_type,
-                auto_fill: autoFill,
-                auto_login: autoLogin,
-                last_used_at:
-                  typeof usageEntry?.lastUsedAt === 'number' ? usageEntry.lastUsedAt : null,
-                last_launched_at:
-                  typeof usageEntry?.lastLaunchedAt === 'number' ? usageEntry.lastLaunchedAt : null
-              }
-            } else if (!this.userKey) {
-              // Legacy encryption fallback
-              CryptoUtils.decryptFields(item, ['username'])
-              const usageEntry = usageMap?.[item.id] || {}
-              const autoFill =
-                typeof item.auto_fill === 'boolean' ? item.auto_fill : true
-              const autoLogin =
-                typeof item.auto_login === 'boolean' ? item.auto_login : false
-              return {
-                id: item.id,
-                title: item.title || 'Untitled',
-                username: item.username || '',
-                url: item.url || item.URL || '',
-                item_type: item.item_type,
-                auto_fill: autoFill,
-                auto_login: autoLogin,
-                last_used_at:
-                  typeof usageEntry?.lastUsedAt === 'number' ? usageEntry.lastUsedAt : null,
-                last_launched_at:
-                  typeof usageEntry?.lastLaunchedAt === 'number' ? usageEntry.lastLaunchedAt : null
-              }
-            }
-            return null
-          } catch (error) {
-            log.error(`Failed to decrypt item ${item.id}`, toSafeError(error))
-            return null
-          }
-        })
-      )
-
-      const validCandidates = decryptedCandidates.filter(Boolean)
-
-      if (validCandidates.length === 0) {
-        throw new RequestError(`No passwords found for ${domain}`, 'NO_LOGINS')
+      this.loginsByDomainInFlight.set(cacheKey, promise)
+      try {
+        return await promise
+      } finally {
+        this.loginsByDomainInFlight.delete(cacheKey)
       }
-
-      return validCandidates
     } catch (error) {
       // Re-throw RequestErrors as-is
       if (error instanceof RequestError) {
@@ -700,6 +715,13 @@ class BackgroundAgent {
       let result
       const title = providedTitle || domain || getHostName(url) || 'Untitled'
       const uriHint = domain || getHostName(url) || '' // Extract domain only (no paths)
+      // Invalidate domain cache so next request sees the new/updated credential.
+      try {
+        if (this.loginsByDomainCache?.clear) this.loginsByDomainCache.clear()
+        if (this.loginsByDomainInFlight?.clear) this.loginsByDomainInFlight.clear()
+      } catch {
+        // ignore
+      }
 
       if (action === 'update' && loginId) {
         // UPDATE: Fetch existing item to preserve metadata

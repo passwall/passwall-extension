@@ -212,7 +212,8 @@ export class PasswallLogo {
         `Logo size capped at MAX_SIZE: ${LOGO_CONFIG.MAX_SIZE}px (input height: ${inputRect.height}px)`
       )
     } else if (size < LOGO_CONFIG.MIN_SIZE) {
-      size = LOGO_CONFIG.MIN_SIZE
+      // Avoid exceeding very short inputs (prevents icon spilling outside)
+      size = Math.min(LOGO_CONFIG.MIN_SIZE, inputRect.height)
       log.info(
         `Logo size increased to MIN_SIZE: ${LOGO_CONFIG.MIN_SIZE}px (input height: ${inputRect.height}px)`
       )
