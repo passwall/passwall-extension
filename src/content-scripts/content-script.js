@@ -776,11 +776,23 @@ class ContentScriptInjector {
           }
         }
 
-        // Check for attribute changes that reveal hidden password fields
+        // Check for attribute changes that reveal hidden password fields or enable disabled fields
         if (mutation.type === 'attributes' && mutation.target?.nodeType === Node.ELEMENT_NODE) {
           const attrName = mutation.attributeName || ''
-          if (['class', 'style', 'hidden', 'aria-hidden', 'tabindex'].includes(attrName)) {
+          if (['class', 'style', 'hidden', 'aria-hidden', 'tabindex', 'disabled', 'readonly'].includes(attrName)) {
             const target = mutation.target
+
+            // Rescan when disabled/readonly changes on any input field (multi-step forms like Enerjisa)
+            // This handles cases where phone/password fields become enabled after initial validation
+            if (['disabled', 'readonly'].includes(attrName) && target.matches?.('input')) {
+              const inputType = (target.type || '').toLowerCase()
+              // Trigger rescan for password, tel, email, or text fields becoming enabled
+              if (['password', 'tel', 'email', 'text', 'number'].includes(inputType)) {
+                log.info(`🔄 Input field ${inputType} ${attrName} changed - triggering rescan`)
+                shouldRescan = true
+              }
+            }
+
             if (
               target.matches?.('input[type="password"]') ||
               target.querySelector?.('input[type="password"]')
@@ -878,7 +890,9 @@ class ContentScriptInjector {
           childList: true,
           subtree: true,
           attributes: true,
-          attributeFilter: ['class', 'style', 'hidden', 'aria-hidden', 'tabindex']
+          // Include 'disabled' and 'readonly' for multi-step forms where fields become enabled
+          // after initial validation (e.g., Enerjisa login: phone/password enabled after TC validation)
+          attributeFilter: ['class', 'style', 'hidden', 'aria-hidden', 'tabindex', 'disabled', 'readonly']
         })
       } catch {
         // ignore
