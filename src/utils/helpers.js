@@ -30,7 +30,7 @@ export async function generatePassword() {
   }
 
   const charSet = complexities
-    .filter(item => item.checked)
+    .filter((item) => item.checked)
     .reduce((acc, current) => {
       return acc + current.value
     }, '')
@@ -113,7 +113,7 @@ export function getHostName(url) {
   if (url == null || url.length === 0) {
     return null
   }
-  
+
   var match = url.match(/:\/\/(www[0-9]?\.)?(.[^/:]+)/i)
   if (match != null && match.length > 2 && typeof match[2] === 'string' && match[2].length > 0) {
     return match[2]
@@ -123,11 +123,11 @@ export function getHostName(url) {
 }
 
 /**
- * Extract base domain from URL using tldts library (Bitwarden-style)
+ * Extract base domain from URL using tldts library
  * Removes subdomains and returns only the main domain
- * 
+ *
  * Uses the official Public Suffix List for accurate TLD detection
- * 
+ *
  * Examples:
  *   https://signin.aws.amazon.com → amazon.com
  *   https://www.amazon.com → amazon.com
@@ -136,7 +136,7 @@ export function getHostName(url) {
  *   https://login.microsoftonline.com → microsoftonline.com
  *   https://giris.hepsiburada.com.tr → hepsiburada.com.tr (double TLD)
  *   https://secure.example.co.uk → example.co.uk (double TLD)
- * 
+ *
  * @param {string} url - Full URL string
  * @returns {string|null} Base domain or null
  */
@@ -151,9 +151,9 @@ export function getDomain(url) {
   }
 
   try {
-    // Parse URL using tldts (same library as Bitwarden)
+    // Parse URL using tldts library
     const parseResult = parse(url, {
-      allowPrivateDomains: true, // Allow private/local domains
+      allowPrivateDomains: true // Allow private/local domains
     })
 
     if (parseResult != null && parseResult.hostname != null) {
@@ -179,7 +179,7 @@ export function getDomain(url) {
 
 export async function getCurrentTab() {
   return browser.tabs.query({ currentWindow: true, active: true }).then(([tab]) => {
-    if (!BROWSER_URL_PATTERNS.some(pattern => pattern.test(tab.url))) {
+    if (!BROWSER_URL_PATTERNS.some((pattern) => pattern.test(tab.url))) {
       return tab
     }
     return null
@@ -256,11 +256,11 @@ export function toSafeError(err) {
  */
 export async function sendPayload(data) {
   const response = await browser.runtime.sendMessage({ ...data, who: 'content-script' })
-  
+
   // If response contains an error, throw it as a RequestError
   if (response && response.error) {
     throw new RequestError(response.error, response.errorType)
   }
-  
+
   return response
 }

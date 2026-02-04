@@ -53,6 +53,10 @@ class BackgroundAgent {
     this.loginsByDomainInFlight = new Map() // domain -> Promise<Array>
     this.loginsByDomainCacheTtlMs = 10_000
 
+    // Track form submissions via webRequest API
+    this.pendingFormSubmissions = new Map() // requestId -> { tabId, url, method, at }
+    this.formSubmissionResults = new Map() // tabId -> { success: boolean, statusCode: number, at: number }
+
     this.initPromise = this.init()
   }
 
@@ -72,6 +76,7 @@ class BackgroundAgent {
 
     this.setupMessageListeners()
     this.setupTabListeners()
+    this.setupWebRequestListeners()
   }
 
   /**
@@ -82,8 +87,8 @@ class BackgroundAgent {
     try {
       const [accessToken, masterHash, server] = await Promise.all([
         Storage.getItem('access_token'),
-        Storage.getItem('master_hash')
-        ,Storage.getItem('server')
+        Storage.getItem('master_hash'),
+        Storage.getItem('server')
       ])
       log.info('Restoring auth state', {
         hasAccessToken: !!accessToken,
@@ -134,7 +139,10 @@ class BackgroundAgent {
       }
 
       this.isAuthenticated = true
-      log.info('Authentication state restored', { isAuthenticated: this.isAuthenticated, hasUserKey: !!this.userKey })
+      log.info('Authentication state restored', {
+        isAuthenticated: this.isAuthenticated,
+        hasUserKey: !!this.userKey
+      })
     } catch (error) {
       log.error('Failed to restore auth state', toSafeError(error))
       this.isAuthenticated = false
@@ -237,6 +245,174 @@ class BackgroundAgent {
         })
         .catch(() => {}) // Ignore if content script not ready
     })
+
+    // Clean up form submission tracking when tab is closed
+    browser.tabs.onRemoved.addListener((tabId) => {
+      this.formSubmissionResults.delete(tabId)
+      this.pendingSaveByTab.delete(tabId)
+      this.pendingTotpByTab.delete(tabId)
+      this.lastSecretFetchByTab.delete(tabId)
+      this.lastSeenUsernameByTab.delete(tabId)
+    })
+  }
+
+  /**
+   * Setup webRequest listeners for form submission detection
+   * Monitors POST/PUT/PATCH requests to detect successful form submissions
+   * @private
+   */
+  setupWebRequestListeners() {
+    // Only set up if webRequest API is available (Manifest V2 or V3 with permissions)
+    if (!browser.webRequest?.onBeforeRequest) {
+      log.info('webRequest API not available, skipping form submission monitoring')
+      return
+    }
+
+    // Monitor outgoing POST/PUT/PATCH requests (potential form submissions)
+    browser.webRequest.onBeforeRequest.addListener(
+      (details) => this.handleWebRequestBeforeRequest(details),
+      { urls: ['<all_urls>'], types: ['main_frame', 'sub_frame', 'xmlhttprequest'] },
+      []
+    )
+
+    // Monitor completed requests to check response status
+    browser.webRequest.onCompleted.addListener(
+      (details) => this.handleWebRequestCompleted(details),
+      { urls: ['<all_urls>'], types: ['main_frame', 'sub_frame', 'xmlhttprequest'] }
+    )
+
+    // Monitor errored requests
+    browser.webRequest.onErrorOccurred.addListener(
+      (details) => this.handleWebRequestError(details),
+      { urls: ['<all_urls>'], types: ['main_frame', 'sub_frame', 'xmlhttprequest'] }
+    )
+
+    log.info('webRequest listeners setup complete')
+  }
+
+  /**
+   * Handle webRequest before request - track potential form submissions
+   * @param {Object} details - Request details
+   * @private
+   */
+  handleWebRequestBeforeRequest(details) {
+    const { requestId, tabId, url, method } = details
+
+    // Only track POST/PUT/PATCH requests (form submissions)
+    if (!['POST', 'PUT', 'PATCH'].includes(method)) {
+      return
+    }
+
+    // Ignore requests without a tab (background requests)
+    if (tabId < 0) {
+      return
+    }
+
+    // Track this request
+    this.pendingFormSubmissions.set(requestId, {
+      tabId,
+      url,
+      method,
+      at: Date.now()
+    })
+
+    // Clean up old entries (older than 30 seconds)
+    const cutoff = Date.now() - 30000
+    for (const [id, entry] of this.pendingFormSubmissions) {
+      if (entry.at < cutoff) {
+        this.pendingFormSubmissions.delete(id)
+      }
+    }
+  }
+
+  /**
+   * Handle webRequest completed - validate response status
+   * @param {Object} details - Request details
+   * @private
+   */
+  handleWebRequestCompleted(details) {
+    const { requestId, tabId, statusCode, url } = details
+
+    // Check if this was a tracked form submission
+    const pendingRequest = this.pendingFormSubmissions.get(requestId)
+    if (!pendingRequest) {
+      return
+    }
+
+    this.pendingFormSubmissions.delete(requestId)
+
+    // Only consider 2xx responses as successful
+    const isSuccessful = statusCode >= 200 && statusCode < 300
+
+    // Store the result for this tab
+    this.formSubmissionResults.set(tabId, {
+      success: isSuccessful,
+      statusCode,
+      url,
+      at: Date.now()
+    })
+
+    log.info(
+      `Form submission result for tab ${tabId}: ${statusCode} (${
+        isSuccessful ? 'success' : 'failed'
+      })`
+    )
+
+    // If successful, notify content script to potentially show save notification
+    if (isSuccessful) {
+      browser.tabs
+        .sendMessage(tabId, {
+          type: 'FORM_SUBMISSION_SUCCESS',
+          payload: { statusCode, url }
+        })
+        .catch(() => {}) // Ignore if content script not ready
+    }
+  }
+
+  /**
+   * Handle webRequest error - mark submission as failed
+   * @param {Object} details - Request details
+   * @private
+   */
+  handleWebRequestError(details) {
+    const { requestId, tabId, error } = details
+
+    const pendingRequest = this.pendingFormSubmissions.get(requestId)
+    if (!pendingRequest) {
+      return
+    }
+
+    this.pendingFormSubmissions.delete(requestId)
+
+    // Store failure result
+    this.formSubmissionResults.set(tabId, {
+      success: false,
+      statusCode: 0,
+      error,
+      at: Date.now()
+    })
+
+    log.info(`Form submission error for tab ${tabId}: ${error}`)
+  }
+
+  /**
+   * Check if recent form submission was successful for a tab
+   * @param {number} tabId
+   * @returns {Object|null} - { success, statusCode, at } or null if no recent submission
+   */
+  getFormSubmissionResult(tabId) {
+    const result = this.formSubmissionResults.get(tabId)
+    if (!result) {
+      return null
+    }
+
+    // Results older than 5 seconds are stale
+    if (Date.now() - result.at > 5000) {
+      this.formSubmissionResults.delete(tabId)
+      return null
+    }
+
+    return result
   }
 
   /**
@@ -308,6 +484,10 @@ class BackgroundAgent {
 
       case EVENT_TYPES.CLEAR_PENDING_TOTP:
         return await this.clearPendingTotp(sender)
+
+      // Get form submission result for validation
+      case EVENT_TYPES.GET_FORM_SUBMISSION_RESULT:
+        return this.getFormSubmissionResult(sender?.tab?.id)
 
       // Legacy/custom message type used by content scripts to open the popup UI
       // (e.g. "Authentication Required" in-page notification).
@@ -419,7 +599,7 @@ class BackgroundAgent {
     }
 
     try {
-      // Resolve base domain + equivalent domains for filtering (Bitwarden-style).
+      // Resolve base domain + equivalent domains for filtering.
       const currentDomain = getDomain(`https://${domain}`)
       if (!currentDomain) {
         throw new RequestError(`Invalid domain: ${domain}`, 'VALIDATION_ERROR')
@@ -462,9 +642,7 @@ class BackgroundAgent {
 
         // Defense-in-depth: if server-side filtering isn't available yet, apply local uri_hint filtering
         // to avoid showing unrelated items in the popup.
-        const allowedHints = uriHints
-          .map((h) => String(h || '').toLowerCase())
-          .filter(Boolean)
+        const allowedHints = uriHints.map((h) => String(h || '').toLowerCase()).filter(Boolean)
         const candidateItems = (items || []).filter((item) => {
           const raw = item?.metadata?.uri_hint
           if (!raw) return false
@@ -607,7 +785,7 @@ class BackgroundAgent {
   }
 
   /**
-   * Check if login item matches domain (Bitwarden-style domain matching)
+   * Check if login item matches domain (smart domain matching)
    * Supports: base domain matching, equivalent domains, blacklist exclusions
    *
    * Examples:
@@ -658,7 +836,7 @@ class BackgroundAgent {
         return false
       }
 
-      // Bitwarden-style blacklist check
+      // Domain blacklist check
       // Even if domains match/equivalent, exclude certain subdomains
       if (isHostnameBlacklisted(currentHostname, currentDomain)) {
         return false
@@ -899,17 +1077,11 @@ class BackgroundAgent {
     let decryptionKey = this.userKey
 
     if (item.item_key_enc) {
-      const itemKeyBytes = await cryptoService.decryptAesCbcHmac(
-        item.item_key_enc,
-        this.userKey
-      )
+      const itemKeyBytes = await cryptoService.decryptAesCbcHmac(item.item_key_enc, this.userKey)
       decryptionKey = SymmetricKey.fromBytes(itemKeyBytes)
     }
 
-    const decryptedDataBytes = await cryptoService.decryptAesCbcHmac(
-      item.data,
-      decryptionKey
-    )
+    const decryptedDataBytes = await cryptoService.decryptAesCbcHmac(item.data, decryptionKey)
     const decryptedDataStr = new TextDecoder().decode(decryptedDataBytes)
     const decryptedData = JSON.parse(decryptedDataStr)
 
@@ -995,17 +1167,11 @@ class BackgroundAgent {
     let decryptionKey = this.userKey
 
     if (item.item_key_enc) {
-      const itemKeyBytes = await cryptoService.decryptAesCbcHmac(
-        item.item_key_enc,
-        this.userKey
-      )
+      const itemKeyBytes = await cryptoService.decryptAesCbcHmac(item.item_key_enc, this.userKey)
       decryptionKey = SymmetricKey.fromBytes(itemKeyBytes)
     }
 
-    const decryptedDataBytes = await cryptoService.decryptAesCbcHmac(
-      item.data,
-      decryptionKey
-    )
+    const decryptedDataBytes = await cryptoService.decryptAesCbcHmac(item.data, decryptionKey)
     const decryptedDataStr = new TextDecoder().decode(decryptedDataBytes)
     const decryptedData = JSON.parse(decryptedDataStr)
 
@@ -1097,20 +1263,20 @@ class BackgroundAgent {
       typeof auto_fill === 'boolean'
         ? auto_fill
         : typeof existing?.auto_fill === 'boolean'
-          ? existing.auto_fill
-          : true
+        ? existing.auto_fill
+        : true
     const resolvedAutoLogin =
       typeof auto_login === 'boolean'
         ? auto_login
         : typeof existing?.auto_login === 'boolean'
-          ? existing.auto_login
-          : false
+        ? existing.auto_login
+        : false
     const resolvedReprompt =
       typeof reprompt === 'boolean'
         ? reprompt
         : typeof existing?.reprompt === 'boolean'
-          ? existing.reprompt
-          : false
+        ? existing.reprompt
+        : false
 
     // If action is "add", try to resolve to "update" based on existing candidates for domain.
     if (resolvedAction === 'add' && domain && finalUsername) {
@@ -1202,26 +1368,25 @@ class BackgroundAgent {
       title: overrides.title || entry.title,
       action: overrides.action || entry.action,
       loginId: overrides.loginId || entry.loginId,
-      folder_id:
-        overrides.folder_id !== undefined ? overrides.folder_id : entry.folder_id ?? null,
+      folder_id: overrides.folder_id !== undefined ? overrides.folder_id : entry.folder_id ?? null,
       auto_fill:
         typeof overrides.auto_fill === 'boolean'
           ? overrides.auto_fill
           : typeof entry.auto_fill === 'boolean'
-            ? entry.auto_fill
-            : true,
+          ? entry.auto_fill
+          : true,
       auto_login:
         typeof overrides.auto_login === 'boolean'
           ? overrides.auto_login
           : typeof entry.auto_login === 'boolean'
-            ? entry.auto_login
-            : false,
+          ? entry.auto_login
+          : false,
       reprompt:
         typeof overrides.reprompt === 'boolean'
           ? overrides.reprompt
           : typeof entry.reprompt === 'boolean'
-            ? entry.reprompt
-            : false
+          ? entry.reprompt
+          : false
     }
 
     const result = await this.saveCredentials(finalPayload)

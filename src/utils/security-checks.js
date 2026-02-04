@@ -1,7 +1,7 @@
 /**
  * Security Checks for Autofill
- * Bitwarden-inspired security validation before autofilling credentials
- * 
+ * Security validation before autofilling credentials
+ *
  * @module security-checks
  */
 
@@ -24,16 +24,16 @@ export const SECURITY_WARNINGS = {
 }
 
 /**
- * Check if a URL is secure for autofill (Bitwarden-style)
- * 
+ * Check if a URL is secure for autofill
+ *
  * Security rules:
  * 1. HTTPS required (except localhost)
  * 2. Valid certificate (browser-level check)
  * 3. No mixed content
- * 
+ *
  * @param {string} url - URL to check
  * @returns {SecurityCheckResult}
- * 
+ *
  * @example
  * const result = checkAutofillSecurity('https://example.com')
  * if (!result.allowed) {
@@ -92,12 +92,18 @@ export function checkAutofillSecurity(url) {
         allowed: false,
         reason: 'Insecure HTTP connection',
         warningType: SECURITY_WARNINGS.INSECURE_HTTP,
-        message: 'This site uses an insecure connection (HTTP). For your security, autofill is disabled on non-HTTPS sites.'
+        message:
+          'This site uses an insecure connection (HTTP). For your security, autofill is disabled on non-HTTPS sites.'
       }
     }
 
     // 3. Other protocols (file://, chrome://, etc.) - not applicable
-    if (protocol === 'file:' || protocol === 'chrome:' || protocol === 'edge:' || protocol === 'about:') {
+    if (
+      protocol === 'file:' ||
+      protocol === 'chrome:' ||
+      protocol === 'edge:' ||
+      protocol === 'about:'
+    ) {
       return {
         allowed: false,
         reason: 'Not a web page',
@@ -113,7 +119,6 @@ export function checkAutofillSecurity(url) {
       warningType: SECURITY_WARNINGS.SUSPICIOUS_URL,
       message: 'This page uses an unknown protocol. Autofill is disabled for security.'
     }
-
   } catch (error) {
     // Malformed URL
     return {
@@ -135,12 +140,12 @@ export function checkCurrentPageSecurity() {
 
 /**
  * Get security badge/icon for URL
- * @param {string} url 
+ * @param {string} url
  * @returns {Object} Badge info
  */
 export function getSecurityBadge(url) {
   const check = checkAutofillSecurity(url)
-  
+
   if (check.allowed && check.reason === null) {
     return {
       icon: '🔒',
@@ -148,7 +153,7 @@ export function getSecurityBadge(url) {
       color: 'green'
     }
   }
-  
+
   if (check.allowed && check.reason === 'Local development') {
     return {
       icon: '🔧',
@@ -156,7 +161,7 @@ export function getSecurityBadge(url) {
       color: 'blue'
     }
   }
-  
+
   if (check.warningType === SECURITY_WARNINGS.INSECURE_HTTP) {
     return {
       icon: '⚠️',
@@ -164,7 +169,7 @@ export function getSecurityBadge(url) {
       color: 'orange'
     }
   }
-  
+
   return {
     icon: '🚫',
     text: 'Blocked',

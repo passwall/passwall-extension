@@ -25,7 +25,7 @@
  */
 
 /**
- * Equivalent Domains (Bitwarden-inspired)
+ * Equivalent Domains
  *
  * Some services use multiple domains that should share credentials.
  * Example: Google accounts work on google.com, youtube.com, gmail.com, etc.
@@ -53,7 +53,7 @@ export const EQUIVALENT_DOMAINS = new Map([
 ])
 
 /**
- * Domain Match Blacklist (Bitwarden-inspired)
+ * Domain Match Blacklist
  *
  * For certain base domains, exclude specific subdomains from credential matching.
  * This prevents false positives where a subdomain shouldn't use the main domain's credentials.
@@ -348,7 +348,7 @@ export function addPlatformRule(rule) {
 }
 
 /**
- * Get equivalent domains for a given domain (Bitwarden-inspired)
+ * Get equivalent domains for a given domain
  *
  * @param {string} domain - Base domain (e.g., 'google.com')
  * @returns {Set<string>} Set of equivalent domains
@@ -378,7 +378,7 @@ export function getEquivalentDomains(domain) {
 
 /**
  * Check if a hostname should be excluded from domain matching
- * (Bitwarden DomainMatchBlacklist equivalent)
+ * Checks if a hostname should be excluded from domain matching
  *
  * @param {string} hostname - Full hostname to check (e.g., 'script.google.com')
  * @param {string} baseDomain - Base domain (e.g., 'google.com')

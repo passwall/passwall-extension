@@ -7,7 +7,7 @@ const LOGO_CONFIG = {
   MAX_SIZE: 32, // Maximum logo size in pixels (fixed)
   MIN_SIZE: 20, // Minimum logo size in pixels
   OFFSET: 5,
-  Z_INDEX: 99999
+  Z_INDEX: 2147483647 // Maximum safe z-index
 }
 
 // Development logging
@@ -19,7 +19,37 @@ const log = {
 }
 
 /**
+ * Generate a random custom element name for obfuscation
+ * This makes it harder for pages to detect and manipulate our elements
+ * @returns {string}
+ */
+function generateCustomElementName() {
+  const randomId = Math.random().toString(36).substring(2, 8)
+  return `pw-logo-${randomId}`
+}
+
+/**
+ * Default styles for host element
+ * Note: We don't use 'all: initial' as it can hide the element
+ */
+const DEFAULT_HOST_STYLES = {
+  position: 'fixed',
+  display: 'block',
+  zIndex: LOGO_CONFIG.Z_INDEX.toString(),
+  pointerEvents: 'auto',
+  visibility: 'visible',
+  opacity: '1',
+  margin: '0',
+  padding: '0',
+  border: 'none',
+  background: 'transparent',
+  boxSizing: 'border-box',
+  overflow: 'visible'
+}
+
+/**
  * PasswallLogo - Renders Passwall icon next to input fields
+ * Uses Shadow DOM for CSS isolation and protection
  */
 export class PasswallLogo {
   /**
@@ -33,7 +63,11 @@ export class PasswallLogo {
 
     this.input = input
     this.onClick = onClick
+    this.hostElement = null // Shadow DOM host element
+    this.shadowRoot = null // Closed shadow root for isolation
     this.imageElement = null
+    this.mutationObserver = null // Protection against page interference
+    this.foreignMutationCount = 0 // Track unauthorized mutations
     this._raf = 0
     this._onWinChange = null
   }
@@ -47,45 +81,154 @@ export class PasswallLogo {
   }
 
   /**
-   * Create the logo image element
+   * Create Shadow DOM host element with CSS isolation
+   * @private
+   */
+  createHostElement() {
+    const doc = this.input?.ownerDocument || document
+
+    // Create custom element as host
+    const host = doc.createElement('div')
+    host.setAttribute('id', LOGO_CONFIG.ID)
+    host.setAttribute('data-passwall-logo', 'true')
+
+    // Apply host styles
+    Object.assign(host.style, DEFAULT_HOST_STYLES)
+
+    // Create closed shadow root for true isolation
+    // Closed mode prevents page JS from accessing our shadow internals
+    this.shadowRoot = host.attachShadow({ mode: 'closed' })
+
+    this.hostElement = host
+    return host
+  }
+
+  /**
+   * Create the logo image element inside Shadow DOM
    * @private
    */
   createLogoElement() {
-    const doc = this.input?.ownerDocument || document
-    const img = doc.createElement('img')
+    if (!this.shadowRoot) {
+      throw new Error('Shadow root must be created before logo element')
+    }
 
-    img.setAttribute('id', LOGO_CONFIG.ID)
+    const img = document.createElement('img')
+
     img.alt = 'Passwall'
     img.src = PASSWALL_LOGO_URL
 
-    // Apply all styles directly to ensure they work
+    // Apply all styles directly inside shadow DOM
     Object.assign(img.style, {
       cursor: 'pointer',
-      // Fixed positioning aligns with getBoundingClientRect() coords.
-      position: 'fixed',
-      zIndex: LOGO_CONFIG.Z_INDEX.toString(),
-      pointerEvents: 'auto',
       display: 'block',
+      visibility: 'visible',
+      opacity: '1',
       // Smooth rendering for crisp logo appearance
       imageRendering: 'auto',
       // Prevent image dragging
       userSelect: 'none',
-      WebkitUserDrag: 'none'
+      WebkitUserDrag: 'none',
+      // Reset any inherited styles
+      margin: '0',
+      padding: '0',
+      border: 'none',
+      background: 'transparent',
+      maxWidth: 'none',
+      maxHeight: 'none'
     })
 
     if (this.onClick) {
       img.addEventListener('click', (event) => {
         log.info('🖱️ Logo clicked! Calling onClick handler')
+        event.stopPropagation()
         this.onClick(event)
       })
     }
 
+    // Add styles element for additional CSS reset
+    const styleElement = document.createElement('style')
+    styleElement.textContent = `
+      :host {
+        position: fixed !important;
+        display: block !important;
+        z-index: ${LOGO_CONFIG.Z_INDEX} !important;
+        pointer-events: auto !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        background: transparent !important;
+        box-sizing: border-box !important;
+        overflow: visible !important;
+      }
+      img {
+        cursor: pointer !important;
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        user-select: none !important;
+        -webkit-user-drag: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        background: transparent !important;
+        max-width: none !important;
+        max-height: none !important;
+      }
+    `
+
+    this.shadowRoot.appendChild(styleElement)
+    this.shadowRoot.appendChild(img)
     this.imageElement = img
+
     return img
   }
 
   /**
-   * Detect existing icons from other extensions (LastPass, Bitwarden, etc.)
+   * Setup mutation observer to protect against page interference
+   * @private
+   */
+  setupMutationProtection() {
+    if (!this.hostElement || this.mutationObserver) return
+
+    this.mutationObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        // Check for unauthorized style modifications
+        if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+          // Reset to our default styles
+          Object.assign(this.hostElement.style, DEFAULT_HOST_STYLES)
+          this.updatePosition()
+          this.foreignMutationCount++
+
+          log.info('⚠️ Detected style modification, resetting...')
+
+          // If too many foreign mutations, consider disabling
+          if (this.foreignMutationCount > 10) {
+            log.warn('⚠️ Excessive mutations detected, page may be interfering')
+          }
+        }
+
+        // Check for unauthorized attribute modifications
+        if (mutation.type === 'attributes' && mutation.attributeName !== 'style') {
+          // Remove unauthorized attributes (except our own)
+          const attr = mutation.attributeName
+          if (attr && !['id', 'data-passwall-logo'].includes(attr)) {
+            this.hostElement.removeAttribute(attr)
+            log.info(`⚠️ Removed unauthorized attribute: ${attr}`)
+          }
+        }
+      }
+    })
+
+    this.mutationObserver.observe(this.hostElement, {
+      attributes: true,
+      attributeOldValue: true
+    })
+  }
+
+  /**
+   * Detect existing icons from other extensions (LastPass, 1Password, etc.)
    * @private
    * @returns {number} Additional offset needed to avoid overlap
    */
@@ -104,8 +247,6 @@ export class PasswallLogo {
       'img[data-lastpass-icon-root]', // LastPass
       'span[data-lastpass-icon-root]', // LastPass
       'div[data-lastpass-icon-root]', // LastPass
-      '[class*="bitwarden"]', // Bitwarden
-      '[id*="bitwarden"]', // Bitwarden
       '[class*="1password"]', // 1Password
       '[id*="1password"]', // 1Password
       '[class*="dashlane"]', // Dashlane
@@ -151,20 +292,17 @@ export class PasswallLogo {
 
     candidates.forEach((icon) => {
       // Skip our own icon and the input itself
-      if (icon === this.imageElement || icon === this.input) return
+      if (icon === this.hostElement || icon === this.imageElement || icon === this.input) return
 
       const buttonAnchor =
-        typeof icon.closest === 'function'
-          ? icon.closest('button, [role="button"]')
-          : null
+        typeof icon.closest === 'function' ? icon.closest('button, [role="button"]') : null
       const iconRect = (buttonAnchor || icon).getBoundingClientRect()
       if (!iconRect.width || !iconRect.height) return
 
       const sameVerticalArea = iconRect.top < inputBottom && iconRect.bottom > inputTop
       if (!sameVerticalArea) return
 
-      const overlapsTarget =
-        targetRect.left < iconRect.right && targetRect.right > iconRect.left
+      const overlapsTarget = targetRect.left < iconRect.right && targetRect.right > iconRect.left
       const insideInput = iconRect.left < inputRight && iconRect.right > inputLeft
       const inRightZone = iconRect.left >= rightZoneLeft
       const reasonableSize =
@@ -190,8 +328,8 @@ export class PasswallLogo {
    * @private
    */
   updatePosition() {
-    if (!this.imageElement) {
-      log.error('Cannot update position: imageElement is null')
+    if (!this.hostElement || !this.imageElement) {
+      log.error('Cannot update position: elements are null')
       return
     }
 
@@ -240,16 +378,23 @@ export class PasswallLogo {
       log.success(`Adjusted position to avoid overlap: -${additionalOffset}px`)
     }
 
-    Object.assign(this.imageElement.style, {
+    // Update host element position
+    Object.assign(this.hostElement.style, {
       top: `${topPosition}px`,
       left: `${leftPosition}px`,
-      height: `${size}px`,
       width: `${size}px`,
+      height: `${size}px`,
       zIndex: LOGO_CONFIG.Z_INDEX.toString()
     })
 
-    if (!this.imageElement.parentNode) {
-      ;(doc.body || doc.documentElement).appendChild(this.imageElement)
+    // Update image size inside shadow DOM
+    Object.assign(this.imageElement.style, {
+      height: `${size}px`,
+      width: `${size}px`
+    })
+
+    if (!this.hostElement.parentNode) {
+      ;(doc.body || doc.documentElement).appendChild(this.hostElement)
     }
   }
 
@@ -257,8 +402,10 @@ export class PasswallLogo {
    * Render the logo (create + position)
    */
   render() {
+    this.createHostElement()
     this.createLogoElement()
     this.updatePosition()
+    this.setupMutationProtection()
 
     const doc = this.input?.ownerDocument || document
     const win = doc.defaultView || window
@@ -285,6 +432,13 @@ export class PasswallLogo {
   destroy() {
     const doc = this.input?.ownerDocument || document
     const win = doc.defaultView || window
+
+    // Cleanup mutation observer
+    if (this.mutationObserver) {
+      this.mutationObserver.disconnect()
+      this.mutationObserver = null
+    }
+
     if (this._onWinChange) {
       try {
         win.removeEventListener('scroll', this._onWinChange, true)
@@ -302,9 +456,14 @@ export class PasswallLogo {
       }
       this._raf = 0
     }
-    if (this.imageElement) {
-      this.imageElement.remove()
-      this.imageElement = null
+
+    // Remove host element (this also removes shadow DOM)
+    if (this.hostElement) {
+      this.hostElement.remove()
+      this.hostElement = null
     }
+
+    this.shadowRoot = null
+    this.imageElement = null
   }
 }
