@@ -39,16 +39,24 @@ const client = Axios.create({
 let isRefreshing = false
 let failedQueue = []
 
-function tryRedirectToLogin() {
+/**
+ * Navigate to appropriate auth screen via Vue Router.
+ * Dispatches a custom event that the router listens for, ensuring
+ * navigation goes through proper guards (including PIN unlock check).
+ * 
+ * @param {string} reason - Reason for session expiry (for logging)
+ */
+function notifySessionExpired(reason = 'unknown') {
   // HTTPClient is used in background/service-worker contexts too; guard window usage.
   try {
     if (typeof window === 'undefined') return
-    if (!window?.location) return
+    if (!window?.dispatchEvent) return
 
-    // Use hash routing (Vue Router createWebHashHistory)
-    if (window.location.hash !== '#/login') {
-      window.location.hash = '#/login'
-    }
+    // Dispatch custom event for router to handle - this ensures proper
+    // navigation through Vue Router guards including PIN unlock check
+    window.dispatchEvent(new CustomEvent('passwall:session-expired', {
+      detail: { reason }
+    }))
   } catch {
     // ignore
   }
@@ -190,12 +198,9 @@ async function getValidAccessTokenForRequest() {
     return newToken
   } catch (err) {
     // Proactive refresh failed (e.g. refresh token expired/invalid) BEFORE any request is sent.
-    // Ensure we clear auth state and bring the popup UI back to login.
+    // Don't clear tokens here - let the router's auth-check handle routing to
+    // either Unlock (if PIN is set) or Login. This preserves PIN unlock capability.
     try {
-      await Storage.removeItem('access_token')
-      await Storage.removeItem('refresh_token')
-      await Storage.removeItem('master_hash')
-
       browser.runtime
         .sendMessage({
           type: 'AUTH_ERROR',
@@ -206,7 +211,8 @@ async function getValidAccessTokenForRequest() {
     } catch {
       // ignore
     } finally {
-      tryRedirectToLogin()
+      // Notify UI to navigate through proper router guards
+      notifySessionExpired('refresh_failed')
     }
 
     processQueue(err, null)
@@ -286,12 +292,9 @@ client.interceptors.response.use(
         processQueue(refreshError, null)
         isRefreshing = false
 
-        // Clear storage and notify extension to logout
+        // Don't clear tokens here - let router's auth-check handle routing.
+        // This preserves PIN unlock capability when tokens expire.
         try {
-          await Storage.removeItem('access_token')
-          await Storage.removeItem('refresh_token')
-          await Storage.removeItem('master_hash')
-
           browser.runtime
             .sendMessage({
               type: 'AUTH_ERROR',
@@ -302,10 +305,10 @@ client.interceptors.response.use(
               // Background script might not be ready
             })
         } catch (err) {
-          log.error('Failed to clear auth state', toSafeError(err))
+          log.error('Failed to send auth error', toSafeError(err))
         } finally {
-          // Ensure UI navigates to login when refresh token is invalid/expired.
-          tryRedirectToLogin()
+          // Navigate through proper router guards (includes PIN unlock check)
+          notifySessionExpired('refresh_failed')
         }
 
         return Promise.reject(refreshError)

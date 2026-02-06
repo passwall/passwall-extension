@@ -217,12 +217,14 @@ class BackgroundAgent {
       if (request.who === 'api' && request.type === 'AUTH_ERROR') {
         const reason = request.payload?.reason
         if (reason === 'refresh_failed') {
-          log.warn('Token refresh failed, logging out...')
+          log.warn('Token refresh failed, locking session (preserving PIN)...')
         } else {
-          log.warn('Auth error from API, logging out...')
+          log.warn('Auth error from API, locking session (preserving PIN)...')
         }
-        this.handleLogout().catch((err) => {
-          log.error('Logout after auth error failed', toSafeError(err))
+        // Use handleSessionLock instead of handleLogout to preserve PIN data
+        // This allows users with PIN to unlock instead of full re-login
+        this.handleSessionLock().catch((err) => {
+          log.error('Session lock after auth error failed', toSafeError(err))
         })
         return false
       }
@@ -540,8 +542,39 @@ class BackgroundAgent {
   }
 
   /**
+   * Handle session lock (token expired but preserve PIN data)
+   * Clears session keys but preserves PIN data for unlock capability
+   * @private
+   */
+  async handleSessionLock() {
+    try {
+      this.isAuthenticated = false
+      this.userKey = null
+      CryptoUtils.encryptKey = null
+      HTTPClient.setHeader('Authorization', '')
+      this.pendingSaveByTab.clear()
+      this.pendingTotpByTab.clear()
+      this.lastSecretFetchByTab.clear()
+      this.lastSeenUsernameByTab.clear()
+      this.loginsByDomainCache.clear()
+      this.loginsByDomainInFlight.clear()
+
+      // Clear session keys but preserve PIN data in storage
+      try {
+        await SessionStorage.removeItems([SESSION_KEYS.userKey, SESSION_KEYS.masterKey])
+      } catch {
+        // ignore
+      }
+
+      log.info('Session locked, PIN data preserved for unlock')
+    } catch (error) {
+      log.error('Session lock failed', toSafeError(error))
+    }
+  }
+
+  /**
    * Handle logout and notify active tab
-   * Clears authentication state and crypto keys
+   * Clears ALL authentication state including PIN data (full logout)
    * @private
    */
   async handleLogout() {

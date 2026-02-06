@@ -68,7 +68,6 @@ async function removeItems(keys) {
 
 export const SESSION_KEYS = Object.freeze({
   userKey: 'userKey',
-  masterKey: 'masterKey',
 })
 
 export default {

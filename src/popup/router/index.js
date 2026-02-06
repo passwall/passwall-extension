@@ -168,6 +168,21 @@ const router = createRouter({
   routes
 })
 
+// Listen for session expiry events from HTTPClient
+// This ensures navigation goes through proper router guards (including PIN check)
+if (typeof window !== 'undefined') {
+  window.addEventListener('passwall:session-expired', () => {
+    // Force re-evaluation of auth state by navigating to current route
+    // This triggers AuthCheck which will redirect to Login or Unlock as needed
+    const currentRoute = router.currentRoute.value
+    if (currentRoute?.name !== 'Login' && currentRoute?.name !== 'Unlock') {
+      // Use replace to re-trigger guards on the same route
+      // AuthCheck will redirect to Login or Unlock based on auth state
+      router.replace({ name: 'Login' }).catch(() => {})
+    }
+  })
+}
+
 // After navigation hooks
 router.afterEach((to, from) => {
   Storage.setItem('latest_route', to.name)

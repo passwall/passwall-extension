@@ -56,29 +56,21 @@ const normalizePin = (pin) => String(pin || '').trim()
 
 const isValidPin = (pin) => /^\d+$/.test(pin) && pin.length >= PIN_MIN_LENGTH && pin.length <= PIN_MAX_LENGTH
 
-async function persistSessionKeys(userKey, masterKey) {
+async function persistUserKey(userKey) {
   const userKeyB64 = userKey ? cryptoService.arrayToBase64(userKey.toBytes()) : null
-  const masterKeyB64 = masterKey ? cryptoService.arrayToBase64(masterKey) : null
+  if (!userKeyB64) return
 
   if (SessionStorage.isSupported()) {
     try {
       await SessionStorage.setAccessLevelTrustedContexts()
-      const items = []
-      if (userKeyB64) items.push(SessionStorage.setItem(SESSION_KEYS.userKey, userKeyB64))
-      if (masterKeyB64) items.push(SessionStorage.setItem(SESSION_KEYS.masterKey, masterKeyB64))
-      await Promise.all(items)
+      await SessionStorage.setItem(SESSION_KEYS.userKey, userKeyB64)
       return
     } catch {
       // Fallback
     }
   }
 
-  if (userKeyB64) {
-    window?.sessionStorage?.setItem?.('userKey', userKeyB64)
-  }
-  if (masterKeyB64) {
-    window?.sessionStorage?.setItem?.('masterKey', masterKeyB64)
-  }
+  window?.sessionStorage?.setItem?.('userKey', userKeyB64)
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -87,7 +79,6 @@ export const useAuthStore = defineStore('auth', {
     refresh_token: '',
     // Keys (stored in session)
     userKey: null, // SymmetricKey instance
-    masterKey: null, // Uint8Array
     // User data
     user: null,
     pro: false,
@@ -117,43 +108,29 @@ export const useAuthStore = defineStore('auth', {
       this.refresh_token = refresh_token || ''
       this.user = user
 
-      // Try to restore keys from extension session storage (survives MV3 SW restarts)
-      const sessionSupported = SessionStorage.isSupported()
+      // Try to restore userKey from extension session storage (survives MV3 SW restarts)
       try {
-        if (sessionSupported) {
+        if (SessionStorage.isSupported()) {
           await SessionStorage.setAccessLevelTrustedContexts()
-
-          const [userKeyBase64, masterKeyBase64] = await Promise.all([
-            SessionStorage.getItem(SESSION_KEYS.userKey),
-            SessionStorage.getItem(SESSION_KEYS.masterKey)
-          ])
+          const userKeyBase64 = await SessionStorage.getItem(SESSION_KEYS.userKey)
 
           if (userKeyBase64) {
             const userKeyBytes = cryptoService.base64ToArray(userKeyBase64)
             this.userKey = SymmetricKey.fromBytes(userKeyBytes)
           }
-
-          if (masterKeyBase64) {
-            this.masterKey = cryptoService.base64ToArray(masterKeyBase64)
-          }
         }
 
         // Secondary fallback for older builds or environments without storage.session.
-        if (!this.userKey || !this.masterKey) {
+        if (!this.userKey) {
           const userKeyFallback = window?.sessionStorage?.getItem?.('userKey')
-          const masterKeyFallback = window?.sessionStorage?.getItem?.('masterKey')
-
-          if (!this.userKey && userKeyFallback) {
+          if (userKeyFallback) {
             const userKeyBytes = cryptoService.base64ToArray(userKeyFallback)
             this.userKey = SymmetricKey.fromBytes(userKeyBytes)
-          }
-          if (!this.masterKey && masterKeyFallback) {
-            this.masterKey = cryptoService.base64ToArray(masterKeyFallback)
           }
         }
       } catch (error) {
         if (DEV_MODE) {
-          console.warn('Failed to restore keys from session:', Helpers.toSafeError(error))
+          console.warn('Failed to restore userKey from session:', Helpers.toSafeError(error))
         }
       }
 
@@ -205,15 +182,15 @@ export const useAuthStore = defineStore('auth', {
         )
       }
 
-      // 2. Derive Master Key (client-side, never sent)
-      this.masterKey = await cryptoService.makeMasterKey(
+      // 2. Derive Master Key (client-side, never sent, not persisted)
+      const masterKey = await cryptoService.makeMasterKey(
         master_password,
         kdfConfig.kdf_salt,
         kdfConfig
       )
 
       // 3. Generate Auth Key for server authentication
-      const authKey = await cryptoService.hashMasterKey(this.masterKey)
+      const authKey = await cryptoService.hashMasterKey(masterKey)
       const authKeyBase64 = cryptoService.arrayToBase64(authKey)
 
       // 4. Sign in with server
@@ -226,7 +203,7 @@ export const useAuthStore = defineStore('auth', {
       })
 
       // 5. Unwrap User Key (decrypt with Master Key)
-      const stretchedMasterKey = await cryptoService.stretchMasterKey(this.masterKey)
+      const stretchedMasterKey = await cryptoService.stretchMasterKey(masterKey)
       this.userKey = await cryptoService.unwrapUserKey(data.protected_user_key, stretchedMasterKey)
 
       // 6. Store tokens and user data
@@ -247,8 +224,8 @@ export const useAuthStore = defineStore('auth', {
         Storage.setItem('user', data.user)
       ])
 
-      // 9. Store keys in session storage (cleared on browser close)
-      await persistSessionKeys(this.userKey, this.masterKey)
+      // 9. Store userKey in session storage (cleared on browser close)
+      await persistUserKey(this.userKey)
 
       // 10. Notify background script
       Helpers.messageToBackground({ type: EVENT_TYPES.LOGIN })
@@ -269,15 +246,15 @@ export const useAuthStore = defineStore('auth', {
       // 2. Use default KDF config
       const kdfConfig = { ...DEFAULT_KDF_CONFIG, kdf_salt: kdfSalt }
 
-      // 3. Derive Master Key (client-side, never sent)
-      this.masterKey = await cryptoService.makeMasterKey(master_password, kdfSalt, kdfConfig)
+      // 3. Derive Master Key (client-side, never sent, not persisted)
+      const masterKey = await cryptoService.makeMasterKey(master_password, kdfSalt, kdfConfig)
 
       // 4. Generate Auth Key for server authentication
-      const authKey = await cryptoService.hashMasterKey(this.masterKey)
+      const authKey = await cryptoService.hashMasterKey(masterKey)
       const authKeyBase64 = cryptoService.arrayToBase64(authKey)
 
       // 5. Stretch Master Key (HKDF)
-      const stretchedMasterKey = await cryptoService.stretchMasterKey(this.masterKey)
+      const stretchedMasterKey = await cryptoService.stretchMasterKey(masterKey)
 
       // 6. Generate User Key (random, once)
       this.userKey = await cryptoService.makeUserKey()
@@ -316,8 +293,8 @@ export const useAuthStore = defineStore('auth', {
         Storage.setItem('user', data)
       ])
 
-      // 12. Store keys in session storage
-      await persistSessionKeys(this.userKey, this.masterKey)
+      // 12. Store userKey in session storage
+      await persistUserKey(this.userKey)
 
       // 13. Notify background script
       Helpers.messageToBackground({ type: EVENT_TYPES.LOGIN })
@@ -355,14 +332,20 @@ export const useAuthStore = defineStore('auth', {
     },
 
     /**
-     * Logout user
+     * Logout user (manual logout - clears ALL data including PIN)
+     * 
+     * This is called when user explicitly clicks "Log out".
+     * PIN data is intentionally cleared because user chose to fully log out.
+     * 
+     * Note: When tokens expire (session timeout), HTTPClient triggers
+     * AUTH_ERROR which calls background's handleSessionLock() instead.
+     * That method preserves PIN data so users can unlock with PIN.
      */
     async logout() {
       // Clear state first
       this.access_token = ''
       this.refresh_token = ''
       this.userKey = null
-      this.masterKey = null
       this.user = null
       this.pro = false
       this.searchQuery = ''
@@ -373,18 +356,17 @@ export const useAuthStore = defineStore('auth', {
       // Clear session keys (do not clear all session storage)
       if (SessionStorage.isSupported()) {
         try {
-          await SessionStorage.removeItems([SESSION_KEYS.userKey, SESSION_KEYS.masterKey])
+          await SessionStorage.removeItem(SESSION_KEYS.userKey)
         } catch {
           // Fallback
           window?.sessionStorage?.removeItem?.('userKey')
-          window?.sessionStorage?.removeItem?.('masterKey')
         }
       } else {
         // Fallback
         window?.sessionStorage?.removeItem?.('userKey')
-        window?.sessionStorage?.removeItem?.('masterKey')
       }
 
+      // Clear PIN data on manual logout (user chose to fully log out)
       await clearPinData()
 
       // Preserve email and server for convenience
@@ -474,8 +456,7 @@ export const useAuthStore = defineStore('auth', {
         const userKeyBytes = await cryptoService.decryptAesCbcHmac(protectedUserKey, pinKey)
 
         this.userKey = SymmetricKey.fromBytes(userKeyBytes)
-        this.masterKey = null
-        await persistSessionKeys(this.userKey, null)
+        await persistUserKey(this.userKey)
         await Promise.all([
           Storage.setItem(PIN_STORAGE_KEYS.failedAttempts, 0),
           Storage.setItem(PIN_STORAGE_KEYS.lockUntil, null)
@@ -512,72 +493,6 @@ export const useAuthStore = defineStore('auth', {
       this.user = await Storage.getItem('user')
       if (this.user !== null) {
         this.pro = true
-      }
-    },
-
-    /**
-     * Change Master Password
-     */
-    async changeMasterPassword(payload) {
-      if (!this.userKey || !this.masterKey) {
-        throw new Error('User not authenticated or keys not loaded')
-      }
-
-      const { old_password, new_password } = payload
-
-      // 1. Verify old password
-      const email = await Storage.getItem('email')
-      const { data: kdfConfig } = await AuthService.PreLogin(email)
-
-      const oldMasterKey = await cryptoService.makeMasterKey(
-        old_password,
-        kdfConfig.kdf_salt,
-        kdfConfig
-      )
-
-      if (!cryptoService.constantTimeEqual(oldMasterKey, this.masterKey)) {
-        throw new Error('Old password is incorrect')
-      }
-
-      // 2. Generate new KDF salt (optional, can reuse old)
-      const newKdfSalt = cryptoService.generateRandomHex(32)
-
-      // 3. Derive new Master Key
-      const newMasterKey = await cryptoService.makeMasterKey(new_password, newKdfSalt, kdfConfig)
-
-      // 4. Stretch new Master Key
-      const newStretchedKey = await cryptoService.stretchMasterKey(newMasterKey)
-
-      // 5. Re-wrap User Key with new Master Key
-      const newProtectedUserKey = await cryptoService.protectUserKey(this.userKey, newStretchedKey)
-
-      // 6. Generate new Auth Key
-      const newAuthKey = await cryptoService.hashMasterKey(newMasterKey)
-      const newAuthKeyBase64 = cryptoService.arrayToBase64(newAuthKey)
-
-      // 7. Send to server
-      await AuthService.ChangeMasterPassword({
-        new_master_password_hash: newAuthKeyBase64,
-        new_protected_user_key: newProtectedUserKey,
-        new_kdf_salt: newKdfSalt
-      })
-
-      // 8. Update local state
-      this.masterKey = newMasterKey
-      const masterKeyB64 = cryptoService.arrayToBase64(newMasterKey)
-      if (SessionStorage.isSupported()) {
-        try {
-          await SessionStorage.setItem(SESSION_KEYS.masterKey, masterKeyB64)
-        } catch {
-          window?.sessionStorage?.setItem?.('masterKey', masterKeyB64)
-        }
-      } else {
-        window?.sessionStorage?.setItem?.('masterKey', masterKeyB64)
-      }
-
-      // No console logs in production; UI should provide feedback if needed.
-      if (DEV_MODE) {
-        console.log('Master password changed successfully')
       }
     },
 
