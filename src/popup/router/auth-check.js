@@ -4,7 +4,7 @@ import { PIN_STORAGE_KEYS } from '@/utils/pin-storage'
 
 export default async (to, _, next) => {
   // meta.auth: true means "bypass auth check" (for iframes)
-  const bypassAuth = to.matched.some(record => record.meta.auth)
+  const bypassAuth = to.matched.some((record) => record.meta.auth)
 
   // If auth check should be bypassed, just continue
   if (bypassAuth) {
@@ -67,9 +67,9 @@ export default async (to, _, next) => {
         for (const key of pinKeys) {
           pinData[key] = await Storage.getItem(key)
         }
-        
+
         await Storage.clear()
-        
+
         if (email) await Storage.setItem('email', email)
         if (server) await Storage.setItem('server', server)
         // Restore PIN data
@@ -78,7 +78,7 @@ export default async (to, _, next) => {
             await Storage.setItem(key, pinData[key])
           }
         }
-        
+
         // Clear session keys
         if (SessionStorage.isSupported()) {
           try {

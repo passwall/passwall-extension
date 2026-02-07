@@ -12,7 +12,6 @@ import Notes from '@p/views/Notes/index.vue'
 import Addresses from '@p/views/Addresses/index.vue'
 import PaymentCards from '@p/views/PaymentCards/index.vue'
 import BankAccounts from '@p/views/BankAccounts/index.vue'
-import ChangeMasterPassword from '@p/views/ChangeMasterPassword/index.vue'
 import PasswordCreate from '@p/views/Passwords/create.vue'
 import PasswordDetail from '@p/views/Passwords/detail.vue'
 import NoteCreate from '@p/views/Notes/create.vue'
@@ -72,11 +71,6 @@ const routes = [
         component: BankAccounts
       }
     ]
-  },
-  {
-    path: '/change-master-password',
-    name: 'ChangeMasterPassword',
-    component: ChangeMasterPassword
   },
   {
     path: '/passwords/create',
@@ -229,4 +223,3 @@ router.beforeEach(async (to, from, next) => {
 })
 
 export default router
-

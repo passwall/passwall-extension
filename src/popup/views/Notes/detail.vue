@@ -35,6 +35,13 @@
             :show-icons="true"
           />
         </div>
+        <FormRowText
+          v-if="form.organization"
+          v-model="form.organization"
+          title="organization"
+          :edit-mode="false"
+          :show-icons="false"
+        />
         <div class="d-flex">
           <VTextArea
             :isEditable="isEditMode"
@@ -70,6 +77,7 @@ export default {
       form: {
         id: null,
         title: '',
+        organization: '',
         note: ''
       },
       isEditMode: false
@@ -123,6 +131,7 @@ export default {
     this.form = {
       id: item.id,
       title: item.title || item.metadata?.name || '',
+      organization: item._orgName || '',
       note: item.notes || item.note || ''
     }
   },

@@ -95,7 +95,7 @@ export class CryptoService {
       // (matches admin panel implementation)
       const masterKey = await this.pbkdf2(
         password,
-        kdfSalt,  // Pass hex string directly, pbkdf2 will encode as UTF-8
+        kdfSalt, // Pass hex string directly, pbkdf2 will encode as UTF-8
         kdfConfig.kdf_iterations || 600000,
         32,
         'SHA-256'
@@ -168,6 +168,22 @@ export class CryptoService {
   }
 
   /**
+   * Safely convert a Uint8Array to a standalone ArrayBuffer.
+   * Defensive copy: if the typed array is a view over a larger buffer
+   * (e.g. from subarray()), .buffer would return the entire backing store
+   * causing SubtleCrypto to operate on wrong data. This always returns a
+   * correctly-sized copy. Matches vault implementation.
+   *
+   * @param {Uint8Array} arr
+   * @returns {ArrayBuffer}
+   */
+  toArrayBuffer(arr) {
+    return arr.buffer.byteLength === arr.byteLength
+      ? arr.buffer
+      : arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength)
+  }
+
+  /**
    * Encrypt with AES-256-CBC + HMAC-SHA256 (Encrypt-then-MAC)
    * Returns EncString format: "2.iv|ciphertext|mac"
    *
@@ -186,7 +202,7 @@ export class CryptoService {
     // 3. Import AES key
     const aesKey = await crypto.subtle.importKey(
       'raw',
-      key.encKey.buffer,
+      this.toArrayBuffer(key.encKey),
       { name: 'AES-CBC' },
       false,
       ['encrypt']
@@ -194,9 +210,9 @@ export class CryptoService {
 
     // 4. Encrypt with AES-256-CBC
     const ciphertext = await crypto.subtle.encrypt(
-      { name: 'AES-CBC', iv: iv.buffer },
+      { name: 'AES-CBC', iv: this.toArrayBuffer(iv) },
       aesKey,
-      plaintextBytes.buffer
+      this.toArrayBuffer(plaintextBytes)
     )
 
     // 5. Compute HMAC (Encrypt-then-MAC)
@@ -206,13 +222,13 @@ export class CryptoService {
 
     const hmacKey = await crypto.subtle.importKey(
       'raw',
-      key.macKey.buffer,
+      this.toArrayBuffer(key.macKey),
       { name: 'HMAC', hash: 'SHA-256' },
       false,
       ['sign']
     )
 
-    const mac = await crypto.subtle.sign({ name: 'HMAC' }, hmacKey, dataToMac.buffer)
+    const mac = await crypto.subtle.sign({ name: 'HMAC' }, hmacKey, this.toArrayBuffer(dataToMac))
 
     // 6. Format as EncString: "2.iv|ct|mac"
     const encString = `2.${this.arrayToBase64(iv)}|${this.arrayToBase64(
@@ -252,7 +268,7 @@ export class CryptoService {
 
     const hmacKey = await crypto.subtle.importKey(
       'raw',
-      key.macKey.buffer,
+      this.toArrayBuffer(key.macKey),
       { name: 'HMAC', hash: 'SHA-256' },
       false,
       ['verify']
@@ -261,8 +277,8 @@ export class CryptoService {
     const isValid = await crypto.subtle.verify(
       { name: 'HMAC' },
       hmacKey,
-      mac.buffer,
-      dataToVerify.buffer
+      this.toArrayBuffer(mac),
+      this.toArrayBuffer(dataToVerify)
     )
 
     if (!isValid) {
@@ -272,16 +288,16 @@ export class CryptoService {
     // 3. Decrypt (only if MAC is valid)
     const aesKey = await crypto.subtle.importKey(
       'raw',
-      key.encKey.buffer,
+      this.toArrayBuffer(key.encKey),
       { name: 'AES-CBC' },
       false,
       ['decrypt']
     )
 
     const plaintext = await crypto.subtle.decrypt(
-      { name: 'AES-CBC', iv: iv.buffer },
+      { name: 'AES-CBC', iv: this.toArrayBuffer(iv) },
       aesKey,
-      ciphertext.buffer
+      this.toArrayBuffer(ciphertext)
     )
 
     return new Uint8Array(plaintext)
@@ -308,7 +324,7 @@ export class CryptoService {
 
     const importedKey = await crypto.subtle.importKey(
       'raw',
-      passwordBytes.buffer,
+      this.toArrayBuffer(passwordBytes),
       { name: 'PBKDF2' },
       false,
       ['deriveBits']
@@ -317,7 +333,7 @@ export class CryptoService {
     const derivedBits = await crypto.subtle.deriveBits(
       {
         name: 'PBKDF2',
-        salt: saltBytes.buffer,
+        salt: this.toArrayBuffer(saltBytes),
         iterations: iterations,
         hash: hash
       },
@@ -359,13 +375,13 @@ export class CryptoService {
 
       const hmacKey = await crypto.subtle.importKey(
         'raw',
-        key.buffer,
+        this.toArrayBuffer(key),
         { name: 'HMAC', hash: hash },
         false,
         ['sign']
       )
 
-      const block = await crypto.subtle.sign({ name: 'HMAC' }, hmacKey, input.buffer)
+      const block = await crypto.subtle.sign({ name: 'HMAC' }, hmacKey, this.toArrayBuffer(input))
       const blockArray = new Uint8Array(block)
 
       const bytesToCopy = Math.min(blockArray.length, outputLength - currentLength)
@@ -483,6 +499,69 @@ export class CryptoService {
 export const cryptoService = new CryptoService()
 
 // ============================================================
+// Organization Key Helpers
+// ============================================================
+
+/**
+ * Generate a random Organization Key (512-bit SymmetricKey)
+ * Used when creating a new organization (e.g. during signup)
+ *
+ * @returns {Promise<SymmetricKey>}
+ */
+export async function generateOrganizationKey() {
+  const randomBytes = crypto.getRandomValues(new Uint8Array(64))
+  return new SymmetricKey(randomBytes.slice(0, 32), randomBytes.slice(32, 64))
+}
+
+/**
+ * Wrap (encrypt) an Organization Key with the User Key
+ * Returns EncString format: "2.iv|ct|mac"
+ *
+ * @param {SymmetricKey} orgKey - Organization symmetric key
+ * @param {SymmetricKey} userKey - User's symmetric key
+ * @returns {Promise<string>} EncString
+ */
+export async function wrapOrgKeyWithUserKey(orgKey, userKey) {
+  return await cryptoService.encryptAesCbcHmac(orgKey.toBytes(), userKey)
+}
+
+/**
+ * Unwrap (decrypt) an Organization Key using the User Key
+ *
+ * @param {string} encryptedOrgKey - EncString from server
+ * @param {SymmetricKey} userKey - User's symmetric key
+ * @returns {Promise<SymmetricKey>} Decrypted organization key
+ */
+export async function unwrapOrgKeyWithUserKey(encryptedOrgKey, userKey) {
+  const orgKeyBytes = await cryptoService.decryptAesCbcHmac(encryptedOrgKey, userKey)
+  return SymmetricKey.fromBytes(orgKeyBytes)
+}
+
+/**
+ * Encrypt data with an Organization Key
+ *
+ * @param {string} plaintext - JSON string to encrypt
+ * @param {SymmetricKey} orgKey - Organization symmetric key
+ * @returns {Promise<string>} EncString
+ */
+export async function encryptWithOrgKey(plaintext, orgKey) {
+  return await cryptoService.encryptAesCbcHmac(plaintext, orgKey)
+}
+
+/**
+ * Decrypt data with an Organization Key
+ *
+ * @param {string} encString - EncString from server
+ * @param {SymmetricKey} orgKey - Organization symmetric key
+ * @returns {Promise<object>} Parsed JSON object
+ */
+export async function decryptWithOrgKey(encString, orgKey) {
+  const decryptedBytes = await cryptoService.decryptAesCbcHmac(encString, orgKey)
+  const decryptedStr = new TextDecoder().decode(decryptedBytes)
+  return JSON.parse(decryptedStr)
+}
+
+// ============================================================
 // Default Export for Compatibility
 // ============================================================
 
@@ -493,6 +572,10 @@ export default {
   KdfType,
   DEFAULT_KDF_CONFIG,
   PBKDF2_MIN_ITERATIONS,
-  PBKDF2_MAX_ITERATIONS
+  PBKDF2_MAX_ITERATIONS,
+  generateOrganizationKey,
+  wrapOrgKeyWithUserKey,
+  unwrapOrgKeyWithUserKey,
+  encryptWithOrgKey,
+  decryptWithOrgKey
 }
-

@@ -2,10 +2,6 @@ export const Auth = {
   Login: 'Auth_Login'
 }
 
-export const ChangeMasterPassword = {
-  Update: 'change_master_password_update'
-}
-
 export const Migration = {
   Update: 'migration_update'
 }

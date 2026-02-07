@@ -73,7 +73,4 @@ export default class AuthService {
    * @param {string} payload.new_kdf_salt - Optional: new salt
    * @returns {Promise}
    */
-  static async ChangeMasterPassword(payload) {
-    return HTTPClient.post(`/api/users/change-master-password`, payload)
-  }
 }

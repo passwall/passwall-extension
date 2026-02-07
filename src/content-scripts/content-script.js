@@ -61,7 +61,52 @@ const FORM_INTENTS = {
 }
 
 const FORM_INTENT_KEYWORDS = {
-  LOGIN: ['login', 'log in', 'sign in', 'signin', 'sign-in', 'enter', 'access', 'continue'],
+  LOGIN: [
+    'login',
+    'log in',
+    'sign in',
+    'signin',
+    'sign-in',
+    'enter',
+    'access',
+    'continue',
+    // Turkish
+    'giriş',
+    'giris',
+    'giriş yap',
+    'giris yap',
+    'girişi yap',
+    'girisi yap',
+    'oturum aç',
+    'oturum ac',
+    // German
+    'anmelden',
+    'einloggen',
+    // French
+    'connexion',
+    'se connecter',
+    // Spanish
+    'iniciar sesión',
+    'iniciar sesion',
+    'acceder',
+    // Portuguese
+    'entrar',
+    // Italian
+    'accedi',
+    // Dutch
+    'inloggen',
+    // Russian
+    'войти',
+    // Arabic
+    'تسجيل الدخول',
+    // Japanese
+    'ログイン',
+    // Korean
+    '로그인',
+    // Chinese
+    '登录',
+    '登入'
+  ],
   SIGNUP: [
     'sign up',
     'signup',
@@ -98,6 +143,56 @@ const NEWSLETTER_KEYWORDS = [
 
 // Maximum fields to process per page (performance protection)
 const MAX_FIELDS_PER_PAGE = 200
+
+// Submit button text keywords (multi-language)
+// Used by isSubmitButton and isActionElement to detect login/submit triggers
+const SUBMIT_BUTTON_KEYWORDS = [
+  // English
+  'login',
+  'log in',
+  'sign in',
+  'submit',
+  'continue',
+  'next',
+  'proceed',
+  'enter',
+  // Turkish
+  'giriş',
+  'giris',
+  'girişi yap',
+  'girisi yap',
+  'giriş yap',
+  'giris yap',
+  'oturum aç',
+  'oturum ac',
+  // German
+  'anmelden',
+  'einloggen',
+  // French
+  'connexion',
+  'se connecter',
+  // Spanish
+  'iniciar sesión',
+  'iniciar sesion',
+  'acceder',
+  // Portuguese
+  'entrar',
+  // Italian
+  'accedi',
+  // Dutch
+  'inloggen',
+  // Russian
+  'войти',
+  // Arabic
+  'تسجيل الدخول',
+  // Japanese
+  'ログイン',
+  // Korean
+  '로그인',
+  // Chinese
+  '登录',
+  '登入'
+]
 
 const TOTP_FIELD_NAMES = [
   'totp',
@@ -162,6 +257,9 @@ class ContentScriptInjector {
     this.cachedCredentials = null // Cache credentials from submit button click
     this.cacheTimestamp = 0 // Timestamp of cached credentials
     this.saveNotificationRoute = null // { sourceWindow, nonce }
+    this._notificationCheckTimer = null // Debounced notification check
+    this._pendingNotificationCredentials = null // { credentials, intent, at }
+    this._formSubmissionInFlight = false // Prevent re-entrant capture
     this.lastAutofill = null // { at, username, passwordDigest, itemId }
     this.lastSeenUsername = null // { username, domain, at }
     this.lastSeenPassword = null // { password, at }
@@ -318,16 +416,11 @@ class ContentScriptInjector {
   handleFormSubmissionSuccess(payload) {
     log.info('📡 Form submission success detected by background:', payload)
 
-    // If we have cached credentials and form submission was successful, offer save
-    if (this.cachedCredentials && !this.saveNotificationShown) {
-      const credentials = this.cachedCredentials
-      const cacheAge = Date.now() - this.cacheTimestamp
-
-      // Only use cache if it's recent (within 5 seconds)
-      if (cacheAge < 5000) {
-        log.info('✅ Using cached credentials after successful form submission')
-        this.checkIfShouldOfferSave(credentials, { intent: FORM_INTENTS.LOGIN })
-      }
+    // If we have pending notification credentials, the webRequest confirmation
+    // means the form submission was real — trigger the check immediately.
+    if (this._pendingNotificationCredentials && !this.saveNotificationShown) {
+      const { credentials, intent } = this._pendingNotificationCredentials
+      this.scheduleNotificationCheck(credentials, intent, 0) // immediate
     }
   }
 
@@ -828,7 +921,17 @@ class ContentScriptInjector {
         // Check for attribute changes that reveal hidden password fields or enable disabled fields
         if (mutation.type === 'attributes' && mutation.target?.nodeType === Node.ELEMENT_NODE) {
           const attrName = mutation.attributeName || ''
-          if (['class', 'style', 'hidden', 'aria-hidden', 'tabindex', 'disabled', 'readonly'].includes(attrName)) {
+          if (
+            [
+              'class',
+              'style',
+              'hidden',
+              'aria-hidden',
+              'tabindex',
+              'disabled',
+              'readonly'
+            ].includes(attrName)
+          ) {
             const target = mutation.target
 
             // Rescan when disabled/readonly changes on any input field (multi-step forms like Enerjisa)
@@ -941,7 +1044,15 @@ class ContentScriptInjector {
           attributes: true,
           // Include 'disabled' and 'readonly' for multi-step forms where fields become enabled
           // after initial validation (e.g., Enerjisa login: phone/password enabled after TC validation)
-          attributeFilter: ['class', 'style', 'hidden', 'aria-hidden', 'tabindex', 'disabled', 'readonly']
+          attributeFilter: [
+            'class',
+            'style',
+            'hidden',
+            'aria-hidden',
+            'tabindex',
+            'disabled',
+            'readonly'
+          ]
         })
       } catch {
         // ignore
@@ -3453,6 +3564,15 @@ class ContentScriptInjector {
     this.pendingTotp = null
     this.submittedFormData = null
     this.saveNotificationShown = false
+
+    // Clear notification debounce state
+    if (this._notificationCheckTimer) {
+      clearTimeout(this._notificationCheckTimer)
+      this._notificationCheckTimer = null
+    }
+    this._pendingNotificationCredentials = null
+    this._formSubmissionInFlight = false
+
     this.closePasswordSuggestionPopup()
     this.closeLoginPopup()
   }
@@ -3463,6 +3583,11 @@ class ContentScriptInjector {
    * @private
    */
   async checkPendingSave() {
+    // Don't show if notification is already visible
+    if (this.saveNotificationShown) {
+      return
+    }
+
     try {
       const pending = await sendPayload({
         type: EVENT_TYPES.CHECK_PENDING_SAVE,
@@ -3470,6 +3595,11 @@ class ContentScriptInjector {
       })
 
       if (!pending?.pending) {
+        return
+      }
+
+      // Don't show if notification appeared while we were waiting
+      if (this.saveNotificationShown) {
         return
       }
 
@@ -3638,6 +3768,12 @@ class ContentScriptInjector {
       return
     }
 
+    // Prevent re-entrant processing if button click already handled this
+    if (this._formSubmissionInFlight) {
+      log.info('🔍 Form submit skipped (already processing from button click)')
+      return
+    }
+
     log.info('🔍 Form submitted, analyzing...')
 
     const formInputs = Array.from(form.elements).filter((el) => el.tagName === 'INPUT')
@@ -3698,7 +3834,7 @@ class ContentScriptInjector {
       const recentAutofillTime =
         typeof autofillAge === 'number' &&
         autofillAge >= 0 &&
-        autofillAge < 8000 &&
+        autofillAge < 30000 &&
         (this.lastAutofill?.username || '') === (credentials.username || '')
 
       let passwordSameAsAutofill = false
@@ -3753,16 +3889,9 @@ class ContentScriptInjector {
       this.cachedCredentials = null
       this.cacheTimestamp = 0
 
-      // Also try to show immediately (if no redirect)
-      // Don't set up new timers if a save notification is already active
-      if (!this.saveNotificationShown) {
-        setTimeout(() => {
-          // Check if save notification is already shown before offering
-          if (!this.saveNotificationShown) {
-            this.checkIfShouldOfferSave(credentials, { intent })
-          }
-        }, 1000)
-      }
+      // Schedule notification check via unified debounce
+      // Delay gives time for webRequest confirmation or page redirect
+      this.scheduleNotificationCheck(credentials, intent)
     } else {
       log.warn('❌ No credentials found in form')
     }
@@ -3830,17 +3959,35 @@ class ContentScriptInjector {
       this.cachedCredentials = credentials
       this.cacheTimestamp = Date.now()
 
-      // For formless submissions (no form submit event), wait and offer save
-      // Don't set up new timers if a save notification is already active
-      if (!element.closest('form') && !this.saveNotificationShown) {
-        setTimeout(() => {
-          // Check if save notification is already shown before offering
-          if (!this.saveNotificationShown) {
-            this.checkIfShouldOfferSave(credentials, { intent })
+      // Always store pending save in background (survives page navigation/redirect)
+      try {
+        await sendPayload({
+          type: EVENT_TYPES.SET_PENDING_SAVE,
+          payload: {
+            username: credentials.username,
+            password: credentials.password,
+            url: credentials.url,
+            domain: this.domain,
+            action: 'add'
           }
-        }, 1000)
+        })
+      } catch (error) {
+        log.error('Failed to set pending save:', error)
       }
-      // If there's a form, let form submit handler use cached credentials
+
+      if (!element.closest('form')) {
+        // Formless: schedule notification immediately
+        this._formSubmissionInFlight = true
+        this.scheduleNotificationCheck(credentials, intent)
+        setTimeout(() => {
+          this._formSubmissionInFlight = false
+        }, 100)
+      } else {
+        // Form-based: handleFormSubmit should fire next and will override this timer.
+        // But some frameworks (ASP.NET __doPostBack, form.submit()) bypass the submit
+        // event entirely, so we schedule a fallback with a longer delay.
+        this.scheduleNotificationCheck(credentials, intent, 2500)
+      }
     }
   }
 
@@ -3884,8 +4031,8 @@ class ContentScriptInjector {
       deepActiveElement?.tagName === 'INPUT'
         ? deepActiveElement
         : target?.tagName === 'INPUT'
-        ? target
-        : null
+          ? target
+          : null
 
     if (!input || !this.isLikelyCredentialInput(input)) {
       return
@@ -3925,15 +4072,25 @@ class ContentScriptInjector {
     this.cachedCredentials = credentials
     this.cacheTimestamp = Date.now()
 
-    // Don't set up new timers if a save notification is already active
-    if (!input.closest('form') && !this.saveNotificationShown) {
-      setTimeout(() => {
-        // Check if save notification is already shown before offering
-        if (!this.saveNotificationShown) {
-          this.checkIfShouldOfferSave(credentials, { intent })
-        }
-      }, 1000)
+    // For formless Enter key submissions, store pending and schedule notification
+    if (!input.closest('form')) {
+      try {
+        await sendPayload({
+          type: EVENT_TYPES.SET_PENDING_SAVE,
+          payload: {
+            username: credentials.username,
+            password: credentials.password,
+            url: credentials.url,
+            domain: this.domain,
+            action: 'add'
+          }
+        })
+      } catch {
+        // best-effort
+      }
+      this.scheduleNotificationCheck(credentials, intent)
     }
+    // If inside a form, handleFormSubmit will fire and handle it
   }
 
   /**
@@ -3962,21 +4119,10 @@ class ContentScriptInjector {
       typeof element.value === 'string' ? element.value : ''
     ]
       .filter(Boolean)
-      .map((value) => String(value).toLowerCase())
+      .map((value) => String(value).toLowerCase().trim())
       .join(' ')
 
-    const actionKeywords = [
-      'login',
-      'sign in',
-      'log in',
-      'submit',
-      'continue',
-      'next',
-      'proceed',
-      'enter'
-    ]
-
-    return actionKeywords.some((keyword) => textParts.includes(keyword))
+    return SUBMIT_BUTTON_KEYWORDS.some((keyword) => textParts.includes(keyword))
   }
 
   /**
@@ -4001,20 +4147,27 @@ class ContentScriptInjector {
     // Check if it's a submit input or button
     if (type === 'submit') return true
     if (tagName === 'button' && type !== 'button' && type !== 'reset') return true
-    if (role === 'button') {
-      // Check button text for login/submit keywords
-      const text = (element.textContent || '').toLowerCase()
-      const submitKeywords = [
-        'login',
-        'sign in',
-        'log in',
-        'submit',
-        'continue',
-        'next',
-        'proceed',
-        'enter'
-      ]
-      return submitKeywords.some((keyword) => text.includes(keyword))
+
+    // Check <a> tags — ASP.NET LinkButtons, React/Vue wrappers, etc.
+    // An <a> with href="javascript:..." is a programmatic action trigger.
+    if (tagName === 'a') {
+      const href =
+        typeof element.getAttribute === 'function'
+          ? (element.getAttribute('href') || '').toLowerCase()
+          : ''
+      const isJSHref = href.startsWith('javascript:')
+      const text = (element.textContent || '').toLowerCase().trim()
+      // <a> with javascript: href near a form and login keyword → submit button
+      if (isJSHref && SUBMIT_BUTTON_KEYWORDS.some((kw) => text.includes(kw))) {
+        return true
+      }
+      // <a> with role="button" and login keyword → submit button (checked below)
+    }
+
+    // Elements with role="button" or <a> tags with login keywords
+    if (role === 'button' || tagName === 'a') {
+      const text = (element.textContent || '').toLowerCase().trim()
+      return SUBMIT_BUTTON_KEYWORDS.some((keyword) => text.includes(keyword))
     }
 
     return false
@@ -4260,17 +4413,6 @@ class ContentScriptInjector {
       return false
     }
 
-    // Check for redirect loop patterns (common after logout)
-    if (isSignInPage && document.referrer) {
-      const referrerDomain = new URL(document.referrer).hostname
-      const currentDomain = new URL(currentUrl).hostname
-      if (referrerDomain === currentDomain) {
-        // Same domain redirect to sign-in page - likely post-logout
-        log.info('🚫 Redirect to sign-in from same domain detected, likely post-logout')
-        return false
-      }
-    }
-
     for (const selector of logoutSelectors) {
       try {
         // Simple text contains check for buttons/links
@@ -4297,15 +4439,6 @@ class ContentScriptInjector {
       } catch (e) {
         // Ignore invalid selectors
       }
-    }
-
-    // Check if this is within a reasonable time after page load
-    // (logout forms are often triggered immediately after login)
-    const timeSinceLoad = Date.now() - (window.performance?.timing?.navigationStart || Date.now())
-    if (timeSinceLoad < 2000) {
-      // Very quick form submissions might be logout/redirect forms
-      log.info('🚫 Form submitted too quickly after page load, likely not a login')
-      return false
     }
 
     log.info('✅ Form appears to be a login form')
@@ -4455,6 +4588,48 @@ class ContentScriptInjector {
   }
 
   /**
+   * Unified debounced notification check.
+   * All form submission triggers (submit, click, Enter, webRequest success)
+   * funnel through this method. The debounce ensures only ONE check fires
+   * per submission event, preventing duplicate popups.
+   *
+   * @param {Object} credentials - {username, password, url}
+   * @param {string} intent - FORM_INTENTS value
+   * @param {number} [delayMs=1500] - Debounce delay. Use 0 for immediate.
+   * @private
+   */
+  scheduleNotificationCheck(credentials, intent, delayMs = 1500) {
+    if (this.saveNotificationShown) {
+      log.info('⏭️ Save notification already shown, skipping schedule')
+      return
+    }
+
+    // Store the latest credentials (last write wins)
+    this._pendingNotificationCredentials = { credentials, intent, at: Date.now() }
+
+    // Clear any existing timer — this resets the debounce
+    if (this._notificationCheckTimer) {
+      clearTimeout(this._notificationCheckTimer)
+      this._notificationCheckTimer = null
+    }
+
+    const fire = () => {
+      this._notificationCheckTimer = null
+      if (this.saveNotificationShown) return
+      const pending = this._pendingNotificationCredentials
+      if (!pending) return
+      this._pendingNotificationCredentials = null
+      this.checkIfShouldOfferSave(pending.credentials, { intent: pending.intent })
+    }
+
+    if (delayMs <= 0) {
+      fire()
+    } else {
+      this._notificationCheckTimer = setTimeout(fire, delayMs)
+    }
+  }
+
+  /**
    * Check if we should offer to save these credentials.
    * Note: password is optional, but used to prefill the popup.
    * @param {Object} credentials - {username, password, url}
@@ -4472,19 +4647,6 @@ class ContentScriptInjector {
     if (this.blockSaveOffer) {
       log.info('⏭️ Save offer blocked (logout flow), skipping')
       return
-    }
-
-    // Check if we have a successful form submission result
-    // This helps filter out failed form submissions
-    const submissionResult = await this.getFormSubmissionResult()
-    if (submissionResult && !submissionResult.success) {
-      log.info(
-        `⏭️ Form submission failed (status ${submissionResult.statusCode}), skipping save offer`
-      )
-      return
-    }
-    if (submissionResult?.success) {
-      log.info(`✅ Form submission successful (status ${submissionResult.statusCode})`)
     }
 
     let offerKey = null
@@ -4649,14 +4811,43 @@ class ContentScriptInjector {
           return
         }
 
-        log.success(`🔄 Username exists - offering UPDATE`)
+        // Check if the submitted password matches the stored one.
+        // If it does, no need to show update popup — user is logging in with existing credentials.
+        try {
+          const matchResult = await sendPayload({
+            type: EVENT_TYPES.CHECK_PASSWORD_MATCH,
+            payload: {
+              itemId: match.id,
+              password: credentials.password,
+              _orgId: match._orgId
+            }
+          })
+          if (matchResult?.match) {
+            log.info('✅ Password matches stored credential, no update needed — skipping popup')
+            if (offerKey) {
+              this.saveOfferInFlight?.delete?.(offerKey)
+              this.saveOfferHistory?.add?.(offerKey)
+            }
+            return
+          }
+          log.info('🔑 Password does not match stored credential:', {
+            itemId: match.id,
+            submittedLength: credentials.password?.length,
+            matchResult
+          })
+        } catch (err) {
+          log.warn('⚠️ Failed to check password match, proceeding with update offer:', err?.message || err)
+        }
+
+        log.success(`🔄 Username exists but password differs - offering UPDATE`)
         log.info('Existing login:', { id: match.id, title: match.title })
-        // Update pending metadata in background (no password re-sent)
+        // Update pending metadata in background
         await sendPayload({
           type: EVENT_TYPES.SET_PENDING_SAVE,
           payload: {
             username: credentials.username,
             password: credentials.password,
+            url: credentials.url,
             domain: this.domain,
             action: 'update',
             loginId: match.id,
@@ -4837,19 +5028,19 @@ class ContentScriptInjector {
         const resolvedFolderId =
           credentials?.folder_id !== undefined && credentials?.folder_id !== null
             ? credentials.folder_id
-            : existingLogin?.folder_id ?? null
+            : (existingLogin?.folder_id ?? null)
         const resolvedAutoFill =
           typeof credentials?.auto_fill === 'boolean'
             ? credentials.auto_fill
-            : existingLogin?.auto_fill ?? true
+            : (existingLogin?.auto_fill ?? true)
         const resolvedAutoLogin =
           typeof credentials?.auto_login === 'boolean'
             ? credentials.auto_login
-            : existingLogin?.auto_login ?? false
+            : (existingLogin?.auto_login ?? false)
         const resolvedReprompt =
           typeof credentials?.reprompt === 'boolean'
             ? credentials.reprompt
-            : existingLogin?.reprompt ?? false
+            : (existingLogin?.reprompt ?? false)
 
         iframe.contentWindow.postMessage(
           JSON.stringify({

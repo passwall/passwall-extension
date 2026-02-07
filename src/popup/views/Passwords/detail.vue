@@ -36,6 +36,13 @@
           :show-icons="true"
         />
         <FormRowText
+          v-if="form.organization"
+          v-model="form.organization"
+          title="organization"
+          :edit-mode="false"
+          :show-icons="false"
+        />
+        <FormRowText
           v-model="form.username"
           title="username"
           :edit-mode="isEditMode"
@@ -141,6 +148,7 @@ export default {
     return {
       form: {
         title: '',
+        organization: '',
         username: '',
         password: '',
         url: '',
@@ -211,6 +219,7 @@ export default {
     this.form = {
       id: item.id,
       title: item.title || item.metadata?.name || '',
+      organization: item._orgName || '',
       username: item.username || '',
       password: item.password || '',
       url: item.url || item.metadata?.uri_hint || '',

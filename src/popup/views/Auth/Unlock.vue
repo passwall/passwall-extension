@@ -15,13 +15,9 @@
           autocomplete="current-password"
         />
 
-        <VButton class="mt-5" type="submit" size="medium" :loading="isLoading">
-          Unlock
-        </VButton>
+        <VButton class="mt-5" type="submit" size="medium" :loading="isLoading"> Unlock </VButton>
 
-        <VButton theme="text" class="mt-3" size="medium" @click="onLogout">
-          Log out
-        </VButton>
+        <VButton theme="text" class="mt-3" size="medium" @click="onLogout"> Log out </VButton>
       </form>
     </div>
   </div>
@@ -39,7 +35,7 @@ export default {
     return {
       unlockWithPin: authStore.unlockWithPin,
       logoutAction: authStore.logout,
-      refreshToken: authStore.refreshToken  // Use store method that saves tokens
+      refreshToken: authStore.refreshToken // Use store method that saves tokens
     }
   },
   data() {
@@ -60,7 +56,7 @@ export default {
       // Preserve PIN data keys
       const pinKeys = [
         'pin_protected_user_key',
-        'pin_kdf_salt', 
+        'pin_kdf_salt',
         'pin_kdf_iterations',
         'pin_failed_attempts',
         'pin_lock_until'
@@ -69,10 +65,10 @@ export default {
       for (const key of pinKeys) {
         pinData[key] = await Storage.getItem(key)
       }
-      
+
       // Clear all storage
       await Storage.clear()
-      
+
       // Restore email, server, and PIN data
       if (email) await Storage.setItem('email', email)
       if (server) await Storage.setItem('server', server)
@@ -81,7 +77,7 @@ export default {
           await Storage.setItem(key, pinData[key])
         }
       }
-      
+
       // Clear session keys
       if (SessionStorage.isSupported()) {
         try {
@@ -116,11 +112,11 @@ export default {
             // Tokens are expired/invalid - need full re-login
             // But PRESERVE PIN data so user can use PIN after re-login
             console.warn('Tokens expired after PIN unlock, redirecting to login (preserving PIN)')
-            
+
             // IMPORTANT: Clear session first to prevent AuthCheck from redirecting back
             // because unlockWithPin already restored userKey to session
             await this.clearSessionOnly()
-            
+
             this.$notifyError('Your session has expired. Please sign in again.')
             this.$router.replace({ name: 'Login' })
             return

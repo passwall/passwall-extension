@@ -4,6 +4,8 @@ import Storage from '@/utils/storage'
 import SessionStorage, { SESSION_KEYS } from '@/utils/session-storage'
 import HTTPClient from '@/api/HTTPClient'
 import CryptoUtils, { cryptoService, SymmetricKey } from '@/utils/crypto'
+import { unwrapOrgKeyWithUserKey, encryptWithOrgKey, decryptWithOrgKey } from '@/utils/crypto'
+import OrganizationsService from '@/api/services/Organizations'
 import { RequestError, getDomain, getHostName, toSafeError } from '@/utils/helpers'
 import { isHostnameBlacklisted, getEquivalentDomains } from '@/utils/platform-rules'
 import { ItemType } from '@/stores/items'
@@ -16,20 +18,6 @@ const log = {
   error: (...args) => console.error('[Background]', ...args)
 }
 const LOGIN_USAGE_STORAGE_KEY = 'login_usage_v1'
-
-function generateItemKey() {
-  const randomBytes = crypto.getRandomValues(new Uint8Array(64))
-  return new SymmetricKey(randomBytes.slice(0, 32), randomBytes.slice(32, 64))
-}
-
-async function wrapItemKeyWithUserKey(itemKey, userKey) {
-  return await cryptoService.encryptAesCbcHmac(itemKey.toBytes(), userKey)
-}
-
-async function unwrapItemKeyWithUserKey(itemKeyEnc, userKey) {
-  const itemKeyBytes = await cryptoService.decryptAesCbcHmac(itemKeyEnc, userKey)
-  return SymmetricKey.fromBytes(itemKeyBytes)
-}
 
 /**
  * Background Script Agent
@@ -46,6 +34,10 @@ class BackgroundAgent {
     this.lastSecretFetchByTab = new Map() // tabId -> timestamp (rate limiting)
     this.lastSeenUsernameByTab = new Map() // tabId -> { domain, username, expiresAt }
     this.lastLoginUiOpenAt = 0 // Rate-limit opening login UI
+
+    // Organization state
+    this.organizations = [] // [{ id, name, encrypted_org_key, ... }]
+    this.orgKeyCache = new Map() // orgId -> SymmetricKey (decrypted org keys, never persisted)
 
     // Cache candidate logins per domain to avoid hammering the API when pages
     // continuously mutate and trigger rescans (some SPAs do this).
@@ -143,10 +135,74 @@ class BackgroundAgent {
         isAuthenticated: this.isAuthenticated,
         hasUserKey: !!this.userKey
       })
+
+      // Fetch organizations in background (non-blocking for auth restore)
+      this.fetchOrganizations().catch((err) => {
+        log.warn('Failed to fetch organizations during auth restore', toSafeError(err))
+      })
     } catch (error) {
       log.error('Failed to restore auth state', toSafeError(error))
       this.isAuthenticated = false
     }
+  }
+
+  /**
+   * Fetch user's organizations from server and cache them
+   */
+  async fetchOrganizations() {
+    try {
+      const { data } = await OrganizationsService.GetAll()
+      this.organizations = data || []
+      log.info(`Fetched ${this.organizations.length} organizations`)
+
+      // Persist org list to storage for faster restores
+      await Storage.setItem('organizations', this.organizations)
+    } catch (error) {
+      log.warn('Failed to fetch organizations, trying storage fallback', toSafeError(error))
+      const stored = await Storage.getItem('organizations')
+      if (Array.isArray(stored) && stored.length > 0) {
+        this.organizations = stored
+      }
+    }
+  }
+
+  /**
+   * Get the default organization ID
+   * @returns {number|null}
+   */
+  getDefaultOrgId() {
+    if (this.organizations.length === 0) return null
+    const defaultOrg = this.organizations.find((o) => o.is_default)
+    return defaultOrg?.id || this.organizations[0]?.id || null
+  }
+
+  /**
+   * Resolve and cache a decrypted org key
+   * @param {number} orgId - Organization ID
+   * @returns {Promise<SymmetricKey>}
+   */
+  async resolveOrgKey(orgId) {
+    // Check cache first
+    const cached = this.orgKeyCache.get(orgId)
+    if (cached) return cached
+
+    if (!this.userKey) {
+      throw new Error('User key not available for org key decryption')
+    }
+
+    // Ensure organizations are loaded (handles service worker restart race)
+    if (this.organizations.length === 0) {
+      await this.fetchOrganizations()
+    }
+
+    const org = this.organizations.find((o) => o.id === orgId)
+    if (!org?.encrypted_org_key) {
+      throw new Error(`Organization ${orgId} not found or missing encrypted key`)
+    }
+
+    const orgKey = await unwrapOrgKeyWithUserKey(org.encrypted_org_key, this.userKey)
+    this.orgKeyCache.set(orgId, orgKey)
+    return orgKey
   }
 
   async getLoginUsageMap() {
@@ -283,6 +339,16 @@ class BackgroundAgent {
       { urls: ['<all_urls>'], types: ['main_frame', 'sub_frame', 'xmlhttprequest'] }
     )
 
+    // Monitor redirects - login forms commonly reply with 302/303 redirects
+    // onCompleted does NOT fire for the original POST when it redirects;
+    // instead onBeforeRedirect fires. We treat 3xx redirects as success.
+    if (browser.webRequest.onBeforeRedirect) {
+      browser.webRequest.onBeforeRedirect.addListener(
+        (details) => this.handleWebRequestRedirect(details),
+        { urls: ['<all_urls>'], types: ['main_frame', 'sub_frame', 'xmlhttprequest'] }
+      )
+    }
+
     // Monitor errored requests
     browser.webRequest.onErrorOccurred.addListener(
       (details) => this.handleWebRequestError(details),
@@ -343,8 +409,9 @@ class BackgroundAgent {
 
     this.pendingFormSubmissions.delete(requestId)
 
-    // Only consider 2xx responses as successful
-    const isSuccessful = statusCode >= 200 && statusCode < 300
+    // 2xx and 3xx are both considered successful for login forms
+    // Login flows often return 302/303 redirects to the dashboard page
+    const isSuccessful = statusCode >= 200 && statusCode < 400
 
     // Store the result for this tab
     this.formSubmissionResults.set(tabId, {
@@ -369,6 +436,47 @@ class BackgroundAgent {
         })
         .catch(() => {}) // Ignore if content script not ready
     }
+  }
+
+  /**
+   * Handle webRequest redirect - treat 3xx redirects on tracked POST requests as success.
+   * When a POST request returns 302/303, onBeforeRedirect fires instead of onCompleted.
+   * Login forms commonly use redirects, so this is a key signal.
+   * @param {Object} details - Request details
+   * @private
+   */
+  handleWebRequestRedirect(details) {
+    const { requestId, tabId, statusCode, redirectUrl } = details
+
+    // Check if this was a tracked form submission
+    const pendingRequest = this.pendingFormSubmissions.get(requestId)
+    if (!pendingRequest) {
+      return
+    }
+
+    // Don't delete from pendingFormSubmissions yet - the redirect chain
+    // may have more hops. But DO store a success result immediately.
+    // If onCompleted fires later with the same requestId, it will overwrite.
+
+    this.formSubmissionResults.set(tabId, {
+      success: true,
+      statusCode,
+      url: pendingRequest.url,
+      redirectUrl,
+      at: Date.now()
+    })
+
+    log.info(
+      `Form submission redirect for tab ${tabId}: ${statusCode} → ${redirectUrl} (treated as success)`
+    )
+
+    // Notify content script - the redirect means the form submission was accepted
+    browser.tabs
+      .sendMessage(tabId, {
+        type: 'FORM_SUBMISSION_SUCCESS',
+        payload: { statusCode, url: pendingRequest.url, redirectUrl }
+      })
+      .catch(() => {}) // Ignore if content script not ready (page may be navigating)
   }
 
   /**
@@ -456,6 +564,9 @@ class BackgroundAgent {
 
       case EVENT_TYPES.SAVE_CREDENTIALS:
         return await this.saveCredentials(request.payload)
+
+      case EVENT_TYPES.CHECK_PASSWORD_MATCH:
+        return await this.checkPasswordMatch(request.payload)
 
       case EVENT_TYPES.SET_PENDING_SAVE:
         return await this.setPendingSave(request.payload, sender)
@@ -558,6 +669,8 @@ class BackgroundAgent {
       this.lastSeenUsernameByTab.clear()
       this.loginsByDomainCache.clear()
       this.loginsByDomainInFlight.clear()
+      this.orgKeyCache.clear()
+      this.organizations = []
 
       // Clear session keys but preserve PIN data in storage
       try {
@@ -589,6 +702,8 @@ class BackgroundAgent {
       this.lastSeenUsernameByTab.clear()
       this.loginsByDomainCache.clear()
       this.loginsByDomainInFlight.clear()
+      this.orgKeyCache.clear()
+      this.organizations = []
 
       // Ensure decrypted keys are cleared from extension session storage (defense in depth).
       try {
@@ -621,7 +736,7 @@ class BackgroundAgent {
   }
 
   /**
-   * Fetch and decrypt logins for a specific domain
+   * Fetch and decrypt logins for a specific domain from ALL organizations
    * @param {string} domain - Domain to filter logins by
    * @returns {Promise<Array>} Filtered and decrypted login items
    * @throws {RequestError} If not authenticated or no logins found
@@ -653,12 +768,15 @@ class BackgroundAgent {
         return await inFlight
       }
 
-      // Use modern /api/items endpoint with server-side filtering by uri_hint.
+      // Fetch from ALL organizations in parallel
       const promise = (async () => {
-        const params = new URLSearchParams()
-        params.append('type', ItemType.Password)
-        // We only need a per-domain subset. Keep it reasonable even if server clamp allows more.
-        params.append('per_page', '500')
+        // Ensure orgs are loaded
+        if (this.organizations.length === 0) {
+          await this.fetchOrganizations()
+        }
+        if (this.organizations.length === 0) {
+          throw new RequestError('No organizations found', 'NO_ORGS')
+        }
 
         const currentEquivalents = getEquivalentDomains(currentDomain)
         const uriHints =
@@ -668,21 +786,38 @@ class BackgroundAgent {
         if (!uriHints.includes(currentDomain)) {
           uriHints.push(currentDomain)
         }
-        uriHints.forEach((hint) => params.append('uri_hint', hint))
 
-        const { data } = await HTTPClient.get(`/api/items?${params}`)
-        const items = data.items || data
+        // Query each org's items in parallel
+        const orgResults = await Promise.allSettled(
+          this.organizations.map(async (org) => {
+            const { data } = await OrganizationsService.ListItems(org.id, {
+              type: ItemType.Password,
+              per_page: 5000,
+              uri_hints: uriHints
+            })
+            const items = data.items || data || []
+            return { orgId: org.id, orgName: org.name, items }
+          })
+        )
 
-        // Defense-in-depth: if server-side filtering isn't available yet, apply local uri_hint filtering
-        // to avoid showing unrelated items in the popup.
+        // Flatten items from all orgs, noting which org they belong to
+        const allItems = []
+        for (const result of orgResults) {
+          if (result.status === 'fulfilled') {
+            for (const item of result.value.items) {
+              allItems.push({ ...item, _orgId: result.value.orgId, _orgName: result.value.orgName })
+            }
+          }
+        }
+
+        // Defense-in-depth: local uri_hint filtering
         const allowedHints = uriHints.map((h) => String(h || '').toLowerCase()).filter(Boolean)
-        const candidateItems = (items || []).filter((item) => {
+        const candidateItems = allItems.filter((item) => {
           const raw = item?.metadata?.uri_hint
           if (!raw) return false
           const s = String(raw).trim().toLowerCase()
           if (!s) return false
 
-          // Normalize: allow either "domain" or "https://domain/path" legacy shapes.
           let host = s
           try {
             if (host.includes('://')) {
@@ -690,86 +825,44 @@ class BackgroundAgent {
             } else {
               host = host.split('/')[0].split('?')[0].split('#')[0]
             }
-            host = host.split(':')[0] // drop port if any
+            host = host.split(':')[0]
           } catch {
             // ignore
           }
 
-          // exact domain match OR subdomain match of any allowed hint
           return allowedHints.some((hint) => host === hint || host.endsWith(`.${hint}`))
         })
 
         const usageMap = await this.getLoginUsageMap()
 
-        // Decrypt only candidate items to produce display candidates (NO password returned)
+        // Decrypt candidate items using org keys
         const decryptedCandidates = await Promise.all(
           candidateItems.map(async (item) => {
             try {
-              // Modern encryption: item has data and metadata
-              if (this.userKey && item.data) {
-                let decryptionKey = this.userKey
+              if (!this.userKey || !item.data) return null
 
-                if (item.item_key_enc) {
-                  const itemKeyBytes = await cryptoService.decryptAesCbcHmac(
-                    item.item_key_enc,
-                    this.userKey
-                  )
-                  decryptionKey = SymmetricKey.fromBytes(itemKeyBytes)
-                }
+              const orgKey = await this.resolveOrgKey(item._orgId)
+              const decryptedData = await decryptWithOrgKey(item.data, orgKey)
 
-                // Decrypt the data object (contains username, password, url, etc)
-                const decryptedDataBytes = await cryptoService.decryptAesCbcHmac(
-                  item.data,
-                  decryptionKey
-                )
-                const decryptedDataStr = new TextDecoder().decode(decryptedDataBytes)
-                const decryptedData = JSON.parse(decryptedDataStr)
-                const usageEntry = usageMap?.[item.id] || {}
-                const autoFill = typeof item.auto_fill === 'boolean' ? item.auto_fill : true
-                const autoLogin = typeof item.auto_login === 'boolean' ? item.auto_login : false
+              const usageEntry = usageMap?.[item.id] || {}
+              const autoFill = typeof item.auto_fill === 'boolean' ? item.auto_fill : true
+              const autoLogin = typeof item.auto_login === 'boolean' ? item.auto_login : false
 
-                // Return candidate-only (never return password to content script)
-                return {
-                  id: item.id,
-                  title: item.metadata?.name || item.title || 'Untitled',
-                  username: decryptedData.username || '',
-                  url: item.metadata?.uri_hint || decryptedData.uris?.[0]?.uri || '',
-                  item_type: item.item_type,
-                  auto_fill: autoFill,
-                  auto_login: autoLogin,
-                  last_used_at:
-                    typeof usageEntry?.lastUsedAt === 'number' ? usageEntry.lastUsedAt : null,
-                  last_launched_at:
-                    typeof usageEntry?.lastLaunchedAt === 'number'
-                      ? usageEntry.lastLaunchedAt
-                      : null
-                }
+              return {
+                id: item.id,
+                title: item.metadata?.name || item.title || 'Untitled',
+                username: decryptedData.username || '',
+                url: decryptedData.uris?.[0]?.uri || item.metadata?.uri_hint || '',
+                item_type: item.item_type,
+                auto_fill: autoFill,
+                auto_login: autoLogin,
+                _orgId: item._orgId,
+                _orgName: item._orgName,
+                last_used_at:
+                  typeof usageEntry?.lastUsedAt === 'number' ? usageEntry.lastUsedAt : null,
+                last_launched_at:
+                  typeof usageEntry?.lastLaunchedAt === 'number' ? usageEntry.lastLaunchedAt : null
               }
-
-              // Legacy encryption fallback
-              if (!this.userKey) {
-                CryptoUtils.decryptFields(item, ['username'])
-                const usageEntry = usageMap?.[item.id] || {}
-                const autoFill = typeof item.auto_fill === 'boolean' ? item.auto_fill : true
-                const autoLogin = typeof item.auto_login === 'boolean' ? item.auto_login : false
-                return {
-                  id: item.id,
-                  title: item.title || 'Untitled',
-                  username: item.username || '',
-                  url: item.url || item.URL || '',
-                  item_type: item.item_type,
-                  auto_fill: autoFill,
-                  auto_login: autoLogin,
-                  last_used_at:
-                    typeof usageEntry?.lastUsedAt === 'number' ? usageEntry.lastUsedAt : null,
-                  last_launched_at:
-                    typeof usageEntry?.lastLaunchedAt === 'number'
-                      ? usageEntry.lastLaunchedAt
-                      : null
-                }
-              }
-
-              return null
             } catch (error) {
               log.error(`Failed to decrypt item ${item.id}`, toSafeError(error))
               return null
@@ -883,7 +976,7 @@ class BackgroundAgent {
   }
 
   /**
-   * Save or update credentials (modern encryption)
+   * Save or update credentials (organization-based encryption)
    * @param {Object} payload - Credentials to save
    * @param {string} payload.username - Username
    * @param {string} payload.password - Password
@@ -925,7 +1018,8 @@ class BackgroundAgent {
     try {
       let result
       const title = providedTitle || domain || getHostName(url) || 'Untitled'
-      const uriHint = domain || getHostName(url) || '' // Extract domain only (no paths)
+      const uriHint = domain || getHostName(url) || ''
+
       // Invalidate domain cache so next request sees the new/updated credential.
       try {
         if (this.loginsByDomainCache?.clear) this.loginsByDomainCache.clear()
@@ -934,47 +1028,42 @@ class BackgroundAgent {
         // ignore
       }
 
+      // Ensure orgs are loaded
+      if (this.organizations.length === 0) {
+        await this.fetchOrganizations()
+      }
+
+      const targetOrgId = this.getDefaultOrgId()
+      if (!targetOrgId) {
+        throw new RequestError('No organization available', 'NO_ORG')
+      }
+
+      const orgKey = await this.resolveOrgKey(targetOrgId)
+
       if (action === 'update' && loginId) {
         // UPDATE: Fetch existing item to preserve metadata
         try {
-          const { data: existingItem } = await HTTPClient.get(`/api/items/${loginId}`)
+          const { data: existingItem } = await OrganizationsService.GetItem(loginId)
 
-          // Prepare new data object
           const itemData = {
             username,
             password,
             uris: url ? [{ uri: url, match: null }] : []
           }
 
-          let itemKeyEnc =
-            typeof existingItem?.item_key_enc === 'string' ? existingItem.item_key_enc : undefined
-          let itemKey
-          if (itemKeyEnc) {
-            itemKey = await unwrapItemKeyWithUserKey(itemKeyEnc, this.userKey)
-          } else {
-            itemKey = generateItemKey()
-            itemKeyEnc = await wrapItemKeyWithUserKey(itemKey, this.userKey)
-          }
-
-          // Encrypt data with item key
-          const encryptedData = await cryptoService.encryptAesCbcHmac(
-            JSON.stringify(itemData),
-            itemKey
-          )
+          const encryptedData = await encryptWithOrgKey(JSON.stringify(itemData), orgKey)
 
           const resolvedAutoFill =
-            typeof auto_fill === 'boolean' ? auto_fill : existingItem.auto_fill ?? true
+            typeof auto_fill === 'boolean' ? auto_fill : (existingItem.auto_fill ?? true)
           const resolvedAutoLogin =
-            typeof auto_login === 'boolean' ? auto_login : existingItem.auto_login ?? false
+            typeof auto_login === 'boolean' ? auto_login : (existingItem.auto_login ?? false)
           const resolvedReprompt =
-            typeof reprompt === 'boolean' ? reprompt : existingItem.reprompt ?? false
+            typeof reprompt === 'boolean' ? reprompt : (existingItem.reprompt ?? false)
           const resolvedFolderId =
-            folder_id !== undefined ? folder_id : existingItem.folder_id ?? null
+            folder_id !== undefined ? folder_id : (existingItem.folder_id ?? null)
 
-          // Update item
-          result = await HTTPClient.put(`/api/items/${loginId}`, {
+          result = await OrganizationsService.UpdateItem(loginId, {
             data: encryptedData,
-            item_key_enc: itemKeyEnc,
             metadata: {
               name: existingItem.metadata?.name || title,
               uri_hint: uriHint || existingItem.metadata?.uri_hint
@@ -986,24 +1075,18 @@ class BackgroundAgent {
           })
         } catch (fetchError) {
           log.warn('Failed to fetch existing item, creating new instead', toSafeError(fetchError))
-          // Fallback to create if fetch fails
+
           const itemData = {
             username,
             password,
             uris: url ? [{ uri: url, match: null }] : []
           }
 
-          const itemKey = generateItemKey()
-          const itemKeyEnc = await wrapItemKeyWithUserKey(itemKey, this.userKey)
-          const encryptedData = await cryptoService.encryptAesCbcHmac(
-            JSON.stringify(itemData),
-            itemKey
-          )
+          const encryptedData = await encryptWithOrgKey(JSON.stringify(itemData), orgKey)
 
-          result = await HTTPClient.post('/api/items', {
+          result = await OrganizationsService.CreateItem(targetOrgId, {
             item_type: ItemType.Password,
             data: encryptedData,
-            item_key_enc: itemKeyEnc,
             metadata: {
               name: title,
               uri_hint: uriHint
@@ -1015,25 +1098,18 @@ class BackgroundAgent {
           })
         }
       } else {
-        // CREATE new password item
+        // CREATE new password item in default organization
         const itemData = {
           username,
           password,
           uris: url ? [{ uri: url, match: null }] : []
         }
 
-        // Encrypt data with item key
-        const itemKey = generateItemKey()
-        const itemKeyEnc = await wrapItemKeyWithUserKey(itemKey, this.userKey)
-        const encryptedData = await cryptoService.encryptAesCbcHmac(
-          JSON.stringify(itemData),
-          itemKey
-        )
+        const encryptedData = await encryptWithOrgKey(JSON.stringify(itemData), orgKey)
 
-        result = await HTTPClient.post('/api/items', {
+        result = await OrganizationsService.CreateItem(targetOrgId, {
           item_type: ItemType.Password,
           data: encryptedData,
-          item_key_enc: itemKeyEnc,
           metadata: {
             name: title,
             uri_hint: uriHint
@@ -1070,6 +1146,7 @@ class BackgroundAgent {
   /**
    * Fetch and decrypt a single secret for autofill (requires user gesture).
    * Never returns bulk secrets; only one item at a time.
+   * Uses org-based decryption via org key.
    * @private
    */
   async getFillSecret(payload, sender) {
@@ -1102,21 +1179,18 @@ class BackgroundAgent {
     }
     this.lastSecretFetchByTab.set(tabId, now)
 
-    const { data: item } = await HTTPClient.get(`/api/items/${itemId}`)
+    const { data: item } = await OrganizationsService.GetItem(itemId)
     if (!item?.data) {
       throw new RequestError('Item data missing', 'NOT_FOUND')
     }
 
-    let decryptionKey = this.userKey
-
-    if (item.item_key_enc) {
-      const itemKeyBytes = await cryptoService.decryptAesCbcHmac(item.item_key_enc, this.userKey)
-      decryptionKey = SymmetricKey.fromBytes(itemKeyBytes)
+    const orgId = item.organization_id || payload?._orgId
+    if (!orgId) {
+      throw new RequestError('Organization ID missing for item', 'NO_ORG')
     }
 
-    const decryptedDataBytes = await cryptoService.decryptAesCbcHmac(item.data, decryptionKey)
-    const decryptedDataStr = new TextDecoder().decode(decryptedDataBytes)
-    const decryptedData = JSON.parse(decryptedDataStr)
+    const orgKey = await this.resolveOrgKey(orgId)
+    const decryptedData = await decryptWithOrgKey(item.data, orgKey)
 
     return {
       username: decryptedData.username || '',
@@ -1183,7 +1257,7 @@ class BackgroundAgent {
     }
     this.lastSecretFetchByTab.set(tabId, now)
 
-    const { data: item } = await HTTPClient.get(`/api/items/${itemId}`)
+    const { data: item } = await OrganizationsService.GetItem(itemId)
     if (!item?.data) {
       throw new RequestError('Item data missing', 'NOT_FOUND')
     }
@@ -1197,16 +1271,13 @@ class BackgroundAgent {
       throw new RequestError('Item does not match domain', 'DOMAIN_MISMATCH')
     }
 
-    let decryptionKey = this.userKey
-
-    if (item.item_key_enc) {
-      const itemKeyBytes = await cryptoService.decryptAesCbcHmac(item.item_key_enc, this.userKey)
-      decryptionKey = SymmetricKey.fromBytes(itemKeyBytes)
+    const orgId = item.organization_id || payload?._orgId
+    if (!orgId) {
+      throw new RequestError('Organization ID missing for item', 'NO_ORG')
     }
 
-    const decryptedDataBytes = await cryptoService.decryptAesCbcHmac(item.data, decryptionKey)
-    const decryptedDataStr = new TextDecoder().decode(decryptedDataBytes)
-    const decryptedData = JSON.parse(decryptedDataStr)
+    const orgKey = await this.resolveOrgKey(orgId)
+    const decryptedData = await decryptWithOrgKey(item.data, orgKey)
 
     return {
       username: decryptedData.username || '',
@@ -1260,6 +1331,50 @@ class BackgroundAgent {
     }
   }
 
+  /**
+   * Check if a submitted password matches the stored password for an item.
+   * Returns { match: boolean } — never exposes the stored password.
+   * @param {Object} payload - { itemId, password, _orgId? }
+   * @returns {Promise<{match: boolean}>}
+   */
+  async checkPasswordMatch(payload) {
+    if (!this.isAuthenticated || !this.userKey) {
+      return { match: false }
+    }
+
+    const { itemId, password, _orgId } = payload || {}
+    if (!itemId || !password) {
+      return { match: false }
+    }
+
+    try {
+      const { data: item } = await OrganizationsService.GetItem(itemId)
+      if (!item?.data) {
+        log.warn('checkPasswordMatch: item has no encrypted data, itemId=', itemId)
+        return { match: false }
+      }
+
+      const orgId = item.organization_id || _orgId
+      if (!orgId) {
+        log.warn('checkPasswordMatch: no orgId for itemId=', itemId)
+        return { match: false }
+      }
+
+      const orgKey = await this.resolveOrgKey(orgId)
+      const decryptedData = await decryptWithOrgKey(item.data, orgKey)
+
+      const storedPassword = decryptedData.password || ''
+      const match = storedPassword === password
+      if (!match) {
+        log.info('checkPasswordMatch: password differs (stored length:', storedPassword.length, ', submitted length:', password.length, ')')
+      }
+      return { match }
+    } catch (error) {
+      log.error('checkPasswordMatch failed (will return match:false):', toSafeError(error))
+      return { match: false }
+    }
+  }
+
   async setPendingSave(payload, sender) {
     const tabId = sender?.tab?.id
     if (tabId == null) {
@@ -1291,25 +1406,25 @@ class BackgroundAgent {
     let resolvedAction = action ?? existing?.action ?? 'add'
     let resolvedLoginId = loginId ?? existing?.loginId ?? null
     let resolvedTitle = title ?? existing?.title ?? ''
-    const resolvedFolderId = folder_id !== undefined ? folder_id : existing?.folder_id ?? null
+    const resolvedFolderId = folder_id !== undefined ? folder_id : (existing?.folder_id ?? null)
     const resolvedAutoFill =
       typeof auto_fill === 'boolean'
         ? auto_fill
         : typeof existing?.auto_fill === 'boolean'
-        ? existing.auto_fill
-        : true
+          ? existing.auto_fill
+          : true
     const resolvedAutoLogin =
       typeof auto_login === 'boolean'
         ? auto_login
         : typeof existing?.auto_login === 'boolean'
-        ? existing.auto_login
-        : false
+          ? existing.auto_login
+          : false
     const resolvedReprompt =
       typeof reprompt === 'boolean'
         ? reprompt
         : typeof existing?.reprompt === 'boolean'
-        ? existing.reprompt
-        : false
+          ? existing.reprompt
+          : false
 
     // If action is "add", try to resolve to "update" based on existing candidates for domain.
     if (resolvedAction === 'add' && domain && finalUsername) {
@@ -1401,25 +1516,26 @@ class BackgroundAgent {
       title: overrides.title || entry.title,
       action: overrides.action || entry.action,
       loginId: overrides.loginId || entry.loginId,
-      folder_id: overrides.folder_id !== undefined ? overrides.folder_id : entry.folder_id ?? null,
+      folder_id:
+        overrides.folder_id !== undefined ? overrides.folder_id : (entry.folder_id ?? null),
       auto_fill:
         typeof overrides.auto_fill === 'boolean'
           ? overrides.auto_fill
           : typeof entry.auto_fill === 'boolean'
-          ? entry.auto_fill
-          : true,
+            ? entry.auto_fill
+            : true,
       auto_login:
         typeof overrides.auto_login === 'boolean'
           ? overrides.auto_login
           : typeof entry.auto_login === 'boolean'
-          ? entry.auto_login
-          : false,
+            ? entry.auto_login
+            : false,
       reprompt:
         typeof overrides.reprompt === 'boolean'
           ? overrides.reprompt
           : typeof entry.reprompt === 'boolean'
-          ? entry.reprompt
-          : false
+            ? entry.reprompt
+            : false
     }
 
     const result = await this.saveCredentials(finalPayload)

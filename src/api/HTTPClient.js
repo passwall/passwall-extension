@@ -43,7 +43,7 @@ let failedQueue = []
  * Navigate to appropriate auth screen via Vue Router.
  * Dispatches a custom event that the router listens for, ensuring
  * navigation goes through proper guards (including PIN unlock check).
- * 
+ *
  * @param {string} reason - Reason for session expiry (for logging)
  */
 function notifySessionExpired(reason = 'unknown') {
@@ -54,9 +54,11 @@ function notifySessionExpired(reason = 'unknown') {
 
     // Dispatch custom event for router to handle - this ensures proper
     // navigation through Vue Router guards including PIN unlock check
-    window.dispatchEvent(new CustomEvent('passwall:session-expired', {
-      detail: { reason }
-    }))
+    window.dispatchEvent(
+      new CustomEvent('passwall:session-expired', {
+        detail: { reason }
+      })
+    )
   } catch {
     // ignore
   }
@@ -137,11 +139,7 @@ async function refreshAccessToken() {
   // Call refresh endpoint directly (avoid circular imports)
   let data
   try {
-    ;({ data } = await client.post(
-      '/auth/refresh',
-      { refresh_token },
-      { _skipAuthRefresh: true }
-    ))
+    ;({ data } = await client.post('/auth/refresh', { refresh_token }, { _skipAuthRefresh: true }))
   } catch (err) {
     throw err
   }

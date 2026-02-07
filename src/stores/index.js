@@ -3,4 +3,4 @@
 
 export { useAuthStore } from './auth'
 export { useItemsStore, ItemType, getItemTypeName, getItemTypeIcon } from './items'
-export { useChangeMasterPasswordStore } from './changeMasterPassword'
+export { useOrgKeysStore } from './orgKeys'

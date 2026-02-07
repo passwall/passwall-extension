@@ -30,6 +30,13 @@
           :show-icons="true"
         />
         <FormRowText
+          v-if="form.organization"
+          v-model="form.organization"
+          title="organization"
+          :edit-mode="false"
+          :show-icons="false"
+        />
+        <FormRowText
           v-model="form.first_name"
           title="first name"
           :edit-mode="isEditMode"
@@ -138,6 +145,7 @@ export default {
       form: {
         id: null,
         title: '',
+        organization: '',
         first_name: '',
         middle_name: '',
         last_name: '',
@@ -208,6 +216,7 @@ export default {
     this.form = {
       id: item.id,
       title: item.title || item.metadata?.name || '',
+      organization: item._orgName || '',
       first_name: item.first_name || '',
       middle_name: item.middle_name || '',
       last_name: item.last_name || '',

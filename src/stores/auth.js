@@ -4,9 +4,17 @@
  */
 
 import { defineStore } from 'pinia'
-import { cryptoService, SymmetricKey, DEFAULT_KDF_CONFIG, PBKDF2_MIN_ITERATIONS } from '@/utils/crypto'
+import {
+  cryptoService,
+  SymmetricKey,
+  DEFAULT_KDF_CONFIG,
+  PBKDF2_MIN_ITERATIONS,
+  generateOrganizationKey,
+  wrapOrgKeyWithUserKey
+} from '@/utils/crypto'
 import HTTPClient from '@/api/HTTPClient'
 import AuthService from '@/api/services/Auth'
+import OrganizationsService from '@/api/services/Organizations'
 import Storage from '@/utils/storage'
 import SessionStorage, { SESSION_KEYS } from '@/utils/session-storage'
 import * as Helpers from '@/utils/helpers'
@@ -33,7 +41,9 @@ const createUUIDv4 = () => {
 }
 
 async function getOrCreateExtensionDeviceId(email) {
-  const normalizedEmail = String(email || '').trim().toLowerCase()
+  const normalizedEmail = String(email || '')
+    .trim()
+    .toLowerCase()
   const key = `passwall:extension:device_id:${normalizedEmail}`
 
   const existing = await Storage.getItem(key)
@@ -54,7 +64,8 @@ const PIN_LOCK_THRESHOLD = 5
 
 const normalizePin = (pin) => String(pin || '').trim()
 
-const isValidPin = (pin) => /^\d+$/.test(pin) && pin.length >= PIN_MIN_LENGTH && pin.length <= PIN_MAX_LENGTH
+const isValidPin = (pin) =>
+  /^\d+$/.test(pin) && pin.length >= PIN_MIN_LENGTH && pin.length <= PIN_MAX_LENGTH
 
 async function persistUserKey(userKey) {
   const userKeyB64 = userKey ? cryptoService.arrayToBase64(userKey.toBytes()) : null
@@ -82,14 +93,23 @@ export const useAuthStore = defineStore('auth', {
     // User data
     user: null,
     pro: false,
-    searchQuery: ''
+    searchQuery: '',
+    /** @type {Array<{id: number, name: string, is_default: boolean, encrypted_org_key: string, plan: string}>} */
+    organizations: [],
+    /** @type {number|null} */
+    defaultOrgId: null
   }),
 
   getters: {
     hasProPlan: (state) => state.pro,
     isAuthenticated: (state) => !!state.access_token && !!state.userKey,
     currentUser: (state) => state.user,
-    hasUserKey: (state) => state.userKey !== null
+    hasUserKey: (state) => state.userKey !== null,
+    /** Get the default organization */
+    defaultOrganization: (state) =>
+      state.organizations.find((o) => o.is_default) || state.organizations[0] || null,
+    /** Get all org IDs */
+    organizationIds: (state) => state.organizations.map((o) => o.id)
   },
 
   actions: {
@@ -159,6 +179,19 @@ export const useAuthStore = defineStore('auth', {
       if (this.user !== null) {
         this.pro = true
       }
+
+      // Restore organizations from storage
+      const orgs = await Storage.getItem('organizations')
+      if (Array.isArray(orgs) && orgs.length > 0) {
+        this.organizations = orgs
+        const defaultOrg = orgs.find((o) => o.is_default) || orgs[0]
+        this.defaultOrgId = defaultOrg?.id || null
+      }
+
+      // If authenticated, refresh orgs from server (non-blocking)
+      if (access_token && this.userKey) {
+        this.fetchOrganizations().catch(() => {})
+      }
     },
 
     /**
@@ -227,7 +260,10 @@ export const useAuthStore = defineStore('auth', {
       // 9. Store userKey in session storage (cleared on browser close)
       await persistUserKey(this.userKey)
 
-      // 10. Notify background script
+      // 10. Fetch organizations after login
+      await this.fetchOrganizations()
+
+      // 11. Notify background script
       Helpers.messageToBackground({ type: EVENT_TYPES.LOGIN })
     },
 
@@ -262,12 +298,17 @@ export const useAuthStore = defineStore('auth', {
       // 7. Protect User Key with Master Key
       const protectedUserKey = await cryptoService.protectUserKey(this.userKey, stretchedMasterKey)
 
+      // 7.5 Generate Organization Key for the default (personal) organization
+      const orgKey = await generateOrganizationKey()
+      const encryptedOrgKey = await wrapOrgKeyWithUserKey(orgKey, this.userKey)
+
       // 8. Sign up with server
       const { data } = await AuthService.SignUp({
         email,
         name,
         master_password_hash: authKeyBase64,
         protected_user_key: protectedUserKey,
+        encrypted_org_key: encryptedOrgKey,
         kdf_salt: kdfSalt,
         kdf_config: {
           kdf_type: kdfConfig.kdf_type,
@@ -296,8 +337,30 @@ export const useAuthStore = defineStore('auth', {
       // 12. Store userKey in session storage
       await persistUserKey(this.userKey)
 
+      // 12.5. Fetch organizations after signup
+      await this.fetchOrganizations()
+
       // 13. Notify background script
       Helpers.messageToBackground({ type: EVENT_TYPES.LOGIN })
+    },
+
+    /**
+     * Fetch all organizations the user belongs to from the server.
+     * Stores them in state and persists to storage.
+     */
+    async fetchOrganizations() {
+      try {
+        const { data } = await OrganizationsService.GetAll()
+        const orgs = Array.isArray(data) ? data : []
+        this.organizations = orgs
+        const defaultOrg = orgs.find((o) => o.is_default) || orgs[0]
+        this.defaultOrgId = defaultOrg?.id || null
+        await Storage.setItem('organizations', orgs)
+      } catch (error) {
+        if (DEV_MODE) {
+          console.warn('Failed to fetch organizations:', Helpers.toSafeError(error))
+        }
+      }
     },
 
     /**
@@ -333,10 +396,10 @@ export const useAuthStore = defineStore('auth', {
 
     /**
      * Logout user (manual logout - clears ALL data including PIN)
-     * 
+     *
      * This is called when user explicitly clicks "Log out".
      * PIN data is intentionally cleared because user chose to fully log out.
-     * 
+     *
      * Note: When tokens expire (session timeout), HTTPClient triggers
      * AUTH_ERROR which calls background's handleSessionLock() instead.
      * That method preserves PIN data so users can unlock with PIN.
@@ -349,6 +412,8 @@ export const useAuthStore = defineStore('auth', {
       this.user = null
       this.pro = false
       this.searchQuery = ''
+      this.organizations = []
+      this.defaultOrgId = null
 
       // Clear HTTP client
       HTTPClient.setHeader('Authorization', '')
@@ -402,10 +467,7 @@ export const useAuthStore = defineStore('auth', {
         'SHA-256'
       )
       const pinKey = SymmetricKey.fromBytes(pinKeyBytes)
-      const protectedUserKey = await cryptoService.encryptAesCbcHmac(
-        this.userKey.toBytes(),
-        pinKey
-      )
+      const protectedUserKey = await cryptoService.encryptAesCbcHmac(this.userKey.toBytes(), pinKey)
 
       await Promise.all([
         Storage.setItem(PIN_STORAGE_KEYS.protectedUserKey, protectedUserKey),
@@ -501,4 +563,3 @@ export const useAuthStore = defineStore('auth', {
     }
   }
 })
-

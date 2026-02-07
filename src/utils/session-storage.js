@@ -67,7 +67,7 @@ async function removeItems(keys) {
 }
 
 export const SESSION_KEYS = Object.freeze({
-  userKey: 'userKey',
+  userKey: 'userKey'
 })
 
 export default {
@@ -76,6 +76,5 @@ export default {
   getItem,
   setItem,
   removeItem,
-  removeItems,
+  removeItems
 }
-

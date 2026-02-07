@@ -34,6 +34,13 @@
           :show-icons="true"
         />
         <FormRowText
+          v-if="form.organization"
+          v-model="form.organization"
+          title="organization"
+          :edit-mode="false"
+          :show-icons="false"
+        />
+        <FormRowText
           v-model="form.name_on_card"
           title="name on card"
           :edit-mode="isEditMode"
@@ -107,6 +114,7 @@ export default {
       form: {
         id: null,
         title: '',
+        organization: '',
         name_on_card: '',
         card_type: '',
         card_number: '',
@@ -166,6 +174,7 @@ export default {
     this.form = {
       id: item.id,
       title: item.title || item.name || item.metadata?.name || '',
+      organization: item._orgName || '',
       name_on_card: item.name_on_card || '',
       card_type: item.card_type || '',
       card_number: item.card_number || '',
